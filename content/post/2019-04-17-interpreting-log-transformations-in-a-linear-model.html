@@ -1,0 +1,242 @@
+---
+title: Interpreting Log Transformations in a Linear Model
+author: Clay Ford
+date: '2019-04-17'
+slug: interpreting-log-transformations-in-a-linear-model
+categories:
+  - R
+tags:
+  - diagnostic plots
+  - linear regression
+  - log transformations
+---
+
+
+
+<p>Log transformations are often recommended for skewed data, such as monetary measures or certain biological and demographic measures. Log transforming data usually has the effect of spreading out clumps of data and bringing together spread-out data. For example, below is a histogram of the areas of all 50 US states. It is skewed to the right due to Alaska, California, Texas and a few others.</p>
+<pre class="r"><code>hist(state.area)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<p>After a log transformation, notice the histogram is more or less symmetric. We’ve moved the big states closer together and spaced out the smaller states.</p>
+<pre class="r"><code>hist(log(state.area))</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Why do this? One reason is to make data more “normal”, or symmetric. If we’re performing a statistical analysis that assumes normality, a log transformation might help us meet this assumption. Another reason is to help meet the assumption of constant variance in the context of linear modeling. Yet another is to help make a non-linear relationship more linear. But while it’s easy to implement a log transformation, it can complicate interpretation. Let’s say we fit a linear model with a log-transformed dependent variable. How do we interpret the coefficients? What if we have log-transformed dependent and independent variables? That’s the topic of this article.</p>
+<p>First we’ll provide a recipe for interpretation for those who just want some quick help. Then we’ll dig a little deeper into what we’re saying about our model when we log-transform our data.</p>
+<div id="rules-for-interpretation" class="section level2">
+<h2>Rules for interpretation</h2>
+<p>OK, you ran a regression/fit a linear model and some of your variables are log-transformed.</p>
+<ul>
+<li><strong>Only the dependent/response variable is log-transformed</strong>. Exponentiate the coefficient, subtract one from this number, and multiply by 100. This gives the percent increase (or decrease) in the response for every one-unit increase in the independent variable. Example: the coefficient is 0.198. (exp(0.198) – 1) * 100 = 21.9. For every one-unit increase in the independent variable, our dependent variable increases by about 22%.</li>
+<li><strong>Only independent/predictor variable(s) is log-transformed</strong>. Divide the coefficient by 100. This tells us that a 1% increase in the independent variable increases (or decreases) the dependent variable by (coefficient/100) units. Example: the coefficient is 0.198. 0.198/100 = 0.00198. For every 1% increase in the independent variable, our dependent variable increases by about 0.002. For x percent increase, multiply the coefficient by log(1.x). Example: For every 10% increase in the independent variable, our dependent variable increases by about 0.198 * log(1.10) = 0.02.</li>
+<li><strong>Both dependent/response variable and independent/predictor variable(s) are log-transformed</strong>. Interpret the coefficient as the percent increase in the dependent variable for every 1% increase in the independent variable. Example: the coefficient is 0.198. For every 1% increase in the independent variable, our dependent variable increases by about 0.20%. For x percent increase, calculate 1.x to the power of the coefficient, subtract from 1, and multiply by 100. Example: For every 20% increase in the independent variable, our dependent variable increases by about (<span class="math inline">\(1.20^{0.198}\)</span> – 1) * 100 = 3.7 percent.</li>
+</ul>
+</div>
+<div id="what-log-transformations-really-mean-for-your-models" class="section level2">
+<h2>What Log Transformations Really Mean for your Models</h2>
+<p>It’s nice to know how to correctly interpret coefficients for log-transformed data, but it’s important to know what exactly your model is implying when it includes log-transformed data. To get a better understanding, let’s use R to simulate some data that will require log-transformations for a correct analysis. We’ll keep it simple with one independent variable and normally distributed errors. First we’ll look at a log-transformed dependent variable.</p>
+<pre class="r"><code>x &lt;- seq(0.1,5,length.out = 100)
+set.seed(1)
+e &lt;- rnorm(100, mean = 0, sd = 0.2)</code></pre>
+<p>The first line generates a sequence of 100 values from 0.1 to 5 and assigns it to x. The next line sets the random number generator seed to 1. If you do the same, you’ll get the same randomly generated data that we got when you run the next line. The code rnorm(100, mean = 0, sd = 0.2) generates 100 values from a Normal distribution with a mean of 0 and standard deviation of 0.2. This will be our “error”. This is one of the assumptions of simple linear regression: our data can be modeled with a straight line but will be off by some random amount that we assume comes from a Normal distribution with mean 0 and some standard deviation. We assign our error to e.</p>
+<p>Now we’re ready to create our log-transformed dependent variable. We pick an intercept (1.2) and a slope (0.2), which we multiply by x, and then add our random error, e. Finally we exponentiate.</p>
+<pre class="r"><code>y &lt;- exp(1.2 + 0.2 * x + e)</code></pre>
+<p>To see why we exponentiate, notice the following:</p>
+<p><span class="math display">\[\text{log}(y) = \beta_0 + \beta_1x\]</span>
+<span class="math display">\[\text{exp}(\text{log}(y)) = \text{exp}(\beta_0 + \beta_1x)\]</span>
+<span class="math display">\[y = \text{exp}(\beta_0 + \beta_1x)\]</span></p>
+<p>So a log-transformed dependent variable implies our simple linear model has been exponentiated. Recall from the product rule of exponents that we can re-write the last line above as</p>
+<p><span class="math display">\[y = \text{exp}(\beta_0) \text{exp}(\beta_1x)\]</span></p>
+<p>This further implies that our independent variable has a multiplicative relationship with our dependent variable instead of the usual additive relationship. Hence the need to express the effect of a one-unit change in x on y as a percent.</p>
+<p>If we fit the correct model to the data, notice we do a pretty good job of recovering the true parameter values that we used to generate the data.</p>
+<pre class="r"><code>lm1 &lt;- lm(log(y) ~ x)
+summary(lm1)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = log(y) ~ x)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -0.4680 -0.1212  0.0031  0.1170  0.4595 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.22643    0.03693   33.20   &lt;2e-16 ***
+## x            0.19818    0.01264   15.68   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.1805 on 98 degrees of freedom
+## Multiple R-squared:  0.7151, Adjusted R-squared:  0.7122 
+## F-statistic:   246 on 1 and 98 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>The estimated intercept of 1.226 is close to the true value of 1.2. The estimated slope of 0.198 is very close to the true value of 0.2. Finally the estimated residual standard error of 0.1805 is not too far from the true value of 0.2.</p>
+<p>Recall that to interpret the slope value we need to exponentiate it.</p>
+<pre class="r"><code>exp(coef(lm1)[&quot;x&quot;])</code></pre>
+<pre><code>##        x 
+## 1.219179</code></pre>
+<p>This says every one-unit increase in x is multiplied by about 1.22. Or in other words, for every one-unit increase in x, y increases by about 22%. To get 22%, subtract 1 and multiply by 100.</p>
+<pre class="r"><code>(exp(coef(lm1)[&quot;x&quot;]) - 1) * 100 </code></pre>
+<pre><code>##        x 
+## 21.91786</code></pre>
+<p>What if we fit just y instead of log(y)? How might we figure out that we should consider a log transformation? Just looking at the coefficients isn’t going to tell you much.</p>
+<pre class="r"><code>lm2 &lt;- lm(y ~ x)
+summary(lm2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -2.3868 -0.6886 -0.1060  0.5298  3.3383 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  3.00947    0.23643   12.73   &lt;2e-16 ***
+## x            1.16277    0.08089   14.38   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.156 on 98 degrees of freedom
+## Multiple R-squared:  0.6783, Adjusted R-squared:  0.675 
+## F-statistic: 206.6 on 1 and 98 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>Sure, since we generated the data, we can see the coefficients are way off and the residual standard error is much too high. But in real life you won’t know this! This is why we do regression diagnostics. A key assumption to check is constant variance of the errors. We can do this with a Scale-Location plot. Here’s the plot for the model we just ran without log transforming y.</p>
+<pre class="r"><code>plot(lm2, which = 3) # 3 = Scale-Location plot</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>Notice the standardized residuals are trending upward. This is a sign that the constant variance assumption has been violated. Compare this plot to the same plot for the correct model.</p>
+<pre class="r"><code>plot(lm1, which = 3)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>The trend line is even and the residuals are uniformly scattered.</p>
+<p>Does this mean that you should always log-transform your dependent variable if you suspect the constant-variance assumption has been violated? Not necessarily. The non-constant variance may be due to other misspecifications in your model. Also think about what modeling a log-transformed dependent variable means. It says it has a multiplicative relationship with the predictors. Does that seem right? Use your judgment and subject expertise.</p>
+<p>Now let’s consider data with a log-transformed independent predictor variable. This is easier to generate. We simply log-transform x.</p>
+<pre class="r"><code>y &lt;- 1.2 + 0.2*log(x) + e</code></pre>
+<p>Once again we first fit the correct model and notice it does a great job of recovering the true values we used to generate the data:</p>
+<pre class="r"><code>lm3 &lt;- lm(y ~ log(x))
+summary(lm3)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ log(x))
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.46492 -0.12063  0.00112  0.11661  0.45864 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.22192    0.02308  52.938  &lt; 2e-16 ***
+## log(x)       0.19979    0.02119   9.427 2.12e-15 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.1806 on 98 degrees of freedom
+## Multiple R-squared:  0.4756, Adjusted R-squared:  0.4702 
+## F-statistic: 88.87 on 1 and 98 DF,  p-value: 2.121e-15</code></pre>
+<p>To interpret the slope coefficient we divide it by 100.</p>
+<pre class="r"><code>coef(lm3)[&quot;log(x)&quot;]/100</code></pre>
+<pre><code>##      log(x) 
+## 0.001997892</code></pre>
+<p>This tells us that a 1% increase in x increases the dependent variable by about 0.002. Why does it tell us this? Let’s do some math. Below we calculate the change in y when changing x from 1 to 1.01 (ie, a 1% increase).</p>
+<p><span class="math display">\[(\beta_0 + \beta_1\text{log}1.01) - (\beta_0 + \beta_1\text{log}1)\]</span>
+<span class="math display">\[\beta_1\text{log}1.01 - \beta_1\text{log}1\]</span>
+<span class="math display">\[\beta_1(\text{log}1.01 - \text{log}1)\]</span>
+<span class="math display">\[\beta_1\text{log}\frac{1.01}{1} = \beta_1\text{log}1.01\]</span></p>
+<p>The result is multiplying the slope coefficient by log(1.01), which is approximately equal to 0.01, or <span class="math inline">\(\frac{1}{100}\)</span>. Hence the interpretation that a 1% increase in x increases the dependent variable by the coefficient/100.</p>
+<p>Once again let’s fit the wrong model by failing to specify a log-transformation for x in the model syntax.</p>
+<pre class="r"><code>lm4 &lt;- lm(y ~ x)</code></pre>
+<p>Viewing a summary of the model will reveal that the estimates of the coefficients are well off from the true values. But in practice we never know the true values. Once again diagnostics are in order to assess model adequacy. A useful diagnostic in this case is a partial-residual plot which can reveal departures from linearity. Recall that linear models assume that predictors are additive and have a linear relationship with the response variable. The car package provides the crPlot function for quickly creating partial-residual plots. Just give it the model object and specify which variable you want to create the partial residual plot for.</p>
+<pre class="r"><code>library(car)</code></pre>
+<pre><code>## Loading required package: carData</code></pre>
+<pre class="r"><code>crPlot(lm4, variable = &quot;x&quot;)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+<p>The straight line represents the specified relationship between x and y. The curved line is a smooth trend line that summarizes the observed relationship between x and y. We can tell the observed relationship is non-linear. Compare this plot to the partial-residual plot for the correct model.</p>
+<pre class="r"><code>crPlot(lm3, variable = &quot;log(x)&quot;)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>The smooth and fitted lines are right on top of one another revealing no serious departures from linearity.</p>
+<p>This does not mean that if you see departures from linearity you should immediately assume a log transformation is the one and only fix! The non-linear relationship may be complex and not so easily explained with a simple transformation. But a log transformation may be suitable in such cases and certainly something to consider.</p>
+<p>Finally let’s consider data where both the dependent and independent variables are log transformed.</p>
+<pre class="r"><code>y &lt;- exp(1.2 + 0.2 * log(x) + e)</code></pre>
+<p>Look closely at the code above. The relationship between x and y is now both multiplicative and non-linear!</p>
+<p>As usual we can fit the correct model and notice that it does a fantastic job of recovering the true values we used to generate the data:</p>
+<pre class="r"><code>lm5 &lt;- lm(log(y)~ log(x))
+summary(lm5)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = log(y) ~ log(x))
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.46492 -0.12063  0.00112  0.11661  0.45864 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.22192    0.02308  52.938  &lt; 2e-16 ***
+## log(x)       0.19979    0.02119   9.427 2.12e-15 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.1806 on 98 degrees of freedom
+## Multiple R-squared:  0.4756, Adjusted R-squared:  0.4702 
+## F-statistic: 88.87 on 1 and 98 DF,  p-value: 2.121e-15</code></pre>
+<p>Interpret the x coefficient as the percent increase in y for every 1% increase in x. In this case that’s about a 0.2% increase in y for every 1% increase in x.</p>
+<p>Fitting the wrong model once again produces coefficient and residual standard error estimates that are wildly off target.</p>
+<pre class="r"><code>lm6 &lt;- lm(y ~ x)
+summary(lm6)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1.40546 -0.53440 -0.04061  0.45564  2.50589 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  2.97744    0.15736  18.921  &lt; 2e-16 ***
+## x            0.40188    0.05384   7.465 3.45e-11 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.7692 on 98 degrees of freedom
+## Multiple R-squared:  0.3625, Adjusted R-squared:  0.356 
+## F-statistic: 55.73 on 1 and 98 DF,  p-value: 3.448e-11</code></pre>
+<p>The Scale-Location and Partial-Residual plots provide evidence that something is amiss with our model. The Scale-Location plot shows a curving trend line and the Partial-Residual plot shows linear and smooth lines that fail to match.</p>
+<pre class="r"><code>plot(lm6, which = 3)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<pre class="r"><code>crPlot(lm6, variable = &quot;x&quot;)</code></pre>
+<p><img src="/post/2019-04-17-interpreting-log-transformations-in-a-linear-model_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p>How would we know in real life that the correct model requires log-transformed independent and dependent variables? We wouldn’t. We might have a hunch based on diagnostic plots and modeling experience. Or we might have some subject matter expertise on the process we’re modeling and have good reason to think the relationship is multiplicative and non-linear.</p>
+<p>Hopefully you now have a better handle on not only how to interpret log-transformed variables in a linear model but also what log-transformed variables mean for your model.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.5.3 (2019-03-11)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] car_3.0-2     carData_3.0-2
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1        knitr_1.22        magrittr_1.5     
+##  [4] hms_0.4.2         rlang_0.3.4       stringr_1.4.0    
+##  [7] tools_3.5.3       data.table_1.12.2 xfun_0.6         
+## [10] rio_0.5.16        htmltools_0.3.6   abind_1.4-5      
+## [13] readxl_1.3.1      yaml_2.2.0        digest_0.6.18    
+## [16] tibble_2.1.1      crayon_1.3.4      bookdown_0.9     
+## [19] zip_2.0.1         curl_3.3          evaluate_0.13    
+## [22] haven_2.1.0       rmarkdown_1.12    blogdown_0.11    
+## [25] openxlsx_4.1.0    stringi_1.4.3     cellranger_1.1.0 
+## [28] compiler_3.5.3    pillar_1.3.1      forcats_0.4.0    
+## [31] foreign_0.8-71    pkgconfig_2.0.2</code></pre>
+</div>
