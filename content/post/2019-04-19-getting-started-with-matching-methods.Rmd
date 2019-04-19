@@ -1,0 +1,253 @@
+---
+title: Getting Started with Matching Methods
+author: Clay Ford
+date: '2018-04-24'
+slug: getting-started-with-matching-methods
+categories:
+  - R
+tags:
+  - matching
+  - propensity scores
+---
+
+A frequent research question is whether or not some "treatment" causes an effect. For example, does taking aspirin daily reduce the chance of a heart attack? Does more sleep lead to better academic performance for teenagers? Does smoking increase the risk of chronic obstructive pulmonary disease (COPD)?
+
+To truly answer such questions, we need a time machine and a lack of ethics. We would need to be able to take a subject and, say, make him or her smoke for several years and observe whether or not they get COPD. Then travel back in time and observe the same subject NOT smoking to see if they get COPD. Only then could we really see the effect of smoking on that person's chances of contracting COPD. To estimate the average effect of smoking on COPD, we would need to do the same with many subjects. Clearly the laws of physics and all IRBs forbid this.
+
+To work around these issues researchers often employ what are called "matching methods". This involves taking observational data, such as data from surveys, and matching people who have similar characteristics but different treatments. I can’t travel through time and make a person smoke and not smoke. But I can identify two people who are similar in almost every way except their smoking status. Here's a 200-pound, middle class, college educated, Caucasian man who smokes, and a 200-pound, middle class, college educated, Caucasian man who does NOT smoke. They’re not the same people but they're similar. It stands to reason the effects of smoking on the smoker can approximate the effect of smoking on the non-smoker, and vice versa. This is the idea of matching methods: create two such groups that are similar in every respect but their treatment.
+
+For a fantastic and easy-to-read overview of matching methods, see Elizabeth Stuart's 2010 paper "<a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2943670/" rel="noopener" target="_blank">Matching Methods for Causal Inference: A Review and a Look Forward</a>". See also Michele Claibourn's excellent <a href="http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip" rel="noopener" target="_blank">2014 workshop</a> on matching methods. In this brief article, we demonstrate how to get started with matching methods using R and the <a href="https://gking.harvard.edu/matchit" rel="noopener" target="_blank">MatchIt</a> package.
+
+To begin we need to load some data. For demonstration purposes we'll use a sample of the 2015 <a href="https://www.cdc.gov/brfss/index.html" rel="noopener" target="_blank">BRFSS survey</a> (pronounced bur-fiss). BRFSS stands for Behavioral Risk Factor Surveillance System. BRFSS is a CDC telephone survey that collects state data about U.S. residents regarding their health-related risk behaviors and chronic health conditions. The entire survey has over 400,000 records and over 300 variables. The sample we'll work with has 5000 records and 7 variables.
+
+
+```{r}
+brfss <- read.csv("http://static.lib.virginia.edu/statlab/materials/data/brfss_2015_sample.csv")
+summary(brfss)
+```
+
+
+The summary provides details on the seven variables:
+
+- COPD: Ever told you have chronic obstructive pulmonary disease (COPD)?
+- SMOKE: Adults who are current smokers (0 = no, 1 = yes)
+- RACE: Race group
+- AGE: age group
+- SEX: gender
+- WTLBS: weight in lbs
+- AVEDRNK2: During the past 30 days, when you drank, how many drinks did you drink on average?
+
+We wish to investigate the effect of smoking on COPD. Does smoking increase the chance of contracting COPD? Obviously this is not something we could carry out as a randomized experiment. But perhaps using this observational data and matching methods we can simulate what our data might look like had we carried out a randomized experiment. We can create two groups, smokers and non-smokers, who are roughly equivalent in age, race, sex, weight and alcohol consumption. (Please note this is only for educational purposes. While the data is real and the methods are sound, we would certainly include several other variables as well as enlist the help of doctors and epidemiologists to investigate a research question like this.)
+
+Before we start matching, let's check the balance and overlap of our data. By balance we mean that the distributions of our data in the smoking and non-smoking groups are similar. By overlap, we mean that the continuous variables in the smoking and non-smoking groups span the same range of values. We can informally check both with some plots. Notice below we use the `factor()` function to ensure ggplot recognizes smoking as a categorical variable. We have smoking stored in our data as a numeric column of zeroes and ones because that's how the MatchIt package requires treatment variables to be stored. 
+
+```{r}
+library(ggplot2)
+p <- ggplot(brfss, aes(fill = factor(SMOKE))) + 
+  geom_bar(position = "dodge") + 
+  scale_fill_discrete("Smoke")
+p + aes(x = AGE)
+p + aes(x = RACE)
+p + aes(x = SEX)
+```
+
+Above we notice a lack of balance. For example, the number of non-smokers increase with age while the number of smokers stays fairly constant. 
+
+To check the balance and overlap of the continuous weight and drink variables we plot histograms.
+
+
+```{r message=FALSE}
+ggplot(brfss, aes(x = WTLBS, fill = factor(SMOKE))) +
+  geom_histogram(position = "identity") +
+  scale_fill_discrete("Smoke")
+
+ggplot(brfss, aes(x = AVEDRNK2, fill = factor(SMOKE))) +
+  geom_histogram(position = "identity", binwidth = 1) +
+  scale_fill_discrete("Smoke")
+
+```
+
+
+The balance maybe looks OK but there appears to be a slight lack of overlap at the higher values. We can investigate more closely by looking at the quantiles within each group.
+
+```{r}
+tapply(brfss$WTLBS, brfss$SMOKE, quantile, probs = seq(0.2, 1, 0.1))
+tapply(brfss$AVEDRNK2, brfss$SMOKE, quantile, probs = seq(0.2, 1, 0.1))
+
+```
+
+We see that once we get past the 30th quantile the non-smokers begin to outweigh the smokers, and the smokers begin to outdrink the non-smokers, producing a lack of balance. On the other hand, it seems the lack of overlap isn't as bad as we thought.
+
+At this point we're ready to proceed to matching.
+
+The idea of matching isn't complicated. We want to simply find subjects with matching covariates among the smokers and non-smokers. However it's often difficult to find exact matches, so instead we define a "closeness" or "distance" metric and use that to generate matches. In this tutorial we'll use Nearest Neighbor Matching which is the default method in the MatchIt package. Nearest Neighbor Matching selects the best control (non-smoker) for each treated subject (smoker) using a distance measure called the propensity score. The end result is two groups of equal size and (hopefully) similar distributions of covariates. 
+
+The propensity score is the estimated probability of receiving treatment (ie, being a smoker), conditional on the covariates. If two subjects, one who is a smoker and the other who is not, have similar propensity scores, then we think of them as potential matches. 
+
+To carry out Nearest Neighbor Matching we load the MatchIt package and use the `matchit()` function. Notice we need to assign the result of the `matchit()` function to an object. Below we name it "m.out", but you can name it something else if you like. `matchit()` uses R's formula syntax to define what we want to match on. On the left side of the tilde (~) is SMOKE. That's our treatment variable. On the right side of the tilde are the variables we want to match on. We have kept it simple but you can match on interactions and higher powers. Also notice we have not included our dependent variable, COPD! That is by design. At this step we are trying to create balance across covariates among smokers and non-smokers. The analysis of COPD comes after the matching procedure.
+
+```{r}
+# install.packages("MatchIt")
+library(MatchIt)
+m.out <- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + AVEDRNK2, 
+                 data = brfss)
+
+```
+
+That should run fairly quickly on just about any computer. The next step is to investigate the results of the matching procedure. Did we improve balance? Are the smokers and non-smokers similar across age, race, weight, number of drinks and sex? The quickest way to check this is to plot a summary of the results, like so:
+
+```{r eval=FALSE}
+s.out <- summary(m.out, standardize = TRUE)
+plot(s.out)
+
+```
+
+First we call `summary()` on m.out and save to a new object called "s.out". For the plot to work we need to also set the `standardize` argument to TRUE. Then we call `plot()` on the s.out object. R will allow you to click on points to label them. When finished, click Esc. We labeled 3 points. The result is below.
+
+![](/img/post_match_summary.png)
+
+On the left side of the plot is the standardized difference in means of covariates between smokers and non-smokers for all the data. We see that distance (propensity score) is the largest, followed by number of drinks (AVEDRNK2) and the AGE65+ group. This tells us that prior to matching we had, for example, large differences in the mean values of AVEDRNK2 between smokers and non-smokers. The right side shows the standardized difference in means _after_ matching. We hope to see all the points near 0. Specifically, we want to see large differences in means become smaller. The three largest differences prior to matching are now tiny. The dark lines show mean differences that _increased_ after balance. This is actually common when you match on covariates that were already pretty well balanced to begin with. Since the standardized mean difference is still less than 0.1, we're not too concerned about it.
+
+We can also compare the distribution of propensity scores (distance) before and after matching.
+
+```{r}
+plot(m.out,  type = "jitter", interactive = FALSE)
+plot(m.out,  type = "hist")
+
+```
+
+What we want to see is that the Matched Treated (smokers) and Matched Control (non-smokers) distributions are roughly similar. We like what we see here. 
+
+We can also evaluate the matching results using tabular output. Just call `summary()` on the "m.out" object. Below is the results of our matching procedure. 
+
+```{r}
+summary(m.out)
+
+```
+
+
+The first two sections look at all the data and the matched data, respectively. The first, second and fourth columns are probably the easiest to examine. The first and second columns show the means for treated (smokers) and control (non-smokers) groups. Prior to matching, for example, we have 16% of smokers over age 65 versus 31% who are not smokers. That's an absolute difference of about 15%. After matching we have roughly an equal proportion of subjects over age 65 in both groups with a negligible mean difference. The third section, Percent Balance Improvement, shows how much we have increased or decreased balance. Negative numbers in the Mean Diff column indicate covariates where balance actually got worse. The AGE55-64 value of -388 seems pretty terrible. What happened was the balance went from 21.9% vs 22.5% pre-match to 21.9% vs 18.9% post-match. Ideally we don't want balance getting worse, but in this case the balance is still quite good. The last section tells us we now have equal numbers (762) in both the treated and control groups.
+
+The columns labeled eQQ refer to empirical quantile-quantile plots. They provide the median, mean, and maximum distance between the empirical quantile functions of the treated and control groups. Values greater than 0 indicate deviations between the groups in some part of the empirical distributions. These are most useful for continuous variables. We can view these plots by calling `plot()` on the matching object. The `which.xs` argument allows us to specify which variables to plot. Below we plot weight and number of drinks.
+
+```{r}
+plot(m.out, which.xs = c("WTLBS", "AVEDRNK2"))
+
+```
+
+We hope to see the points in the right column (Matched) falling between the dotted lines. The idea is that if both groups, smokers and non-smokers, have good balance then the quantiles should lie on a 45-degree line. Once again we like what we see.
+
+When we're satisfied with the results of the matching procedure, the next step is to create a new data frame that contains only the matched data. For this we use the `match.data()` function on the matching object. Below we create a new data frame called brfss.match.
+
+```{r}
+brfss.match <- match.data(m.out)
+
+```
+
+
+And now we're ready to perform our statistical analysis as if our data had been generated through randomization. For instance, we might perform logistic regression to analyze how smoking affects the probability of contracting COPD.
+
+```{r}
+brfss.match$SMOKE<- factor(brfss.match$SMOKE, 
+                           labels = c("No", "Yes"))
+mod <- glm(COPD ~ SMOKE + AGE + RACE + 
+                SEX + WTLBS + AVEDRNK2, 
+           data = brfss.match, family = "binomial")
+exp(confint(mod, parm = "SMOKEYes"))
+
+```
+
+
+It appears that smokers are at least 2.9 times more likely to report COPD than non-smokers, controlling for age, sex, race, weight and drinking. 
+
+There is much more to learn about matching methods. We demonstrated Nearest Neighbor Matching, but there are several other methods. The MatchIt User's Guide provides a nice overview of how to implement various matching methods: <a href="https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html" rel="noopener" target="_blank">https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html</a>
+
+It's worth pointing out that matching does not necessarily guarantee that each treated subject will have a matching control that has identical covariate values. The only guarantee is that groups of individuals with similar distance measures (eg, propensity scores) will have similar covariate distributions. Having said that, it is possible to see which control subject was matched with which treated subject. The matching object has a `match.matrix` component, where the row names correspond to the names of the treated, and the cells correspond to the names of the matched controls. Here are the first few matches in our m.out match.matrix:
+
+```{r}
+head(m.out$match.matrix)
+```
+
+
+So row 29 of brfss was a treated subject (a smoker) matched to the control subject in row 3128 (a non-smoker). If we compare them we notice they don't exactly match up:
+
+```{r}
+brfss[29,]
+brfss[3128,]
+
+```
+
+
+The most glaring difference is RACE. But recall, they weren't matched on the specific covariates but rather their propensity score. We can compare their propensity scores as follows (taking advantage of the fact that the row names in the matched data frame are the same as those in the original data frame):
+
+```{r}
+i<- rownames(brfss.match) %in% c(29,3128)
+brfss.match[i,]
+
+```
+
+The propensity score is in the distance column. According to the propensity score, these subjects are similar. Matching on this distance metric helps ensure the smoking and non-smoking groups have similar covariate distributions. So even those these two specific subjects do not match on RACE, overall the smoking and non-smoking groups are balanced on RACE.
+
+We mentioned earlier that the propensity score is the probability of receiving treatment (ie, being a smoker), conditional on the covariates. The `matchit()` function calculates this for us but we can do it as well by performing a logistic regression of SMOKE on the covariates that we want to balance on. Notice the formula is identical to the one we used with `matchit()`. 
+
+```{r}
+pscore <- glm(SMOKE ~ RACE + AGE + SEX + 
+                WTLBS + AVEDRNK2, 
+              data = brfss, family = binomial)
+
+```
+
+
+Here are the first 6 propensity scores in the brfss.match data frame (again, the row numbers correspond to the rows in our original brfss data frame):
+
+```{r}
+head(brfss.match[, "distance", drop = F])
+
+```
+
+We get the same results by using our model to make predictions for the same subjects:
+
+```{r}
+predict(pscore, type = "response")[c(1,3,13,14,21,22)]
+```
+
+Another type of distance measure is the _linear propensity score_. It's just the log-odds version of the propensity score. Whereas the probability-based propensity score is bounded from 0 to 1, the linear propensity score has no such bounds. This means we can make better matches in the lower and upper extremes of the scores since the values are not being compressed near 0 or 1. In section 6.2 of her paper, Stuart actually recommends using the linear propensity score. Fortunately MatchIt makes it easy to do. Simply set the `distance` argument to `"linear.logit"`:
+
+```{r}
+m.out.lp<- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + 
+                     AVEDRNK2, data = brfss, 
+                 distance = "linear.logit")
+
+```
+
+The resulting propensity scores are on the log-odds scale, which we can verify as we did before:
+
+```{r}
+brfss.match2<- match.data(m.out.lp)
+head(brfss.match2[, "distance", drop = F])
+
+```
+
+Notice that matching on the linear propensity score has resulted in different subjects being selected. We leave it as an exercise for the interested reader to verify that the improvement in balance is essentially the same as the matching performed on the probability-based propensity score. 
+
+To learn more about matching methods and causal inference in general, please see the following references:
+
+<ul>
+	<li>Claibourn, M. (2014). Matching Methods for Causal Inference. Workshop presented at the UVa Library. <a href="http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip" rel="noopener" target="_blank">http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip</a></li>	
+	<li>Gelman, A. and Hill, J. (2007). <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge. Chapters 9 and 10.</li>
+	<li>Ho, D., Imai K., King, G., Stuart, E. (2011). MatchIt: Nonparametric Preprocessing for Parametric Causal Inference. <em>Journal of Statistical Software</em>, Vol. 42, No. 8, pp. 1-28. URL <a href="http://www.jstatsoft.org/v42/i08/" rel="noopener" target="_blank">http://www.jstatsoft.org/v42/i08/</a> </li>
+        <li>Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Forward. <em>Statistical Science</em>. Vol. 25, No. 1, 1–21. DOI: <a href="https://dx.doi.org/10.1214%2F09-STS313" rel="noopener" target="_blank">10.1214/09-STS313</a></li>
+
+</ul>
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_   
+_University of Virginia Library_   
+
+
+```{r}
+sessionInfo()
+```
+
