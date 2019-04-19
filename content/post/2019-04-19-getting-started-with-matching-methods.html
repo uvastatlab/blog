@@ -88,8 +88,8 @@ p + aes(x = AGE)</code></pre>
 <p>The propensity score is the estimated probability of receiving treatment (ie, being a smoker), conditional on the covariates. If two subjects, one who is a smoker and the other who is not, have similar propensity scores, then we think of them as potential matches.</p>
 <p>To carry out Nearest Neighbor Matching we load the MatchIt package and use the <code>matchit()</code> function. Notice we need to assign the result of the <code>matchit()</code> function to an object. Below we name it “m.out”, but you can name it something else if you like. <code>matchit()</code> uses R’s formula syntax to define what we want to match on. On the left side of the tilde (~) is SMOKE. That’s our treatment variable. On the right side of the tilde are the variables we want to match on. We have kept it simple but you can match on interactions and higher powers. Also notice we have not included our dependent variable, COPD! That is by design. At this step we are trying to create balance across covariates among smokers and non-smokers. The analysis of COPD comes after the matching procedure.</p>
 <pre class="r"><code># install.packages(&quot;MatchIt&quot;)
-library(MatchIt)
-m.out &lt;- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + AVEDRNK2, 
+library(MatchIt)</code></pre>
+<pre class="r"><code>m.out &lt;- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + AVEDRNK2, 
                  data = brfss)</code></pre>
 <p>That should run fairly quickly on just about any computer. The next step is to investigate the results of the matching procedure. Did we improve balance? Are the smokers and non-smokers similar across age, race, weight, number of drinks and sex? The quickest way to check this is to plot a summary of the results, like so:</p>
 <pre class="r"><code>s.out &lt;- summary(m.out, standardize = TRUE)
@@ -99,9 +99,9 @@ plot(s.out)</code></pre>
 <p>On the left side of the plot is the standardized difference in means of covariates between smokers and non-smokers for all the data. We see that distance (propensity score) is the largest, followed by number of drinks (AVEDRNK2) and the AGE65+ group. This tells us that prior to matching we had, for example, large differences in the mean values of AVEDRNK2 between smokers and non-smokers. The right side shows the standardized difference in means <em>after</em> matching. We hope to see all the points near 0. Specifically, we want to see large differences in means become smaller. The three largest differences prior to matching are now tiny. The dark lines show mean differences that <em>increased</em> after balance. This is actually common when you match on covariates that were already pretty well balanced to begin with. Since the standardized mean difference is still less than 0.1, we’re not too concerned about it.</p>
 <p>We can also compare the distribution of propensity scores (distance) before and after matching.</p>
 <pre class="r"><code>plot(m.out,  type = &quot;jitter&quot;, interactive = FALSE)</code></pre>
-<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
 <pre class="r"><code>plot(m.out,  type = &quot;hist&quot;)</code></pre>
-<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-7-2.png" width="672" /></p>
+<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-8-2.png" width="672" /></p>
 <p>What we want to see is that the Matched Treated (smokers) and Matched Control (non-smokers) distributions are roughly similar. We like what we see here.</p>
 <p>We can also evaluate the matching results using tabular output. Just call <code>summary()</code> on the “m.out” object. Below is the results of our matching procedure.</p>
 <pre class="r"><code>summary(m.out)</code></pre>
@@ -196,7 +196,7 @@ plot(s.out)</code></pre>
 <p>The first two sections look at all the data and the matched data, respectively. The first, second and fourth columns are probably the easiest to examine. The first and second columns show the means for treated (smokers) and control (non-smokers) groups. Prior to matching, for example, we have 16% of smokers over age 65 versus 31% who are not smokers. That’s an absolute difference of about 15%. After matching we have roughly an equal proportion of subjects over age 65 in both groups with a negligible mean difference. The third section, Percent Balance Improvement, shows how much we have increased or decreased balance. Negative numbers in the Mean Diff column indicate covariates where balance actually got worse. The AGE55-64 value of -388 seems pretty terrible. What happened was the balance went from 21.9% vs 22.5% pre-match to 21.9% vs 18.9% post-match. Ideally we don’t want balance getting worse, but in this case the balance is still quite good. The last section tells us we now have equal numbers (762) in both the treated and control groups.</p>
 <p>The columns labeled eQQ refer to empirical quantile-quantile plots. They provide the median, mean, and maximum distance between the empirical quantile functions of the treated and control groups. Values greater than 0 indicate deviations between the groups in some part of the empirical distributions. These are most useful for continuous variables. We can view these plots by calling <code>plot()</code> on the matching object. The <code>which.xs</code> argument allows us to specify which variables to plot. Below we plot weight and number of drinks.</p>
 <pre class="r"><code>plot(m.out, which.xs = c(&quot;WTLBS&quot;, &quot;AVEDRNK2&quot;))</code></pre>
-<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><img src="/post/2019-04-19-getting-started-with-matching-methods_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
 <p>We hope to see the points in the right column (Matched) falling between the dotted lines. The idea is that if both groups, smokers and non-smokers, have good balance then the quantiles should lie on a 45-degree line. Once again we like what we see.</p>
 <p>When we’re satisfied with the results of the matching procedure, the next step is to create a new data frame that contains only the matched data. For this we use the <code>match.data()</code> function on the matching object. Below we create a new data frame called brfss.match.</p>
 <pre class="r"><code>brfss.match &lt;- match.data(m.out)</code></pre>
@@ -209,8 +209,8 @@ mod &lt;- glm(COPD ~ SMOKE + AGE + RACE +
 exp(confint(mod, parm = &quot;SMOKEYes&quot;))</code></pre>
 <pre><code>## Waiting for profiling to be done...</code></pre>
 <pre><code>##    2.5 %   97.5 % 
-## 2.591113 6.184393</code></pre>
-<p>It appears that smokers are at least 2.9 times more likely to report COPD than non-smokers, controlling for age, sex, race, weight and drinking.</p>
+## 2.753685 6.717772</code></pre>
+<p>It appears that smokers are at least 2 times more likely to report COPD than non-smokers, controlling for age, sex, race, weight and drinking.</p>
 <p>There is much more to learn about matching methods. We demonstrated Nearest Neighbor Matching, but there are several other methods. The MatchIt User’s Guide provides a nice overview of how to implement various matching methods: <a href="https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html" rel="noopener" target="_blank">https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html</a></p>
 <p>It’s worth pointing out that matching does not necessarily guarantee that each treated subject will have a matching control that has identical covariate values. The only guarantee is that groups of individuals with similar distance measures (eg, propensity scores) will have similar covariate distributions. Having said that, it is possible to see which control subject was matched with which treated subject. The matching object has a <code>match.matrix</code> component, where the row names correspond to the names of the treated, and the cells correspond to the names of the matched controls. Here are the first few matches in our m.out match.matrix:</p>
 <pre class="r"><code>head(m.out$match.matrix)</code></pre>
@@ -219,7 +219,7 @@ exp(confint(mod, parm = &quot;SMOKEYes&quot;))</code></pre>
 ## 44 &quot;2848&quot;
 ## 62 &quot;4669&quot;
 ## 81 &quot;1970&quot;
-## 82 &quot;4152&quot;
+## 82 &quot;2849&quot;
 ## 87 &quot;3356&quot;</code></pre>
 <p>So row 29 of brfss was a treated subject (a smoker) matched to the control subject in row 3128 (a non-smoker). If we compare them we notice they don’t exactly match up:</p>
 <pre class="r"><code>brfss[29,]</code></pre>
@@ -243,15 +243,15 @@ brfss.match[i,]</code></pre>
 <pre class="r"><code>head(brfss.match[, &quot;distance&quot;, drop = F])</code></pre>
 <pre><code>##      distance
 ## 1  0.19127152
-## 11 0.17493597
-## 13 0.10868555
 ## 14 0.41062392
-## 20 0.14556346
-## 21 0.07483546</code></pre>
+## 21 0.07483546
+## 22 0.32779268
+## 29 0.47762346
+## 32 0.20633399</code></pre>
 <p>We get the same results by using our model to make predictions for the same subjects:</p>
-<pre class="r"><code>predict(pscore, type = &quot;response&quot;)[c(1,3,13,14,21,22)]</code></pre>
-<pre><code>##          1          3         13         14         21         22 
-## 0.19127152 0.08129118 0.10868555 0.41062392 0.07483546 0.32779268</code></pre>
+<pre class="r"><code>predict(pscore, type = &quot;response&quot;)[c(1,14,21,22,29,32)]</code></pre>
+<pre><code>##          1         14         21         22         29         32 
+## 0.19127152 0.41062392 0.07483546 0.32779268 0.47762346 0.20633399</code></pre>
 <p>Another type of distance measure is the <em>linear propensity score</em>. It’s just the log-odds version of the propensity score. Whereas the probability-based propensity score is bounded from 0 to 1, the linear propensity score has no such bounds. This means we can make better matches in the lower and upper extremes of the scores since the values are not being compressed near 0 or 1. In section 6.2 of her paper, Stuart actually recommends using the linear propensity score. Fortunately MatchIt makes it easy to do. Simply set the <code>distance</code> argument to <code>"linear.logit"</code>:</p>
 <pre class="r"><code>m.out.lp&lt;- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + 
                      AVEDRNK2, data = brfss, 
@@ -261,10 +261,10 @@ brfss.match[i,]</code></pre>
 head(brfss.match2[, &quot;distance&quot;, drop = F])</code></pre>
 <pre><code>##      distance
 ## 1  -1.4417693
-## 6  -2.2831671
 ## 11 -1.5510410
 ## 13 -2.1042384
 ## 14 -0.3613867
+## 20 -1.7698301
 ## 21 -2.5146797</code></pre>
 <p>Notice that matching on the linear propensity score has resulted in different subjects being selected. We leave it as an exercise for the interested reader to verify that the improvement in balance is essentially the same as the matching performed on the probability-based propensity score.</p>
 <p>To learn more about matching methods and causal inference in general, please see the following references:</p>
@@ -278,7 +278,9 @@ Gelman, A. and Hill, J. (2007). <em>Data Analysis Using Regression and Multileve
 <li>
 Ho, D., Imai K., King, G., Stuart, E. (2011). MatchIt: Nonparametric Preprocessing for Parametric Causal Inference. <em>Journal of Statistical Software</em>, Vol. 42, No. 8, pp. 1-28. URL <a href="http://www.jstatsoft.org/v42/i08/" rel="noopener" target="_blank">http://www.jstatsoft.org/v42/i08/</a>
 </li>
-<pre><code>&lt;li&gt;Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Forward. &lt;em&gt;Statistical Science&lt;/em&gt;. Vol. 25, No. 1, 1–21. DOI: &lt;a href=&quot;https://dx.doi.org/10.1214%2F09-STS313&quot; rel=&quot;noopener&quot; target=&quot;_blank&quot;&gt;10.1214/09-STS313&lt;/a&gt;&lt;/li&gt;</code></pre>
+<li>
+Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Forward. <em>Statistical Science</em>. Vol. 25, No. 1, 1–21. DOI: <a href="https://dx.doi.org/10.1214%2F09-STS313" rel="noopener" target="_blank">10.1214/09-STS313</a>
+</li>
 </ul>
 <p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
 <p><em>Clay Ford</em><br />

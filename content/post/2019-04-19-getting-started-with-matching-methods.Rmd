@@ -89,10 +89,14 @@ To carry out Nearest Neighbor Matching we load the MatchIt package and use the `
 ```{r}
 # install.packages("MatchIt")
 library(MatchIt)
-m.out <- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + AVEDRNK2, 
-                 data = brfss)
 
 ```
+
+```{r cache=TRUE}
+m.out <- matchit(SMOKE ~ RACE + AGE + SEX + WTLBS + AVEDRNK2, 
+                 data = brfss)
+```
+
 
 That should run fairly quickly on just about any computer. The next step is to investigate the results of the matching procedure. Did we improve balance? Are the smokers and non-smokers similar across age, race, weight, number of drinks and sex? The quickest way to check this is to plot a summary of the results, like so:
 
@@ -158,7 +162,7 @@ exp(confint(mod, parm = "SMOKEYes"))
 ```
 
 
-It appears that smokers are at least 2.9 times more likely to report COPD than non-smokers, controlling for age, sex, race, weight and drinking. 
+It appears that smokers are at least 2 times more likely to report COPD than non-smokers, controlling for age, sex, race, weight and drinking. 
 
 There is much more to learn about matching methods. We demonstrated Nearest Neighbor Matching, but there are several other methods. The MatchIt User's Guide provides a nice overview of how to implement various matching methods: <a href="https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html" rel="noopener" target="_blank">https://r.iq.harvard.edu/docs/matchit/2.4-20/User_s_Guide_to.html</a>
 
@@ -208,7 +212,7 @@ head(brfss.match[, "distance", drop = F])
 We get the same results by using our model to make predictions for the same subjects:
 
 ```{r}
-predict(pscore, type = "response")[c(1,3,13,14,21,22)]
+predict(pscore, type = "response")[c(1,14,21,22,29,32)]
 ```
 
 Another type of distance measure is the _linear propensity score_. It's just the log-odds version of the propensity score. Whereas the probability-based propensity score is bounded from 0 to 1, the linear propensity score has no such bounds. This means we can make better matches in the lower and upper extremes of the scores since the values are not being compressed near 0 or 1. In section 6.2 of her paper, Stuart actually recommends using the linear propensity score. Fortunately MatchIt makes it easy to do. Simply set the `distance` argument to `"linear.logit"`:
@@ -233,10 +237,14 @@ Notice that matching on the linear propensity score has resulted in different su
 To learn more about matching methods and causal inference in general, please see the following references:
 
 <ul>
-	<li>Claibourn, M. (2014). Matching Methods for Causal Inference. Workshop presented at the UVa Library. <a href="http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip" rel="noopener" target="_blank">http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip</a></li>	
-	<li>Gelman, A. and Hill, J. (2007). <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge. Chapters 9 and 10.</li>
-	<li>Ho, D., Imai K., King, G., Stuart, E. (2011). MatchIt: Nonparametric Preprocessing for Parametric Causal Inference. <em>Journal of Statistical Software</em>, Vol. 42, No. 8, pp. 1-28. URL <a href="http://www.jstatsoft.org/v42/i08/" rel="noopener" target="_blank">http://www.jstatsoft.org/v42/i08/</a> </li>
-        <li>Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Forward. <em>Statistical Science</em>. Vol. 25, No. 1, 1–21. DOI: <a href="https://dx.doi.org/10.1214%2F09-STS313" rel="noopener" target="_blank">10.1214/09-STS313</a></li>
+
+<li>Claibourn, M. (2014). Matching Methods for Causal Inference. Workshop presented at the UVa Library. <a href="http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip" rel="noopener" target="_blank">http://static.lib.virginia.edu/statlab/materials/workshops/MatchingMethods.zip</a></li>	
+
+<li>Gelman, A. and Hill, J. (2007). <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge. Chapters 9 and 10.</li>
+
+<li>Ho, D., Imai K., King, G., Stuart, E. (2011). MatchIt: Nonparametric Preprocessing for Parametric Causal Inference. <em>Journal of Statistical Software</em>, Vol. 42, No. 8, pp. 1-28. URL <a href="http://www.jstatsoft.org/v42/i08/" rel="noopener" target="_blank">http://www.jstatsoft.org/v42/i08/</a> </li>
+
+<li>Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Forward. <em>Statistical Science</em>. Vol. 25, No. 1, 1–21. DOI: <a href="https://dx.doi.org/10.1214%2F09-STS313" rel="noopener" target="_blank">10.1214/09-STS313</a></li>
 
 </ul>
 
