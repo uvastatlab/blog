@@ -1,0 +1,121 @@
+---
+title: Assessing Type S and Type M Errors
+author: Clay Ford
+date: '2018-10-31'
+slug: assessing-type-s-and-type-m-errors
+categories:
+  - R
+tags:
+  - power analysis
+  - type m error
+  - type s error
+---
+
+
+
+<p>The paper <em><a href="https://doi.org/10.1177%2F1745691614551642" rel="noopener" target="_blank">Beyond Power Calculations: Assessing Type S (Sign) and Type M (Magnitude) Errors</a></em> by Andrew Gelman and John Carlin introduces the idea of performing design calculations to help prevent researchers from being misled by statistically significant results in studies with small samples and/or noisy measurements. The main idea is that researchers often overestimate effect sizes in power calculations and collect noisy (ie, highly variable) data, which can make statistically significant results suspect. This can lead to estimated effects that are greatly exaggerated and even in the wrong direction. We suggest reading the paper if you haven’t already. It’s very accessible and highly instructive. What we want to do in this article is supplement some of the examples with a bit more explanation and R code for those who need a little extra help with the statistics.</p>
+<p>When Gelman and Carlin speak of the “design of the study” and “design calculations”, they’re referring to the relationship between a true effect size and what can be learned from the data. For example, let’s say you want to test the hypothesis that allowing students to chew gum while they take a test helps them perform better than those who do not. If in fact this hypothesis is true, what is the effect of chewing gum? Will it increase performance by an average of 10 points on a test? Probably not. If it helps at all, the effect will likely be very slight. There are many other more important factors that contribute to academic performance. Nevertheless, you create an experiment where 100 students chew gum while testing and 100 do not. Surely that’s a big enough sample size to safely detect the effect of chewing gum, right? And that’s where design calculations come in. They allow us to explore what we can learn from our data given various effect sizes. So if the true effect of chewing gum is a 0.01 point increase in test performance, then we won’t learn much from a sample of 200 students. The sample is way too small. And not only that, but there’s a chance that we’ll overestimate the effect of chewing gum or come up with an estimate that’s in the wrong direction.</p>
+<p>Now you may be thinking, “I thought that’s what power and sample size analysis was for. Wouldn’t that tell me to use more than 200 people?” It would if you specified the true effect size as well as a reasonable standard deviation of test scores. But power and sample size analyses are focused on statistical significance, i.e., correctly rejecting some null hypothesis. It doesn’t inform us of the potential for overestimating effects or estimating effects with the opposite sign.</p>
+<p>Let’s do a power and sample size analysis for our hypothetical study of chewing gum during tests and then follow it up with some design calculations to get a better understanding of what each does.</p>
+<p>A power analysis tells us the probability that our experiment will correctly reject the null hypothesis. We typically want at least 80% power. Let’s say we decide we’ll use a two-sample t test to analyze our study on chewing gum. We’ll get mean test scores from the group that chews gum and mean test scores from the group that does not. Then we’ll compare the means. We’ll reject the null hypothesis of no effect if we get a p-value below 0.05. The <code>power.t.test</code> function in R allows us to quickly estimate power. We plug in <code>n</code>, the number of subjects per group. Then we plug in <code>delta</code>, the hypothesized true difference in means (ie, the effect size), and <code>sd</code>, the hypothesized standard deviation for each of our groups. (A common approach to determining standard deviation for data yet to be collected is to divide the range of plausible values by 4. For example, assuming we score on a 100 point scale and no one scores below 50, (100 – 50)/4 = 12.5) By default a significance level of 0.05 is assumed. Perhaps we assume a standard deviation of 12.5 and an effect size of 5.</p>
+<pre class="r"><code>power.t.test(delta = 5, sd = 12.5, n = 100)</code></pre>
+<pre><code>## 
+##      Two-sample t test power calculation 
+## 
+##               n = 100
+##           delta = 5
+##              sd = 12.5
+##       sig.level = 0.05
+##           power = 0.8036466
+##     alternative = two.sided
+## 
+## NOTE: n is number in *each* group</code></pre>
+<p>This tells us we have 80% power. If the true effect of chewing gum really is to increase (or decrease) mean test scores by 5 points, then we have an 80% chance of correctly rejecting the null hypothesis with 100 subjects in each group. Obviously this power estimate is completely contingent upon our proposed effect size being true. Most people would be skeptical of the idea that simply chewing gum can raise (or lower) mean test scores by 5 points. But effect sizes are not always proposed based on subject matter expertise or common sense. They’re often determined as the minimum effect that would be substantively important. In other words, they are not proposed because they’re realistic but because they represent some minimum effect that one hopes to detect.</p>
+<p>Let’s now proceed to design calculations. The idea here is to replicate, or simulate, many studies with an identical design. In this case we could randomly generate 10,000 samples from a Normal distribution with some mean (our selected effect size) and a standard error of 1.77. Why 1.77? That’s the pooled standard error for a t test when both populations have a standard deviation of 12.5 and 100 are sampled from each group.</p>
+<p><span class="math display">\[ 12.5\sqrt{\frac{1}{100} + \frac{1}{100}} \approx 1.77 \]</span></p>
+<p>We want to simulate estimated effects from many two-sample t tests using an effect size of our choice and the assumed standard error of 1.77. (We could also sample from a t distribution, but in this case it doesn’t really make a difference.)</p>
+<p>Now as much as we might hope that chewing gum could add an expected 5 points to a test score, we should consider the consequences of the effect being much smaller. For example, what if the effect is actually about 0.5? Let’s replicate the study 10,000 times assuming that effect size and our standard error.</p>
+<pre class="r"><code>set.seed(12)
+se &lt;- sqrt(12.5^2 * 2 / 100) # about 1.77
+r.out &lt;- rnorm(n = 1e4, mean = 0.5, sd = 1.77) </code></pre>
+<p><code>r.out</code> stores the results of our 10,000 replicated studies. We can think of each value in <code>r.out</code> as the estimated effect of chewing gum on test scores if we replicated the study 10,000 times with an assumed effect of 0.5 and a standard error of 1.77.</p>
+<p>The first consequence we want to check is the probability that we get a statistically significant estimate with a wrong sign. Gelman and Carlin call this <strong>Type S</strong> error. Below we find the proportion of estimates that are more than 1.96 standard errors away from 0 (ie, statistically significant at the 0.05 level), and of those, the proportion less than 0 (ie, have the wrong sign).</p>
+<pre class="r"><code>mean(r.out[r.out &lt; -se*1.96 | r.out &gt; se*1.96] &lt; 0)</code></pre>
+<pre><code>## [1] 0.2070707</code></pre>
+<p>If the true effect size is 0.5 and our study finds a significant effect, there’s about a 20% chance that effect will have the wrong sign.</p>
+<p>The next consequence to check is the ratio of the expected significant effect to the true effect size. Gelman and Carlin call this <strong>Type M</strong> error, or the exaggeration ratio. To calculate this we take the mean of the absolute value of the estimated effect and divide it by the hypothesized effect size. Again we only do this for those replications that achieve “significance”.</p>
+<pre class="r"><code>mean(abs(r.out[r.out &lt; -se*1.96 | r.out &gt; se*1.96]))/0.5</code></pre>
+<pre><code>## [1] 8.298854</code></pre>
+<p>If the true effect size is 0.5 and our study finds a significant effect, we can expect the absolute value of the estimated effect to be about 8 times too high. Clearly there are serious consequences to consider if we overestimate effect sizes when planning a study.</p>
+<p>We can also use our simulated data to estimate the power of our study if the effect size is 0.5. Simply find the proportion of values that are 1.96 standard errors away from 0.</p>
+<pre class="r"><code>mean(abs(r.out) &gt; se*1.96)</code></pre>
+<pre><code>## [1] 0.0594</code></pre>
+<p>About 6%. Of course this is about the same power we would have estimated if we had assumed such a small effect size in the first place:</p>
+<pre class="r"><code>power.t.test(n = 100, delta = 0.5, sd = 12.5)</code></pre>
+<pre><code>## 
+##      Two-sample t test power calculation 
+## 
+##               n = 100
+##           delta = 0.5
+##              sd = 12.5
+##       sig.level = 0.05
+##           power = 0.04662574
+##     alternative = two.sided
+## 
+## NOTE: n is number in *each* group</code></pre>
+<p>But such small effects are not always considered in power and sample size calculations. As we mentioned earlier, the usual suggestion is to select the smallest effect that would be substantively important. But “substantively important” doesn’t necessarily translate to a realistic effect size. Again the idea behind design calculations is not another way to estimate power but to explore the potential for error in a study design if the true effect size is actually much smaller than expected.</p>
+<p>Gelman and Carlin provide a simple function to estimate Type M and Type S error in their paper called <code>retrodesign</code>. Submitting the following code chunk will load the function into your R session. The <code>A</code> argument is for the effect size and the <code>s</code> argument is for the standard error. <code>alpha=.05</code> is the default significance level, <code>df=Inf</code> is the default degrees of freedom for the t distribution, and <code>n.sims=10000</code> is the default number of simulations.</p>
+<pre class="r"><code>retrodesign &lt;- function(A, s, alpha=.05, df=Inf, n.sims=10000){
+  z &lt;- qt(1-alpha/2, df)
+  p.hi &lt;- 1 - pt(z-A/s, df)
+  p.lo &lt;- pt(-z-A/s, df)
+  power &lt;- p.hi + p.lo
+  typeS &lt;- p.lo/power
+  estimate &lt;- A + s*rt(n.sims,df)
+  significant &lt;- abs(estimate) &gt; s*z
+  exaggeration &lt;- mean(abs(estimate)[significant])/A
+  return(list(power=power, typeS=typeS, exaggeration=exaggeration))
+}</code></pre>
+<p>Here are the results retrodesign returned for our example study. We set <code>df=198</code> since a two-sample t test for two groups of 100 subjects has 198 degrees of freedom.</p>
+<pre class="r"><code>retrodesign(A = 0.5, s = se, df = 198) </code></pre>
+<pre><code>## $power
+## [1] 0.05899831
+## 
+## $typeS
+## [1] 0.2138758
+## 
+## $exaggeration
+## [1] 8.376586</code></pre>
+<p>The 2nd and 3rd elements are the Type S and Type M results, respectively, which basically match what we calculated “by hand”. The first element is “power”, which is the probability a replication achieves statistical significance. Since Type M error is based on simulated replicates, your result will differ slightly.</p>
+<p>Let’s walk through the function code. The first line returns the quantile, or the point on the x axis, below which lies 0.975 of the area under a t distribution with df degrees of freedom. When <code>df=Inf</code>, this is a fancy way to get 1.96. The next two lines calculate the probability of exceeding positive and negative values of <span class="math inline">\(z – A/s\)</span>. The quantity <span class="math inline">\(z – A/s\)</span> is the critical value that defines statistical significance in the analysis. Let’s say <span class="math inline">\(A/s\)</span> is our test statistic, then recall we declare significance at the 0.05 level if</p>
+<p><span class="math display">\[ \frac{A}{s} &gt; z \]</span></p>
+<p>where z = 1.96. Therefore adding or subtracting A/s from z will give us the adjusted critical values for our expected test statistic. The total probability of exceeding these critical values in either direction is our estimated power. The next line calculates Type S error by dividing the probability of getting a negative test statistic by the total probability of correctly rejecting the null hypothesis with a positive test statistic. Obviously the function assumes we’ll be working with a positive effect size!</p>
+<p>The next line samples 10,000 values from a t distribution. This is where we replicate the design. The function scales the values by multiplying them by our assumed standard error, s, and then shifts them A units (since a t distribution is centered at 0). The following line creates a vector of TRUE/FALSE called <code>significant</code> that identifies those replicates that exceed <span class="math inline">\(s*z\)</span> in absolute value. The <code>significant</code> vector is used in the next line to extract the significant replicates and calculate the exaggeration ratio. Finally the desired calculations are returned in a list.</p>
+<p>You’ll notice the suggested name of their function is “retrodesign”, which suggests retroactively performing a design analysis. Gelman and Carlin recommend running a design analysis “in particular when apparently strong evidence for nonnull effects has been found.” In their paper they carry out two such examples of published research. They note this is not the same as ill-advised post hoc power analyses for two reasons: (1) they focus on the sign and direction of effects (rather than statistical significance) and (2) they advocate using effect sizes that are “determined from literature review or other information external to the data at hand.”</p>
+<p>We hope you’ll read Gelman and Carlin’s paper and consider their observations and suggestions. This blog post is only intended to address some of the statistical concepts assumed in the paper.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:%20statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.5.3 (2019-03-11)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.5.3  magrittr_1.5    bookdown_0.9    tools_3.5.3    
+##  [5] htmltools_0.3.6 yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3  
+##  [9] rmarkdown_1.12  blogdown_0.11   knitr_1.22      stringr_1.4.0  
+## [13] digest_0.6.18   xfun_0.6        evaluate_0.13</code></pre>

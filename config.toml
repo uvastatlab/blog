@@ -11,8 +11,17 @@ publishDir = "../uvastatlab.github.io"
     post = "/:year/:month/:day/:slug/"
 
 [[menu.main]]
-    name = "About"
+    name = " About"
     url = "/about/"
+
+[[menu.main]]
+    name = " Categories"
+    url = "/categories/"
+    
+[[menu.main]]
+    name = " Tags"
+    url = "/tags/"
+
 [[menu.main]]
     name = "RDS"
     url = "https://data.library.virginia.edu/"
