@@ -1,0 +1,71 @@
+---
+title: Getting Started with Moderated Mediation
+author: Clay Ford
+date: '2018-03-02'
+slug: getting-started-with-moderated-mediation
+categories:
+  - R
+tags:
+  - mediation
+---
+
+
+
+<p><a href="http://data.library.virginia.edu/introduction-to-mediation-analysis/" rel="noopener" target="_blank">In a previous post</a> we demonstrated how to perform a basic mediation analysis. In this post we look at performing a moderated mediation analysis.</p>
+<p>The basic idea is that a mediator may depend on another variable called a “moderator”. For example, in our mediation analysis post we hypothesized that self-esteem was a mediator of student grades on the effect of student happiness. We illustrate this below with a path diagram. We see a direct effect of grades on happiness, but also an indirect effect of grades on happiness <em>through self-esteem</em>. A mediation analysis helps us investigate and quantify that indirect effect.</p>
+<p><img src="/img/mediation_diagram.png" /></p>
+<p>But what if we suspect that, say, gender moderates that indirect effect? In other words, what if we think that the mediation effect of self-esteem might differ between females and males? To analyze that question we use <em>moderated mediation</em>.</p>
+<p>The difference between mediation and moderated mediation is that we include an interaction for the moderator in our models. Let’s demonstrate using <a href="https://www.r-project.org/" rel="noopener" target="_blank">R</a>.</p>
+<p>First we read in the data from our mediation analysis post, but this time with a gender variable added. (Note: this data and example are made up purely for illustration purposes.)</p>
+<pre class="r"><code>myData  &lt;- read.csv(&quot;http://static.lib.virginia.edu/statlab/materials/data/mediationData2.csv&quot;)</code></pre>
+<p>Next we load the mediation package. If you don’t already have the mediation package, run the install.packages function below. Otherwise you can skip it.</p>
+<pre class="r"><code># install.packages(&quot;mediation&quot;)
+library(&quot;mediation&quot;)</code></pre>
+<p>Now we define our mediator and outcome models with an interaction term for gender. The interaction needs to happen with both “treatment” and mediating variables. In this case, grades is our “treatment” and self-esteem is the mediator.</p>
+<pre class="r"><code>model.M &lt;- lm(self.esteem ~ grades*gender, myData)
+model.Y &lt;- lm(happiness ~ grades*gender + self.esteem*gender, 
+              myData)</code></pre>
+<p>Notice this is just like the code in the mediation analysis post except we’ve added an interaction for gender in both models. The formula notation <code>grades*gender</code> is a short cut for writing <code>grades + gender + grades:gender</code>, where “:” is an interaction operator in R’s formula syntax. An interaction allows the effect of grades and self-esteem to vary according to gender.</p>
+<p>Now we run our mediation as before, but this time we only need to use a couple of simulation draws.</p>
+<pre class="r"><code>results &lt;- mediate(model.M, model.Y, 
+                   treat=&#39;grades&#39;, 
+                   mediator=&#39;self.esteem&#39;, 
+                   sims=2)</code></pre>
+<p>Finally we perform the moderated mediation using the <code>test.modmed</code> function. This is where we perform the simulation draws to calculate uncertainty. The first argument is the output of the mediation analysis. The second and third arguments are the different levels of the moderators. Notice they each need to be a list object. The last argument specifies the number of simulations. We use 500, but you may want to do as many as 1000.</p>
+<pre class="r"><code>test.modmed(results, 
+            covariates.1 = list(gender = &quot;M&quot;), 
+            covariates.2 = list(gender = &quot;F&quot;), 
+            sims = 500)</code></pre>
+<pre><code>## 
+##  Test of ACME(covariates.1) - ACME(covariates.2) = 0
+## 
+## data:  estimates from results
+## ACME(covariates.1) - ACME(covariates.2) = -0.063366, p-value =
+## 0.72
+## alternative hypothesis: true ACME(covariates.1) - ACME(covariates.2) is not equal to 0
+## 95 percent confidence interval:
+##  -0.3892509  0.2601534
+## 
+## 
+##  Test of ADE(covariates.1) - ADE(covariates.2) = 0
+## 
+## data:  estimates from results
+## ADE(covariates.1) - ADE(covariates.2) = -0.016635, p-value = 0.972
+## alternative hypothesis: true ADE(covariates.1) - ADE(covariates.2) is not equal to 0
+## 95 percent confidence interval:
+##  -0.4317114  0.3971402</code></pre>
+<p>Since we’re using simulation to estimate uncertainty, your answer will differ slightly from the output above.</p>
+<p>The first section is a test of difference between the average causal mediation effects (ACME), i.e., the indirect effect of grades through self-esteem on happiness. The estimated difference is about 0.22, but the 95% confidence interval spans from -0.21 to 0.80. Using traditional hypothesis testing we might conclude we cannot rule out 0 as the true difference between the mediation effects. Another conclusion might be that the true difference appears to be small, but we don’t have enough evidence to determine if that difference is positive or negative.</p>
+<p>The second section is a test of difference between the average direct effects (ADE), i.e., the direct effect of grades on happiness. As with the indirect effect, we don’t have enough evidence to conclude if the difference in direct effects between genders is positive or negative.</p>
+<p>In this case our moderator was a categorical variable but a moderator can also be continuous. We just have to specify different values of the moderator in the covariates arguments of <code>test.modmed</code>. See the documentation of <code>test.modmed</code> for an example. Just enter <code>?test.modmed</code> in your R console.</p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>Tingley, D., Yamamoto, T., Hirose, K., Keele, L., &amp; Imai, K. (2014). Mediation: R package for causal mediation analysis. <a href="https://www.jstatsoft.org/article/view/v059i05">https://www.jstatsoft.org/article/view/v059i05</a></li>
+<li>MacKinnon, D. (2008). Introduction to Statistical Mediation Analysis. Lawrence Erlbaum.</li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+</div>
