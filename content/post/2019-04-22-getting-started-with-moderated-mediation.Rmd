@@ -58,7 +58,7 @@ results <- mediate(model.M, model.Y,
 
 Finally we perform the moderated mediation using the `test.modmed` function. This is where we perform the simulation draws to calculate uncertainty. The first argument is the output of the mediation analysis. The second and third arguments are the different levels of the moderators. Notice they each need to be a list object. The last argument specifies the number of simulations. We use 500, but you may want to do as many as 1000. 
 
-```{r}
+```{r cache=TRUE}
 test.modmed(results, 
             covariates.1 = list(gender = "M"), 
             covariates.2 = list(gender = "F"), 
@@ -68,7 +68,7 @@ test.modmed(results,
 
 Since we’re using simulation to estimate uncertainty, your answer will differ slightly from the output above.
 
-The first section is a test of difference between the average causal mediation effects (ACME), i.e., the indirect effect of grades through self-esteem on happiness. The estimated difference is about 0.22, but the 95% confidence interval spans from -0.21 to 0.80. Using traditional hypothesis testing we might conclude we cannot rule out 0 as the true difference between the mediation effects. Another conclusion might be that the true difference appears to be small, but we don’t have enough evidence to determine if that difference is positive or negative.
+The first section is a test of difference between the average causal mediation effects (ACME), i.e., the indirect effect of grades through self-esteem on happiness. The estimated difference is about 0.7, but the 95% confidence interval spans from -0.41 to 0.25. Using traditional hypothesis testing we might conclude we cannot rule out 0 as the true difference between the mediation effects. Another conclusion might be that the true difference appears to be small, but we don’t have enough evidence to determine if that difference is positive or negative.
 
 The second section is a test of difference between the average direct effects (ADE), i.e., the direct effect of grades on happiness. As with the indirect effect, we don’t have enough evidence to conclude if the difference in direct effects between genders is positive or negative.
 

@@ -40,22 +40,22 @@ model.Y &lt;- lm(happiness ~ grades*gender + self.esteem*gender,
 ##  Test of ACME(covariates.1) - ACME(covariates.2) = 0
 ## 
 ## data:  estimates from results
-## ACME(covariates.1) - ACME(covariates.2) = -0.063366, p-value =
-## 0.72
+## ACME(covariates.1) - ACME(covariates.2) = -0.067739, p-value =
+## 0.696
 ## alternative hypothesis: true ACME(covariates.1) - ACME(covariates.2) is not equal to 0
 ## 95 percent confidence interval:
-##  -0.3892509  0.2601534
+##  -0.4100239  0.2543743
 ## 
 ## 
 ##  Test of ADE(covariates.1) - ADE(covariates.2) = 0
 ## 
 ## data:  estimates from results
-## ADE(covariates.1) - ADE(covariates.2) = -0.016635, p-value = 0.972
+## ADE(covariates.1) - ADE(covariates.2) = -0.011636, p-value = 0.956
 ## alternative hypothesis: true ADE(covariates.1) - ADE(covariates.2) is not equal to 0
 ## 95 percent confidence interval:
-##  -0.4317114  0.3971402</code></pre>
+##  -0.5002332  0.4599535</code></pre>
 <p>Since we’re using simulation to estimate uncertainty, your answer will differ slightly from the output above.</p>
-<p>The first section is a test of difference between the average causal mediation effects (ACME), i.e., the indirect effect of grades through self-esteem on happiness. The estimated difference is about 0.22, but the 95% confidence interval spans from -0.21 to 0.80. Using traditional hypothesis testing we might conclude we cannot rule out 0 as the true difference between the mediation effects. Another conclusion might be that the true difference appears to be small, but we don’t have enough evidence to determine if that difference is positive or negative.</p>
+<p>The first section is a test of difference between the average causal mediation effects (ACME), i.e., the indirect effect of grades through self-esteem on happiness. The estimated difference is about 0.7, but the 95% confidence interval spans from -0.41 to 0.25. Using traditional hypothesis testing we might conclude we cannot rule out 0 as the true difference between the mediation effects. Another conclusion might be that the true difference appears to be small, but we don’t have enough evidence to determine if that difference is positive or negative.</p>
 <p>The second section is a test of difference between the average direct effects (ADE), i.e., the direct effect of grades on happiness. As with the indirect effect, we don’t have enough evidence to conclude if the difference in direct effects between genders is positive or negative.</p>
 <p>In this case our moderator was a categorical variable but a moderator can also be continuous. We just have to specify different values of the moderator in the covariates arguments of <code>test.modmed</code>. See the documentation of <code>test.modmed</code> for an example. Just enter <code>?test.modmed</code> in your R console.</p>
 <div id="references" class="section level3">
