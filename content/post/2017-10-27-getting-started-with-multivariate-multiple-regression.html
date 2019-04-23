@@ -24,6 +24,7 @@ tags:
 <p>We’ll use the <a href="https://www.r-project.org/" target="_blank">R statistical computing environment</a> to demonstrate multivariate multiple regression. The following code reads the data into R and names the columns.</p>
 <pre class="r"><code>ami_data &lt;- read.table(&quot;http://static.lib.virginia.edu/statlab/materials/data/ami_data.DAT&quot;)
 names(ami_data) &lt;- c(&quot;TOT&quot;,&quot;AMI&quot;,&quot;GEN&quot;,&quot;AMT&quot;,&quot;PR&quot;,&quot;DIAP&quot;,&quot;QRS&quot;)</code></pre>
+<p>Before going further you may wish to explore the data using the summary and pairs functions.</p>
 <pre class="r"><code>summary(ami_data)
 pairs(ami_data)</code></pre>
 <p>Performing multivariate multiple regression in R requires wrapping the multiple responses in the <code>cbind</code> function. <code>cbind</code> takes two vectors, or columns, and “binds” them together into two columns of data. We insert that on the left side of the formula operator: <code>~</code>. On the other side we add our predictors. The <code>+</code> signs do not mean addition per se but rather inclusion. Taken together the formula <code>cbind(TOT, AMI) ~ GEN + AMT + PR + DIAP + QRS</code> translates to “model TOT and AMI as a function of GEN, AMT, PR, DIAP and QRS.” To fit this model we use the workhorse <code>lm</code> function and save it to an object we named “mlm1”. Finally we view the results with <code>summary</code>.</p>

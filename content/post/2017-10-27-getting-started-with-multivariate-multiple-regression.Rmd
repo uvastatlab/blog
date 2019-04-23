@@ -28,6 +28,8 @@ names(ami_data) <- c("TOT","AMI","GEN","AMT","PR","DIAP","QRS")
 
 ```
 
+Before going further you may wish to explore the data using the summary and pairs functions.
+
 ```{r eval=FALSE}
 summary(ami_data)
 pairs(ami_data)
