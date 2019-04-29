@@ -84,3 +84,8 @@ For questions or clarifications regarding this article, contact the UVa Library 
 _Clay Ford_  
 _Statistical Research Consultant_  
 _University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+

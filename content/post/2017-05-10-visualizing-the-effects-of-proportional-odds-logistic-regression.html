@@ -1,0 +1,292 @@
+---
+title: Visualizing the Effects of Proportional-Odds Logistic Regression
+author: Clay Ford
+date: '2017-05-10'
+slug: visualizing-the-effects-of-proportional-odds-logistic-regression
+categories:
+  - R
+tags:
+  - effect plots
+  - proportional odds logisitic regression
+---
+
+
+
+<p>Proportional-odds logistic regression is often used to model an ordered categorical response. By “ordered”, we mean categories that have a natural ordering, such as “Disagree”, “Neutral”, “Agree”, or “Everyday”, “Some days”, “Rarely”, “Never”. For a primer on proportional-odds logistic regression, see our post, <a href="http://data.library.virginia.edu/fitting-and-interpreting-a-proportional-odds-model/" target="_blank">Fitting and Interpreting a Proportional Odds Model</a>. In this post we demonstrate how to visualize a proportional-odds model in <a href="https://www.r-project.org/" target="_blank">R</a>.</p>
+<p>To begin, we load the effects package. The effects package provides functions for visualizing regression models. This post is essentially a tutorial for using the effects package with proportional-odds models. We also load the car, MASS and splines packages for particular functions, which we’ll explain as we encounter them. If you don’t have the effects or car packages, uncomment the lines below and run them in R. MASS and splines are recommended packages that come with R.</p>
+<pre class="r"><code># install.packages(&quot;effects&quot;)
+# install.packages(&quot;car&quot;)
+
+library(effects)
+library(car)
+library(MASS)
+library(splines) </code></pre>
+<p>To demonstrate how to visualize a proportional-odds model we’ll use data from the World Values Surveys (1995-1997) for Australia, Norway, Sweden, and the United States. This dataset, WVS, comes with the effects package. Once we load the effects package, the data is ready to access.</p>
+<pre class="r"><code>head(WVS)</code></pre>
+<pre><code>##       poverty religion degree country age gender
+## 1  Too Little      yes     no     USA  44   male
+## 2 About Right      yes     no     USA  40 female
+## 3  Too Little      yes     no     USA  36 female
+## 4    Too Much      yes    yes     USA  25 female
+## 5  Too Little      yes    yes     USA  39   male
+## 6 About Right      yes     no     USA  80 female</code></pre>
+<p>The response variable of interest is poverty, which is a 3-level ordered categorical variable. It contains the answer to the question “Do you think that what the government is doing for people in poverty in this country is about the right amount, too much, or too little?” The answers are an ordered categorical variable with levels “Too Little”, “About Right”, and “Too Much”. The other variables will serve as our predictors. These include country, gender, religion (belong to a religion?), education (hold a university degree?), and age in years. The data contains 5381 records.</p>
+<p>Before we get started we need to note this example comes from <a href="https://www.jstatsoft.org/article/view/v032i01" target="_blank">an article on the effects package</a> in the Journal of Statistical Software by John Fox and Jangman Hong, the authors of the effects package. You should definitely take the time to read through that article and cite it if you plan to use the effects package for your own research. What we seek to do in this blog post is elaborate on the example and provide some additional details.</p>
+<p>Before we can visualize a proportional odds model we need to fit it. For this we use the <code>polr</code> function from the MASS package. The first model we fit models poverty as a function of country interacted with gender, religion, degree and age. The interaction allows the effects of the predictors to vary with each country.</p>
+<pre class="r"><code>wvs.1 &lt;- polr(poverty ~ country*(gender + religion + 
+                                   degree + age), 
+              data = WVS)
+summary(wvs.1)</code></pre>
+<pre><code>## 
+## Re-fitting to get Hessian</code></pre>
+<pre><code>## Call:
+## polr(formula = poverty ~ country * (gender + religion + degree + 
+##     age), data = WVS)
+## 
+## Coefficients:
+##                                Value Std. Error  t value
+## countryNorway              0.5308176   0.286989  1.84961
+## countrySweden              0.5446552   0.546029  0.99748
+## countryUSA                -0.0347317   0.248059 -0.14001
+## gendermale                 0.0696120   0.090212  0.77165
+## religionyes                0.0094685   0.112476  0.08418
+## degreeyes                 -0.1242920   0.167603 -0.74158
+## age                        0.0155849   0.002597  6.00185
+## countryNorway:gendermale   0.1873611   0.144503  1.29659
+## countrySweden:gendermale   0.0563508   0.154414  0.36493
+## countryUSA:gendermale      0.2119735   0.139513  1.51938
+## countryNorway:religionyes -0.2186724   0.216256 -1.01118
+## countrySweden:religionyes -0.8789724   0.513263 -1.71252
+## countryUSA:religionyes     0.6002277   0.174433  3.44101
+## countryNorway:degreeyes    0.0558595   0.208202  0.26829
+## countrySweden:degreeyes    0.6281743   0.214295  2.93136
+## countryUSA:degreeyes       0.3030866   0.206394  1.46848
+## countryNorway:age         -0.0157142   0.004367 -3.59846
+## countrySweden:age         -0.0092122   0.004657 -1.97826
+## countryUSA:age             0.0005419   0.003975  0.13635
+## 
+## Intercepts:
+##                        Value   Std. Error t value
+## Too Little|About Right  0.7161  0.1535     4.6644
+## About Right|Too Much    2.5355  0.1578    16.0666
+## 
+## Residual Deviance: 10347.07 
+## AIC: 10389.07</code></pre>
+<p>The summary output is imposing. In addition to 19 coefficients we have 2 intercepts. Larger coefficients with large t-values are indicative of important predictors, but with so many interactions it’s hard to to see what’s happening or what the model “says”. To evaluate whether the interactions are significant, we use the <code>Anova</code> function from the car package. By default the <code>Anova</code> function returns Type II tests, which tests each term after all others, save interactions. (The base R <code>anova</code> function performs Type I tests which tests each term sequentially.)</p>
+<pre class="r"><code>Anova(wvs.1)</code></pre>
+<pre><code>## Analysis of Deviance Table (Type II tests)
+## 
+## Response: poverty
+##                  LR Chisq Df Pr(&gt;Chisq)    
+## country           250.881  3  &lt; 2.2e-16 ***
+## gender             10.749  1  0.0010435 ** 
+## religion            4.132  1  0.0420698 *  
+## degree              4.284  1  0.0384725 *  
+## age                49.950  1  1.577e-12 ***
+## country:gender      3.049  3  0.3841657    
+## country:religion   21.143  3  9.833e-05 ***
+## country:degree     12.861  3  0.0049476 ** 
+## country:age        17.529  3  0.0005501 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<p>The Anova result shows all interactions except country:gender are significant. But what do the interactions mean? How do, say, country and age interact?</p>
+<p>This is where the effects package enters. The effects package allows us to easily create effect displays. What are effect displays? The documentation for the effects package explains it this way:</p>
+<p>“To create an effect display, predictors in a term are allowed to range over their combinations of values, while other predictors in the model are held to typical values.”</p>
+<p>In other words, we take our model and use it to calculate predicted values for various combinations of certain “focal” predictors while holding other predictors at fixed values. Then we plot our predicted values versus the “focal” predictors to see how the response changes. Let’s demonstrate.</p>
+<p>The two primary functions are <code>Effect</code> and <code>plot</code>. <code>Effect</code> generates the predictions and <code>plot</code> creates the display. Let’s say we’re interested in the age and country interaction. We want to visualize how age affects views on poverty for each country. Since our model includes an interaction, which was significant, we expect to see different trajectories for each country.</p>
+<p>The following code generates the predicted values. The first argument, <code>focal.predictors</code>, is where we list the predictors we’re interested in. Notice it requires a vector, which is why we use the <code>c()</code> function. The second argument is the fitted model.</p>
+<pre class="r"><code>Effect(focal.predictors = c(&quot;age&quot;,&quot;country&quot;), 
+       mod = wvs.1)</code></pre>
+<pre><code>## 
+## age*country effect (probability) for Too Little
+##     country
+## age  Australia    Norway    Sweden       USA
+##   20 0.5958889 0.5632140 0.6496015 0.4330782
+##   40 0.5191570 0.5638496 0.6200674 0.3562127
+##   60 0.4415107 0.5644851 0.5896166 0.2861049
+##   70 0.4035049 0.5648027 0.5741134 0.2543308
+##   90 0.3312402 0.5654379 0.5426958 0.1981045
+## 
+## age*country effect (probability) for About Right
+##     country
+## age  Australia    Norway    Sweden       USA
+##   20 0.3050532 0.3250955 0.2699789 0.3918455
+##   40 0.3502854 0.3247160 0.2895692 0.4171736
+##   60 0.3883075 0.3243362 0.3089823 0.4258700
+##   70 0.4031610 0.3241462 0.3185295 0.4234793
+##   90 0.4221528 0.3237659 0.3371079 0.4056632
+## 
+## age*country effect (probability) for Too Much
+##     country
+## age   Australia    Norway     Sweden       USA
+##   20 0.09905788 0.1116905 0.08041952 0.1750762
+##   40 0.13055755 0.1114343 0.09036331 0.2266137
+##   60 0.17018180 0.1111787 0.10140107 0.2880252
+##   70 0.19333407 0.1110511 0.10735706 0.3221899
+##   90 0.24660694 0.1107962 0.12019630 0.3962323</code></pre>
+<p>Notice the output lists three sections of probabilities corresponding to each level of the response. The first section lists predicted probabilities for answering “Too Little” for each country for ages ranging from 20 to 90 in increments of 10. The predicted probability a 20-year-old from the USA answers “Too Little” is about 0.43. The second section is for “About right”. The predicted probability a 20-year-old from the USA answers “About Right” is about 0.39. Finally, the third section is for “Too Much”. The predicted probability a 20-year-old from the USA answers “Too Much” is about 0.18.</p>
+<p>This information is much easier to digest as an effect display. Simply insert the original <code>Effect</code> function call into the <code>plo</code>t function to create the effect display.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;age&quot;,&quot;country&quot;), 
+            mod = wvs.1), 
+     rug = FALSE)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>Now we see how the model “works”. For example, in the upper right plot, we see that in the USA, the probability of answering “Too Much” increases rather dramatically with age, while the probabilities for answering the same in Norway and Sweden stay low and constant. Likewise we see that the probability of USA respondents answering “Too Little” decreases with age while the probabilities for Norway and Sweden stay rather high and constant. The effect display shows us where the interactions are happening and to what degree. (Note: setting <code>rug = FALSE</code> turns off the rug plot. When set to TRUE, the default, the marginal distribution of the predictor is displayed on the x axis. In this case we don’t find it very helpful since we have so much data.)</p>
+<p>Recall that we need to use all predictors to generate these plots. Country and age are the focal predictors, so they are varied. This means gender, religion and degree are held fixed. We can find out the values they’re fixed at by saving the result of the <code>Effect</code></code>` function and viewing the model matrix.</p>
+<pre class="r"><code>e.out &lt;- Effect(focal.predictors = c(&quot;age&quot;,&quot;country&quot;), 
+                mod = wvs.1)
+e.out$model.matrix[1,c(&quot;gendermale&quot;,&quot;religionyes&quot;,&quot;degreeyes&quot;)]</code></pre>
+<pre><code>##  gendermale religionyes   degreeyes 
+##   0.4935886   0.8539305   0.2124140</code></pre>
+<p>This says gender was set to 0.4935886, religion to 0.8539305, and degree to 0.2124140. In the original data these are indicator variables that take values of 0 or 1 corresponding to No and Yes. Does it make sense to plug in decimals instead of 0s or 1s? It does if you think of modeling a population that is about 49% men, 85% religious, and 21% with a college degree. In fact this describes our sample. By default, the effects package will take the mean of numeric variables that are held fixed. We can verify that’s what it’s doing:</p>
+<pre class="r"><code>mean(WVS$gender==&quot;male&quot;)</code></pre>
+<pre><code>## [1] 0.4935886</code></pre>
+<pre class="r"><code>mean(WVS$religion==&quot;yes&quot;)</code></pre>
+<pre><code>## [1] 0.8539305</code></pre>
+<pre class="r"><code>mean(WVS$degree==&quot;yes&quot;)</code></pre>
+<pre><code>## [1] 0.212414</code></pre>
+<p>If we want to change these values, we can use the <code>given.values</code> argument. It needs to be a named vector that uses the terms as listed in the output summary. For example, to create an effect plot for religious men without a college degree:</p>
+<pre class="r"><code>e.out &lt;- Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+                mod = wvs.1, 
+                given.values = c(gendermale = 1, 
+                                 religionyes = 1, 
+                                 degreeyes = 0))
+plot(e.out, rug = FALSE)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>We see that the overall “story” of the display does not change; the same changes are happening in the same plots. But the overall probabilities have increased by evidence of the y axis now topping out at 0.7.</p>
+<p>We can also change the range and number of focal predictors using the <code>xlevels</code> argument. For example, we can set age to range from 20 to 80 in steps of 10. Notice it needs to be a named list.</p>
+<pre class="r"><code>e.out &lt;- Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+                mod = wvs.1,
+                 xlevels = list(age = seq(20,80,10)))
+plot(e.out, rug = FALSE)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>We can investigate other interactions using the same syntax. Below is the effect display for the religion and country interaction. In this case, age is no longer a focal predictor and is held fixed at its mean (45.04).</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;religion&quot;,&quot;country&quot;), 
+            mod = wvs.1), 
+     rug = FALSE)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p>We notice, for example, that religious people in the USA have a higher probability of answering “Too Much” compared to their counterparts in the other countries surveyed. We also notice there is much more uncertainty about estimates in Sweden for people who answered “No” to the religion question. This is due to the small numbers of respondents in those categories, as we can see with the <code>xtabs</code> function.</p>
+<pre class="r"><code>xtabs(~ religion + country + poverty, data = WVS, 
+      country == &quot;Sweden&quot;, 
+        drop.unused.levels = TRUE)</code></pre>
+<pre><code>## , , poverty = Too Little
+## 
+##         country
+## religion Sweden
+##      no       7
+##      yes    597
+## 
+## , , poverty = About Right
+## 
+##         country
+## religion Sweden
+##      no       5
+##      yes    369
+## 
+## , , poverty = Too Much
+## 
+##         country
+## religion Sweden
+##      no       3
+##      yes     22</code></pre>
+<p>Following the example in Fox’s article, let’s fit another model that relaxes the linearity assumption for age. We can do this by generating what’s called a basis matrix for natural cubic splines. Instead of fitting a regular polynomial such as age + age^2, we fit piecewise cubic polynomials over the range of age separated by a certain number of intervals, or knots. The <code>ns</code> function in the splines package makes this easy to do. Below we use it in the model formula and specify 4 knots. Harrell (2001) suggests 3-5 knots is usually a good choice (p. 23), so 4 seems wise in this case.</p>
+<pre class="r"><code>wvs.2 &lt;- polr(poverty ~ country*(gender + religion + 
+                                   degree + ns(age, 4)),
+              data = WVS)
+# summary(wvs.2)
+# Anova(wvs.2)</code></pre>
+<p>Due to space considerations we don’t print the output of the <code>summary</code> and <code>Anova</code> functions. The model summary shows information for 31 coefficients and is very difficult to interpret. The Anova result is similar in substance to the first model, showing all interactions except country:gender significant. It’s worth noting the AIC of the second model is considerably lower than the first (10373.85 vs 10389.07), suggesting a better fit.</p>
+<p>Let’s look at the country and age interaction while allowing age to range from 20 - 80:</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+            mod = wvs.2, 
+            xlevels = list(age = 20:80)), 
+     rug = FALSE)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p>We see that using a natural spline allows a nonlinear effect of age. For example we see the probability of answering “Too Little” in the USA decreases sharply from 20 to 30, increases from about age 30 to 45, and then decreases and levels out through age 80.</p>
+<p>The effects package also allows us to create “stacked” effect displays for proportional-odds models. We do this by setting <code>style="stacked"</code> in the <code>plot</code> function.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+            mod = wvs.2, 
+            xlevels = list(age = 20:80)), 
+     rug = FALSE,
+     style=&quot;stacked&quot;)</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+<p>This plot is useful for allowing us to compare probabilities across the response categories. For example, in Norway and Sweden, people are most likely to answer “Too Little” regardless of age. The blue shaded regions dominate their graphs.</p>
+<p>We can also create a “latent” version of the effect display. In this plot, the y axis is on the logit scale, which we interpret to be a latent, or hidden, scale from which the ordered categories are derived. We create it by setting <code>latent = TRUE</code> in the <code>Effect</code> function.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+            mod = wvs.2, 
+            xlevels = list(age = 20:80),
+            latent = TRUE),
+     rug = FALSE,
+     ylim = c(0,3.5))</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>This plot is useful when we’re more interested in classification than probability. The horizontal lines in the plots correspond to the intercepts in the summary output. We can think of these lines as threshholds that define where we crossover from one category to the next on the latent scale. The TL-AR line indicates the boundary between the “Too Little” and “About Right” categories. The AR-TM line indicates the boundary between the “About Right” and “Too Much” categories. Like the “stacked” effect display, we see that someone from Norway and Sweden would be expected to answer “Too Little” regardless of age, though the confidence ribbon indicates this expectation is far from certain, especially for older and younger respondents. On the other hand, most USA respondents are expected to answer “About Right”.</p>
+<p>Let’s see how the “latent” plot changes when we set the non-focal predictors to college-educated, non-religious female.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;), 
+            mod = wvs.2, 
+            xlevels = list(age = 20:80),
+            given.values = c(gendermale = 0, 
+                             religionyes = 0, 
+                             degreeyes = 1),
+            latent = TRUE),
+     rug = FALSE,
+     ylim = c(0,3.5))</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p>Notice now that predicted classification for Sweden is “About Right” over the age range but with increased uncertainty. We also see increased chances of answering “Too Little” for certain age ranges in the USA.</p>
+<p>We can add gender as a focal predictor to compare plots for males versus females:</p>
+<pre class="r"><code>plot(Effect(focal.predictors = c(&quot;country&quot;,&quot;age&quot;,&quot;gender&quot;), 
+            mod = wvs.2, 
+            xlevels = list(age = 20:80),
+            latent = TRUE),
+     rug = FALSE,
+     ylim = c(0,3.5))</code></pre>
+<p><img src="/post/2017-05-10-visualizing-the-effects-of-proportional-odds-logistic-regression_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p>Since we didn’t fit a 3-way interaction between country, gender and age, the trajectories do not change between genders. They simply shift horizontally between the two levels of gender.</p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>Fox, J. and J. Hong (2009). Effect displays in R for multinomial and proportional-odds logit models: Extensions to the effects package. <em>Journal of Statistical Software</em> 32:1, 1–24, &lt;<a href="http://www.jstatsoft.org/v32/i01/" target="_blank">http://www.jstatsoft.org/v32/i01/</a>&gt;.</li>
+<li>Harrell, Frank. <em>Regression Modeling Strategies</em>. Springer, 2001.</li>
+<li>R Core Team (2017). R: A language and environment for statistical computing. R Foundation for Statistical
+Computing, Vienna, Austria. URL <a href="https://www.R-project.org/" class="uri">https://www.R-project.org/</a>.</li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.5.3 (2019-03-11)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] splines   stats     graphics  grDevices utils     datasets  methods  
+## [8] base     
+## 
+## other attached packages:
+## [1] MASS_7.3-51.3 car_3.0-2     effects_4.1-0 carData_3.0-2
+## 
+## loaded via a namespace (and not attached):
+##  [1] zip_2.0.1         Rcpp_1.0.1        cellranger_1.1.0 
+##  [4] pillar_1.3.1      compiler_3.5.3    nloptr_1.2.1     
+##  [7] forcats_0.4.0     tools_3.5.3       boot_1.3-20      
+## [10] digest_0.6.18     lme4_1.1-21       tibble_2.1.1     
+## [13] evaluate_0.13     nlme_3.1-137      lattice_0.20-38  
+## [16] pkgconfig_2.0.2   rlang_0.3.4       openxlsx_4.1.0   
+## [19] Matrix_1.2-15     curl_3.3          yaml_2.2.0       
+## [22] blogdown_0.11     haven_2.1.0       xfun_0.6         
+## [25] rio_0.5.16        stringr_1.4.0     knitr_1.22       
+## [28] hms_0.4.2         grid_3.5.3        nnet_7.3-12      
+## [31] data.table_1.12.2 readxl_1.3.1      survival_2.44-1.1
+## [34] foreign_0.8-71    rmarkdown_1.12    bookdown_0.9     
+## [37] minqa_1.2.4       magrittr_1.5      htmltools_0.3.6  
+## [40] abind_1.4-5       colorspace_1.4-1  stringi_1.4.3    
+## [43] survey_3.35-1     crayon_1.3.4</code></pre>
+</div>
