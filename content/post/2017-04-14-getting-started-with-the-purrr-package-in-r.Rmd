@@ -1,0 +1,207 @@
+---
+title: Getting started with the purrr package in R
+author: Clay Ford
+date: '2017-04-14'
+slug: getting-started-with-the-purrr-package-in-r
+categories:
+  - R
+tags:
+  - data wrangling
+---
+
+If you're wondering what exactly the purrr package does, then this blog post is for you. 
+
+Before we get started, we should mention <a href="http://r4ds.had.co.nz/iteration.html#the-map-functions" target="_blank">the Iteration chapter in <em>R for Data Science</em></a> by Garrett Grolemund and Hadley Wickham. We think this is the most thorough and extensive introduction to the purrr package currently available (at least at the time of this writing.) Wickham is one of the authors of the purrr package and he spends a good deal of the chapter clearly explaining how it works. Good stuff, recommended reading. 
+
+The purpose of this article is to provide a short introduction to purrr, focusing on just a handful of functions. We use some real world data and replicate what purrr does in base R so we have a better understanding of what's going on.
+
+We visited <a href="http://finance.yahoo.com" target="_blank">Yahoo Finance</a> on 13 April 2017 and downloaded about three weeks of historical data for three companies: Boeing, Johnson &amp; Johnson and IBM. The following R code will download and unzip the data in your current working directory if you wish to follow along. 
+
+```{r}
+URL <- "http://static.lib.virginia.edu/statlab/materials/data/stocks.zip"
+download.file(url = URL, destfile = basename(URL))
+unzip(basename(URL))
+```
+
+We have three CSV files. In the spirit of being efficient we would like to import these files into R using as little code as possible (as opposed to calling `read.csv` three different times.)
+
+Using base R functions, we could put all the file names into a vector and then apply the `read.csv` function to each file. This results in a list of three data frames. When done we could name each list element using the `names` function and our vector of file names. 
+
+```{r}
+# get all files ending in csv
+files <- list.files(pattern = "csv$") 
+# read in data
+dat <- lapply(files, read.csv)
+names(dat) <- gsub("\\.csv", "", files) # remove file extension
+
+```
+
+Here is how we do the same using the `map` function from the purrr package.
+
+```{r}
+# install.packages("purrr") # uncomment if package not already installed
+library(purrr)
+dat2 <- map(files, read.csv)
+dat2 <- set_names(dat2, gsub("\\.csv", "", files))
+
+```
+
+Notice we used the `set_names` function (also in purrr) to set the names of the list elements. A _tidyverse_ approach would use the `%>%` pipe, like so:
+
+```{r}
+dat2 <- map(files, read.csv) %>% 
+  set_names(gsub("\\.csv", "", files))
+```
+
+So we see that `map` is like `lapply`. It takes a vector as input and applies a function to each element of the vector. `map` is one of the star functions in the purrr package. 
+
+Let's say we want to find the mean Open price for each stock. Here is a base R way using `lapply` and an anonymous function:
+
+```{r}
+lapply(dat, function(x)mean(x$Open))
+
+```
+
+We can do the same with map.
+
+```{r}
+map(dat, function(x)mean(x$Open))
+
+```
+
+But `map` allows us to bypass the `function` function. Using a tilda (`~`) in place of `function` and a dot (.) in place of `x`, we can do this:
+
+```{r}
+map(dat, ~mean(.$Open))
+
+```
+
+Furthermore, purrr provides several versions of `map` that allow you to specify the structure of your output. For example, if we want a vector instead of a list we can use the `map_dbl` function. The "_dbl" indicates that it returns a vector of type double (ie, numbers with decimals).
+
+```{r}
+map_dbl(dat, ~mean(.$Open))
+
+```
+
+Now let's say that we want to extract each stock's Open price data. In other words, we want to go into each data frame in our list and pull out the Open column. We can do that with `lapply` as follows:
+
+```{r}
+lapply(dat, function(x)x$Open)
+
+```
+
+Using `map` is a little easier. We just provide the name of the column we want to extract.
+
+```{r}
+map(dat, "Open")
+
+```
+
+We often want to plot financial data. In this case we may want to plot Closing price for each stock and look for trends. We can do this with the base R function `mapply`. First we create a vector of stock names for plot labeling. Next we set up one row of three plotting regions. Then we use `mapply` to create the plot. The "m" in mapply means "multiple arguments". In this case we have two arguments: the Closing price and the stock name. Notice that `mapply` requires the function come first and then the arguments.
+
+```{r}
+stocks <- sub("\\.csv","", files)
+par(mfrow=c(1,3))
+mapply(function(x,y)plot(x$Close, type = "l", main = y), 
+       x = dat, y = stocks)
+
+```
+
+
+The purrr equivalent is `map2`. Again we can substitute a tilda (~) for function, but now we need to use `.x` and `.y` to identify the arguments. However the ordering is the same as `map`: data come first and then the function.
+
+```{r}
+par(mfrow=c(1,3))
+map2(dat, stocks, ~plot(.x$Close, type="l", main = .y))
+
+```
+
+Each time we run `mapply` or `map2` above, we see `NULL` being printed for each list element. This is because both functions return a value. Since `plot` returns no value, `NULL` is printed. The purrr package provides `walk` for dealing with functions like `plot`. Here is the same task with `walk2` instead of `map2`. It produces the plots and prints nothing to the console.
+
+```{r}
+par(mfrow=c(1,3))
+walk2(dat, stocks, ~plot(.x$Close, type="l", main = .y))
+```
+
+At some point we may want to collapse our list of three data frames into a single data frame. This means we'll want to add a column to indicate which record belongs to which stock. Using base R this is a two step process. We `do.call` the `rbind` function to the elements of our list. Then we add a column called Stock by taking advantage of the fact that the row names of our data frame contain the name of the original list element, in this case the stock name. 
+
+```{r}
+datDF <- do.call(rbind, dat)
+# add stock names to data frame;
+# remove period and numbers
+datDF$Stock <- gsub("\\.[0-9]*", "", rownames(datDF)) 
+head(datDF)
+
+```
+
+
+Using purrr, we could have used `map_df` instead of `map` with the `read.csv` function, but we would have lost the source file information. 
+
+```{r message=FALSE}
+# works, but which record goes with which stock?
+dat2DF <- map_df(files, read.csv) 
+```
+
+We could also use purrr's `reduce` function. That will collapse the list into a single data frame. But again we have no way of labeling which row came from which stock.
+
+```{r}
+# works, but which record goes with which stock?
+dat2DF <- reduce(dat, rbind) 
+```
+
+To accomplish this with purrr, we need to use the stocks vector we created earlier along with the `map2_df` function. This function applies a function to two arguments and returns a data frame. The function we want to apply is `update_list`, another purrr function. The `update_list` function allows you to add things to a list element, such as a new column to a data frame. Below we use the formula notation again and `.x` and `.y` to indicate the arguments. The result is a single data frame with a new Stock column. 
+
+```{r}
+dat2DF <- map2_df(dat2, stocks, ~update_list(.x, stock = .y))
+head(dat2DF)
+
+```
+
+An easier way is to simply use the dplyr function `bind_rows`. Seeting the `.id` argument to `"stock"` tells the function to create a column called "stock" using the names of the list elements.
+
+```{r}
+dat2DF <- dplyr::bind_rows(dat2, .id = "stock")
+head(dat2DF)
+```
+
+
+Finally, let's return to the `dat2` list and consider how to reformat the Date column as a Date instead of a Factor. The easiest way to deal with this would have been to use the `read_csv` function from the <a href="https://cran.r-project.org/web/packages/readr/index.html" target="_blank">readr</a> package instead of `read.csv`. But in the interest of demonstrating some more purrr functionality, let's pretend we can't do that. Further, let's pretend we don't know which columns are Factor, but we would like to convert them to Date <em>if</em> they are Factor. This time we give a purrr solution first. 
+
+To do this we nest one map function in another. The first one is `modify_if`. This allows us to define a condition to dictate whether or not we modify a list element. In this case the condition is determined by `is.factor`. If `is.factor` returns TRUE, then we apply the `ymd` function from the <a href="https://cran.r-project.org/web/packages/lubridate/index.html" target="_blank">lubridate</a> package. Notice we're applying `modify_if` to each element of the _data frames_ contained in `dat2`. But that's OK, because data frames are actually lists. So `dat2` is a 3-item list, and each item is itself a list. Hence the reason we have nested functions. Below we map the `modify_if` function to each list element, which is then mapped to each data frame column (or list element).
+
+
+```{r}
+dat2 <- map(dat2, ~modify_if(., is.factor, lubridate::ymd))
+dat2 %>% walk(str)
+```
+
+We see that each Date column is now a list. Notice we used `walk` instead of `map` to apply the `str` function to each list. That's because `str` does not return anything. It produces a "side effect", which is output to the terminal. Recall `walk` is useful for functions that just return side effects. 
+
+Doing this in base R is possible but far more difficult. We nest one `lapply` function inside another, but since `lapply` returns a list, we need to wrap the first `lapply` with `as.data.frame`. And within the first `lapply` we have to use the assignment operator as a function, which works but looks cryptic!
+
+```{r}
+dat <- lapply(dat, 
+              function(x)as.data.frame(
+                lapply(x,
+                       function(y)
+                         if(is.factor(y)) 
+                           `<-`(y, lubridate::ymd(y)) 
+                       else y)))
+                       
+
+```
+
+                       
+```{r echo=FALSE, message=FALSE, results='hide'}
+file.remove(c("stocks.zip", "BA.csv", "IBM.csv", "JNJ.csv"))
+```
+
+
+This article provides just a taste of purrr. We hope it gets you started learning more about the package. Be sure to read the documentation as well. Each help page contains illustrative examples. RStudio also provides a [concise purrr cheat sheet](https://github.com/rstudio/cheatsheets/raw/master/purrr.pdf). Note that purrr is a very young package. At the time of this writing it is at version 0.2.2. There are sure to be improvements and changes in the coming months and years.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_   
+_University of Virginia Library_   
+

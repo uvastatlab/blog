@@ -1,0 +1,213 @@
+---
+title: Getting started with the purrr package in R
+author: Clay Ford
+date: '2017-04-14'
+slug: getting-started-with-the-purrr-package-in-r
+categories:
+  - R
+tags:
+  - data wrangling
+---
+
+
+
+<p>If you’re wondering what exactly the purrr package does, then this blog post is for you.</p>
+<p>Before we get started, we should mention <a href="http://r4ds.had.co.nz/iteration.html#the-map-functions" target="_blank">the Iteration chapter in <em>R for Data Science</em></a> by Garrett Grolemund and Hadley Wickham. We think this is the most thorough and extensive introduction to the purrr package currently available (at least at the time of this writing.) Wickham is one of the authors of the purrr package and he spends a good deal of the chapter clearly explaining how it works. Good stuff, recommended reading.</p>
+<p>The purpose of this article is to provide a short introduction to purrr, focusing on just a handful of functions. We use some real world data and replicate what purrr does in base R so we have a better understanding of what’s going on.</p>
+<p>We visited <a href="http://finance.yahoo.com" target="_blank">Yahoo Finance</a> on 13 April 2017 and downloaded about three weeks of historical data for three companies: Boeing, Johnson &amp; Johnson and IBM. The following R code will download and unzip the data in your current working directory if you wish to follow along.</p>
+<pre class="r"><code>URL &lt;- &quot;http://static.lib.virginia.edu/statlab/materials/data/stocks.zip&quot;
+download.file(url = URL, destfile = basename(URL))
+unzip(basename(URL))</code></pre>
+<p>We have three CSV files. In the spirit of being efficient we would like to import these files into R using as little code as possible (as opposed to calling <code>read.csv</code> three different times.)</p>
+<p>Using base R functions, we could put all the file names into a vector and then apply the <code>read.csv</code> function to each file. This results in a list of three data frames. When done we could name each list element using the <code>names</code> function and our vector of file names.</p>
+<pre class="r"><code># get all files ending in csv
+files &lt;- list.files(pattern = &quot;csv$&quot;) 
+# read in data
+dat &lt;- lapply(files, read.csv)
+names(dat) &lt;- gsub(&quot;\\.csv&quot;, &quot;&quot;, files) # remove file extension</code></pre>
+<p>Here is how we do the same using the <code>map</code> function from the purrr package.</p>
+<pre class="r"><code># install.packages(&quot;purrr&quot;) # uncomment if package not already installed
+library(purrr)
+dat2 &lt;- map(files, read.csv)
+dat2 &lt;- set_names(dat2, gsub(&quot;\\.csv&quot;, &quot;&quot;, files))</code></pre>
+<p>Notice we used the <code>set_names</code> function (also in purrr) to set the names of the list elements. A <em>tidyverse</em> approach would use the <code>%&gt;%</code> pipe, like so:</p>
+<pre class="r"><code>dat2 &lt;- map(files, read.csv) %&gt;% 
+  set_names(gsub(&quot;\\.csv&quot;, &quot;&quot;, files))</code></pre>
+<p>So we see that <code>map</code> is like <code>lapply</code>. It takes a vector as input and applies a function to each element of the vector. <code>map</code> is one of the star functions in the purrr package.</p>
+<p>Let’s say we want to find the mean Open price for each stock. Here is a base R way using <code>lapply</code> and an anonymous function:</p>
+<pre class="r"><code>lapply(dat, function(x)mean(x$Open))</code></pre>
+<pre><code>## $BA
+## [1] 177.8287
+## 
+## $IBM
+## [1] 174.3617
+## 
+## $JNJ
+## [1] 125.8409</code></pre>
+<p>We can do the same with map.</p>
+<pre class="r"><code>map(dat, function(x)mean(x$Open))</code></pre>
+<pre><code>## $BA
+## [1] 177.8287
+## 
+## $IBM
+## [1] 174.3617
+## 
+## $JNJ
+## [1] 125.8409</code></pre>
+<p>But <code>map</code> allows us to bypass the <code>function</code> function. Using a tilda (<code>~</code>) in place of <code>function</code> and a dot (.) in place of <code>x</code>, we can do this:</p>
+<pre class="r"><code>map(dat, ~mean(.$Open))</code></pre>
+<pre><code>## $BA
+## [1] 177.8287
+## 
+## $IBM
+## [1] 174.3617
+## 
+## $JNJ
+## [1] 125.8409</code></pre>
+<p>Furthermore, purrr provides several versions of <code>map</code> that allow you to specify the structure of your output. For example, if we want a vector instead of a list we can use the <code>map_dbl</code> function. The "_dbl" indicates that it returns a vector of type double (ie, numbers with decimals).</p>
+<pre class="r"><code>map_dbl(dat, ~mean(.$Open))</code></pre>
+<pre><code>##       BA      IBM      JNJ 
+## 177.8287 174.3617 125.8409</code></pre>
+<p>Now let’s say that we want to extract each stock’s Open price data. In other words, we want to go into each data frame in our list and pull out the Open column. We can do that with <code>lapply</code> as follows:</p>
+<pre class="r"><code>lapply(dat, function(x)x$Open)</code></pre>
+<pre><code>## $BA
+##  [1] 178.25 177.50 179.00 178.39 177.56 179.00 176.88 177.08 178.02 177.25
+## [11] 177.40 176.29 174.37 176.85 177.34 175.96 179.99 180.10 178.31 179.82
+## [21] 179.00 178.54 177.16
+## 
+## $IBM
+##  [1] 171.04 170.65 172.53 172.08 173.47 174.70 173.52 173.82 173.98 173.86
+## [11] 174.30 173.94 172.69 175.12 174.43 174.04 176.01 175.65 176.29 178.46
+## [21] 175.71 176.18 177.85
+## 
+## $JNJ
+##  [1] 124.54 124.26 124.87 125.12 124.85 124.72 124.51 124.73 124.11 124.74
+## [11] 125.05 125.62 125.16 125.86 126.10 127.05 128.38 128.04 128.45 128.44
+## [21] 127.05 126.86 125.83</code></pre>
+<p>Using <code>map</code> is a little easier. We just provide the name of the column we want to extract.</p>
+<pre class="r"><code>map(dat, &quot;Open&quot;)</code></pre>
+<pre><code>## $BA
+##  [1] 178.25 177.50 179.00 178.39 177.56 179.00 176.88 177.08 178.02 177.25
+## [11] 177.40 176.29 174.37 176.85 177.34 175.96 179.99 180.10 178.31 179.82
+## [21] 179.00 178.54 177.16
+## 
+## $IBM
+##  [1] 171.04 170.65 172.53 172.08 173.47 174.70 173.52 173.82 173.98 173.86
+## [11] 174.30 173.94 172.69 175.12 174.43 174.04 176.01 175.65 176.29 178.46
+## [21] 175.71 176.18 177.85
+## 
+## $JNJ
+##  [1] 124.54 124.26 124.87 125.12 124.85 124.72 124.51 124.73 124.11 124.74
+## [11] 125.05 125.62 125.16 125.86 126.10 127.05 128.38 128.04 128.45 128.44
+## [21] 127.05 126.86 125.83</code></pre>
+<p>We often want to plot financial data. In this case we may want to plot Closing price for each stock and look for trends. We can do this with the base R function <code>mapply</code>. First we create a vector of stock names for plot labeling. Next we set up one row of three plotting regions. Then we use <code>mapply</code> to create the plot. The “m” in mapply means “multiple arguments”. In this case we have two arguments: the Closing price and the stock name. Notice that <code>mapply</code> requires the function come first and then the arguments.</p>
+<pre class="r"><code>stocks &lt;- sub(&quot;\\.csv&quot;,&quot;&quot;, files)
+par(mfrow=c(1,3))
+mapply(function(x,y)plot(x$Close, type = &quot;l&quot;, main = y), 
+       x = dat, y = stocks)</code></pre>
+<p><img src="/post/2017-04-14-getting-started-with-the-purrr-package-in-r_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<pre><code>## $BA
+## NULL
+## 
+## $IBM
+## NULL
+## 
+## $JNJ
+## NULL</code></pre>
+<p>The purrr equivalent is <code>map2</code>. Again we can substitute a tilda (~) for function, but now we need to use <code>.x</code> and <code>.y</code> to identify the arguments. However the ordering is the same as <code>map</code>: data come first and then the function.</p>
+<pre class="r"><code>par(mfrow=c(1,3))
+map2(dat, stocks, ~plot(.x$Close, type=&quot;l&quot;, main = .y))</code></pre>
+<p><img src="/post/2017-04-14-getting-started-with-the-purrr-package-in-r_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<pre><code>## $BA
+## NULL
+## 
+## $IBM
+## NULL
+## 
+## $JNJ
+## NULL</code></pre>
+<p>Each time we run <code>mapply</code> or <code>map2</code> above, we see <code>NULL</code> being printed for each list element. This is because both functions return a value. Since <code>plot</code> returns no value, <code>NULL</code> is printed. The purrr package provides <code>walk</code> for dealing with functions like <code>plot</code>. Here is the same task with <code>walk2</code> instead of <code>map2</code>. It produces the plots and prints nothing to the console.</p>
+<pre class="r"><code>par(mfrow=c(1,3))
+walk2(dat, stocks, ~plot(.x$Close, type=&quot;l&quot;, main = .y))</code></pre>
+<p><img src="/post/2017-04-14-getting-started-with-the-purrr-package-in-r_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>At some point we may want to collapse our list of three data frames into a single data frame. This means we’ll want to add a column to indicate which record belongs to which stock. Using base R this is a two step process. We <code>do.call</code> the <code>rbind</code> function to the elements of our list. Then we add a column called Stock by taking advantage of the fact that the row names of our data frame contain the name of the original list element, in this case the stock name.</p>
+<pre class="r"><code>datDF &lt;- do.call(rbind, dat)
+# add stock names to data frame;
+# remove period and numbers
+datDF$Stock &lt;- gsub(&quot;\\.[0-9]*&quot;, &quot;&quot;, rownames(datDF)) 
+head(datDF)</code></pre>
+<pre><code>##            Date   Open   High    Low  Close  Volume Adj.Close Stock
+## BA.1 2017-04-12 178.25 178.25 175.94 176.05 2920000    176.05    BA
+## BA.2 2017-04-11 177.50 178.60 176.96 178.57 2259700    178.57    BA
+## BA.3 2017-04-10 179.00 179.97 177.48 177.56 2259500    177.56    BA
+## BA.4 2017-04-07 178.39 179.09 177.26 178.85 2704700    178.85    BA
+## BA.5 2017-04-06 177.56 178.22 177.12 177.37 2343600    177.37    BA
+## BA.6 2017-04-05 179.00 180.18 176.89 177.08 2387100    177.08    BA</code></pre>
+<p>Using purrr, we could have used <code>map_df</code> instead of <code>map</code> with the <code>read.csv</code> function, but we would have lost the source file information.</p>
+<pre class="r"><code># works, but which record goes with which stock?
+dat2DF &lt;- map_df(files, read.csv) </code></pre>
+<p>We could also use purrr’s <code>reduce</code> function. That will collapse the list into a single data frame. But again we have no way of labeling which row came from which stock.</p>
+<pre class="r"><code># works, but which record goes with which stock?
+dat2DF &lt;- reduce(dat, rbind) </code></pre>
+<p>To accomplish this with purrr, we need to use the stocks vector we created earlier along with the <code>map2_df</code> function. This function applies a function to two arguments and returns a data frame. The function we want to apply is <code>update_list</code>, another purrr function. The <code>update_list</code> function allows you to add things to a list element, such as a new column to a data frame. Below we use the formula notation again and <code>.x</code> and <code>.y</code> to indicate the arguments. The result is a single data frame with a new Stock column.</p>
+<pre class="r"><code>dat2DF &lt;- map2_df(dat2, stocks, ~update_list(.x, stock = .y))
+head(dat2DF)</code></pre>
+<pre><code>##         Date   Open   High    Low  Close  Volume Adj.Close stock
+## 1 2017-04-12 178.25 178.25 175.94 176.05 2920000    176.05    BA
+## 2 2017-04-11 177.50 178.60 176.96 178.57 2259700    178.57    BA
+## 3 2017-04-10 179.00 179.97 177.48 177.56 2259500    177.56    BA
+## 4 2017-04-07 178.39 179.09 177.26 178.85 2704700    178.85    BA
+## 5 2017-04-06 177.56 178.22 177.12 177.37 2343600    177.37    BA
+## 6 2017-04-05 179.00 180.18 176.89 177.08 2387100    177.08    BA</code></pre>
+<p>An easier way is to simply use the dplyr function <code>bind_rows</code>. Seeting the <code>.id</code> argument to <code>"stock"</code> tells the function to create a column called “stock” using the names of the list elements.</p>
+<pre class="r"><code>dat2DF &lt;- dplyr::bind_rows(dat2, .id = &quot;stock&quot;)
+head(dat2DF)</code></pre>
+<pre><code>##   stock       Date   Open   High    Low  Close  Volume Adj.Close
+## 1    BA 2017-04-12 178.25 178.25 175.94 176.05 2920000    176.05
+## 2    BA 2017-04-11 177.50 178.60 176.96 178.57 2259700    178.57
+## 3    BA 2017-04-10 179.00 179.97 177.48 177.56 2259500    177.56
+## 4    BA 2017-04-07 178.39 179.09 177.26 178.85 2704700    178.85
+## 5    BA 2017-04-06 177.56 178.22 177.12 177.37 2343600    177.37
+## 6    BA 2017-04-05 179.00 180.18 176.89 177.08 2387100    177.08</code></pre>
+<p>Finally, let’s return to the <code>dat2</code> list and consider how to reformat the Date column as a Date instead of a Factor. The easiest way to deal with this would have been to use the <code>read_csv</code> function from the <a href="https://cran.r-project.org/web/packages/readr/index.html" target="_blank">readr</a> package instead of <code>read.csv</code>. But in the interest of demonstrating some more purrr functionality, let’s pretend we can’t do that. Further, let’s pretend we don’t know which columns are Factor, but we would like to convert them to Date <em>if</em> they are Factor. This time we give a purrr solution first.</p>
+<p>To do this we nest one map function in another. The first one is <code>modify_if</code>. This allows us to define a condition to dictate whether or not we modify a list element. In this case the condition is determined by <code>is.factor</code>. If <code>is.factor</code> returns TRUE, then we apply the <code>ymd</code> function from the <a href="https://cran.r-project.org/web/packages/lubridate/index.html" target="_blank">lubridate</a> package. Notice we’re applying <code>modify_if</code> to each element of the <em>data frames</em> contained in <code>dat2</code>. But that’s OK, because data frames are actually lists. So <code>dat2</code> is a 3-item list, and each item is itself a list. Hence the reason we have nested functions. Below we map the <code>modify_if</code> function to each list element, which is then mapped to each data frame column (or list element).</p>
+<pre class="r"><code>dat2 &lt;- map(dat2, ~modify_if(., is.factor, lubridate::ymd))
+dat2 %&gt;% walk(str)</code></pre>
+<pre><code>## &#39;data.frame&#39;:    23 obs. of  7 variables:
+##  $ Date     : Date, format: &quot;2017-04-12&quot; &quot;2017-04-11&quot; ...
+##  $ Open     : num  178 178 179 178 178 ...
+##  $ High     : num  178 179 180 179 178 ...
+##  $ Low      : num  176 177 177 177 177 ...
+##  $ Close    : num  176 179 178 179 177 ...
+##  $ Volume   : int  2920000 2259700 2259500 2704700 2343600 2387100 2319200 2933600 2030400 1627000 ...
+##  $ Adj.Close: num  176 179 178 179 177 ...
+## &#39;data.frame&#39;:    23 obs. of  7 variables:
+##  $ Date     : Date, format: &quot;2017-04-12&quot; &quot;2017-04-11&quot; ...
+##  $ Open     : num  171 171 173 172 173 ...
+##  $ High     : num  171 171 173 173 173 ...
+##  $ Low      : num  170 169 171 171 172 ...
+##  $ Close    : num  171 171 171 172 172 ...
+##  $ Volume   : int  3276900 4890200 3715300 3556000 3416100 6199500 3097400 4271600 2911200 3153000 ...
+##  $ Adj.Close: num  171 171 171 172 172 ...
+## &#39;data.frame&#39;:    23 obs. of  7 variables:
+##  $ Date     : Date, format: &quot;2017-04-12&quot; &quot;2017-04-11&quot; ...
+##  $ Open     : num  125 124 125 125 125 ...
+##  $ High     : num  125 125 125 125 125 ...
+##  $ Low      : num  124 124 124 125 124 ...
+##  $ Close    : num  125 124 124 125 125 ...
+##  $ Volume   : int  5492900 4122600 4361800 3602600 4324200 5515700 5318500 4956400 5649900 4670200 ...
+##  $ Adj.Close: num  125 124 124 125 125 ...</code></pre>
+<p>We see that each Date column is now a list. Notice we used <code>walk</code> instead of <code>map</code> to apply the <code>str</code> function to each list. That’s because <code>str</code> does not return anything. It produces a “side effect”, which is output to the terminal. Recall <code>walk</code> is useful for functions that just return side effects.</p>
+<p>Doing this in base R is possible but far more difficult. We nest one <code>lapply</code> function inside another, but since <code>lapply</code> returns a list, we need to wrap the first <code>lapply</code> with <code>as.data.frame</code>. And within the first <code>lapply</code> we have to use the assignment operator as a function, which works but looks cryptic!</p>
+<pre class="r"><code>dat &lt;- lapply(dat, 
+              function(x)as.data.frame(
+                lapply(x,
+                       function(y)
+                         if(is.factor(y)) 
+                           `&lt;-`(y, lubridate::ymd(y)) 
+                       else y)))</code></pre>
+<p>This article provides just a taste of purrr. We hope it gets you started learning more about the package. Be sure to read the documentation as well. Each help page contains illustrative examples. RStudio also provides a <a href="https://github.com/rstudio/cheatsheets/raw/master/purrr.pdf">concise purrr cheat sheet</a>. Note that purrr is a very young package. At the time of this writing it is at version 0.2.2. There are sure to be improvements and changes in the coming months and years.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
