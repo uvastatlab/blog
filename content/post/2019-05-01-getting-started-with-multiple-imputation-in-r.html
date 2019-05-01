@@ -11,12 +11,6 @@ tags:
 
 
 
-<pre class="r"><code>library(dplyr)
-library(mice)
-library(foreign)
-library(car)
-
-set.seed(145)</code></pre>
 <p>Whenever we are dealing with a dataset, we almost always run into a problem that may decrease our confidence in the results that we are getting - missing data! Examples of missing data can be found in surveys - where respondents intentionally refrained from answering a question, didn’t answer a question because it is not applicable to them, or simply forgot to give an answer. Or our dataset on trade in agricultural products for country-pairs over years could suffer from missing data as some countries fail to report their accounts for certain years. One important distinction to make here - when a country records 0 trade with another country, this doesn’t count as missing data. Missing data occurs when we have no information about that data point in the dataset because of missing information.</p>
 <p>What should we do when we encounter missing data in our datasets? There are a couple of strategies you can employ in this case, but you have to be careful with what you choose, because all options have pros and cons:</p>
 <ol style="list-style-type: decimal">
@@ -82,6 +76,12 @@ set.seed(145)</code></pre>
 <li>Views on China’s economic rise: Dichotomous variable, 0 Good/No Effect 1 Bad</li>
 <li>The number of Chinese M&amp;A activity: 2000-2012, Continuous variable that ranges from 0 to 60</li>
 </ol>
+<pre class="r"><code>library(dplyr)
+library(mice)
+library(foreign) # to import Stata DTA files
+library(car)     # for recode
+
+set.seed(145)</code></pre>
 <pre class="r"><code>## Import ANES dataset
 anesimp &lt;- read.dta(&quot;anesimputation.dta&quot;, 
                     convert.factors = FALSE, missing.type = TRUE)</code></pre>

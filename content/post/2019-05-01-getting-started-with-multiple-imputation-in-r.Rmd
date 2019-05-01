@@ -20,14 +20,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r libraries, message=FALSE}
-library(dplyr)
-library(mice)
-library(foreign)
-library(car)
-
-set.seed(145)
-```
 
 Whenever we are dealing with a dataset, we almost always run into a problem that may decrease our confidence in the results that we are getting - missing data! Examples of missing data can be found in surveys - where respondents intentionally refrained from answering a question, didn't answer a question because it is not applicable to them, or simply forgot to give an answer. Or our dataset on trade in agricultural products for country-pairs over years could suffer from missing data as some countries fail to report their accounts for certain years. One important distinction to make here - when a country records 0 trade with another country, this doesn't count as missing data. Missing data occurs when we have no information about that data point in the dataset because of missing information. 
 
@@ -112,6 +104,18 @@ First, we conduct our analysis with the ANES dataset using listwise-deletion. In
 3. Nationalism: Continuous index that ranges from 0 (Not at all Important) to 4 (Extremely Important)
 4. Views on China's economic rise: Dichotomous variable, 0 Good/No Effect 1 Bad
 5. The number of Chinese M&A activity: 2000-2012, Continuous variable that ranges from 0 to 60 
+
+
+```{r message=FALSE}
+library(dplyr)
+library(mice)
+library(foreign) # to import Stata DTA files
+library(car)     # for recode
+
+set.seed(145)
+```
+
+
 
 ```{r echo=FALSE}
 anesimp <- readRDS("../../static/data/anesimp.Rds")
