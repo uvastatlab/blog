@@ -118,7 +118,7 @@ anesimp &lt;- cbind(anesimp,anesocc2)</code></pre>
 <pre class="r"><code>## Merge M&amp;A data 
 
 maimp &lt;- read.dta(&quot;ma.dta&quot;)</code></pre>
-<pre class="r"><code>anesimp&lt;- merge(x=anesimp, y=maimp, by=c(&quot;sample_state&quot;))
+<pre class="r"><code>anesimp &lt;- merge(x=anesimp, y=maimp, by=c(&quot;sample_state&quot;))
 
 # Recode variables 
 
@@ -153,7 +153,7 @@ anesimpor$china_econ &lt;- as.factor(anesimpor$china_econ)
 
 # Take the log of Chinese M&amp;A variables - add a small number as variable
 # contains 0s
-anesimpor$LogMANO&lt;-log(anesimpor$MANo+1.01)
+anesimpor$LogMANO &lt;- log(anesimpor$MANo+1.01)
 # Treat party id as continuous 
 
 ## Estimate an OLS regression
@@ -356,9 +356,9 @@ log &lt;- c(&quot;manuf&quot;)
 poly2 &lt;- c(&quot;china_econ&quot;)
 
 # Turn their methods matrix into the specified imputation models
-meth[poly]=&quot;polr&quot;
-meth[log] =&quot;logreg&quot;
-meth[poly2] =&quot;polyreg&quot;
+meth[poly] = &quot;polr&quot;
+meth[log] = &quot;logreg&quot;
+meth[poly2] = &quot;polyreg&quot;
 
 meth</code></pre>
 <pre><code>##              sample_state       gender_respondent_x 
@@ -473,9 +473,9 @@ meth</code></pre>
 # datasets, use predM as the predictor matrix and don&#39;t print the imputation
 # process. If you would like to see the process, set print as TRUE
 
-imp2 &lt;- mice(anesimp2, maxit=5, 
+imp2 &lt;- mice(anesimp2, maxit = 5, 
              predictorMatrix = predM, 
-             method = meth,print =  FALSE)</code></pre>
+             method = meth, print =  FALSE)</code></pre>
 <p>We now have 5 imputed datasets. Across all datasets, non-missing values are the same. The imputation created 5 datasets with different plausible values for missing values. You can look at imputed datasets and values with the following commands:</p>
 <pre class="r"><code># Look at head and tail of imputed values for china_econ variable 
 head(imp2$imp$china_econ)</code></pre>
@@ -547,7 +547,7 @@ Multiple imputation algorithms might not like to include variables that have mis
 <li><p><strong>High multicollinearity</strong>:
 Multiple imputation doesn’t like variables that are highly correlated with each other. In most cases, the mice algorithm will leave these variables out of the imputation process. However, in some cases, multiple imputation might fail to start from the beginning. If the code is giving you an error, it might be useful to run the imputation with only a subset of variables, and keep increasing the number of variables included until you find the problematic variable. If you set <code>print=TRUE</code>, you will most likely see where the algorithm is having trouble as it will stop working while imputing that variable.</p></li>
 <li><p><strong>Missing values after imputation</strong>:
-Always check how your variables are imputed with the <code>head</code> and <code>tail</code> option. If you still see missing values after imputation, this means the algorithm didn’t work as intended. There shouldn’t be huge differences between your analysis pre-imputation and after-imputation, unless missing values are highly affecting your analysis (in that case, it might be useful to think about other strategies to collect more data). I’d suggest you impute the whole dataset, rather than only the variable of interest.</p></li>
+Always check how your variables are imputed by inpecting the <code>imp</code> element in the mids object (For example, as we did earlier: <code>head(imp2$imp$china_econ)</code>). If you still see missing values after imputation, this means the algorithm didn’t work as intended. There shouldn’t be huge differences between your analysis pre-imputation and after-imputation, unless missing values are highly affecting your analysis (in that case, it might be useful to think about other strategies to collect more data). I’d suggest you impute the whole dataset, rather than only the variable of interest.</p></li>
 <li><p><strong>Non-missing value variables</strong>:
 If you have variables with no missing values, you’ll most likely have to exclude them from the imputation process. This especially causes problems if your dataset is hierarchically ordered, like the one in this example. All state-level predictors needed to be excluded from imputation as no values were missing from these variables.</p></li>
 </ol>

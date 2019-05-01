@@ -196,7 +196,7 @@ maimp <- read.dta("ma.dta")
 
 
 ```{r}
-anesimp<- merge(x=anesimp, y=maimp, by=c("sample_state"))
+anesimp <- merge(x=anesimp, y=maimp, by=c("sample_state"))
 
 # Recode variables 
 
@@ -231,7 +231,7 @@ anesimpor$china_econ <- as.factor(anesimpor$china_econ)
 
 # Take the log of Chinese M&A variables - add a small number as variable
 # contains 0s
-anesimpor$LogMANO<-log(anesimpor$MANo+1.01)
+anesimpor$LogMANO <- log(anesimpor$MANo+1.01)
 # Treat party id as continuous 
 
 ## Estimate an OLS regression
@@ -331,9 +331,9 @@ log <- c("manuf")
 poly2 <- c("china_econ")
 
 # Turn their methods matrix into the specified imputation models
-meth[poly]="polr"
-meth[log] ="logreg"
-meth[poly2] ="polyreg"
+meth[poly] = "polr"
+meth[log] = "logreg"
+meth[poly2] = "polyreg"
 
 meth
 
@@ -356,9 +356,9 @@ imp2 <- readRDS("../../static/data/imp2.Rds")
 # datasets, use predM as the predictor matrix and don't print the imputation
 # process. If you would like to see the process, set print as TRUE
 
-imp2 <- mice(anesimp2, maxit=5, 
+imp2 <- mice(anesimp2, maxit = 5, 
              predictorMatrix = predM, 
-             method = meth,print =  FALSE)
+             method = meth, print =  FALSE)
 ```
 
 We now have 5 imputed datasets. Across all datasets, non-missing values are the same. The imputation created 5 datasets with different plausible values for missing values. You can look at imputed datasets and values with the following commands: 
@@ -426,7 +426,7 @@ Multiple imputation algorithms might not like to include variables that have mis
 Multiple imputation doesn't like variables that are highly correlated with each other. In most cases, the mice algorithm will leave these variables out of the imputation process. However, in some cases, multiple imputation might fail to start from the beginning. If the code is giving you an error, it might be useful to run the imputation with only a subset of variables, and keep increasing the number of variables included until you find the problematic variable. If you set `print=TRUE`, you will most likely see where the algorithm is having trouble as it will stop working while imputing that variable. 
 
 4. **Missing values after imputation**: 
-Always check how your variables are imputed with the `head` and `tail` option. If you still see missing values after imputation, this means the algorithm didn't work as intended. There shouldn't be huge differences between your analysis pre-imputation and after-imputation, unless missing values are highly affecting your analysis (in that case, it might be useful to think about other strategies to collect more data). I'd suggest you impute the whole dataset, rather than only the variable of interest. 
+Always check how your variables are imputed by inpecting the `imp` element in the mids object (For example, as we did earlier: `head(imp2$imp$china_econ)`). If you still see missing values after imputation, this means the algorithm didn't work as intended. There shouldn't be huge differences between your analysis pre-imputation and after-imputation, unless missing values are highly affecting your analysis (in that case, it might be useful to think about other strategies to collect more data). I'd suggest you impute the whole dataset, rather than only the variable of interest. 
 
 5. **Non-missing value variables**: 
 If you have variables with no missing values, you'll most likely have to exclude them from the imputation process. This especially causes problems if your dataset is hierarchically ordered, like the one in this example. All state-level predictors needed to be excluded from imputation as no values were missing from these variables. 
