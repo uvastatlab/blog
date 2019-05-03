@@ -115,13 +115,13 @@ nrow(davis_df_negative)</code></pre>
 <pre class="r"><code>library(quanteda)
 
 davis_tokenized_list &lt;- tokens(davis_df_negative$text_clean)</code></pre>
-<p>Next, we turn this list object into a document feature matrix with the <code>dfm()</code> command. This turns every row into a document (which in this case is a tweet) and every term (or word) into a column. Finally, we are able to use the <code>colSums()</code> command to get the count of use for every word, which we assign to the vector “word_sums.” Using <code>length()</code> on this vector, we are able to tell that there are 1044 values, or 1044 words.</p>
+<p>Next, we turn this list object into a document feature matrix with the <code>dfm()</code> command. This turns every row into a document (which in this case is a tweet) and every term (or word) into a column. Finally, we are able to use the <code>colSums()</code> command to get the count of use for every word, which we assign to the vector “word_sums.” Using <code>length()</code> on this vector, we are able to tell that there are 1040 values, or 1040 words.</p>
 <pre class="r"><code>davis_dfm &lt;- dfm(davis_tokenized_list)
 
 word_sums &lt;- colSums(davis_dfm)
 length(word_sums)</code></pre>
 <pre><code>## [1] 1040</code></pre>
-<p>In order to then see which words are the most frequent, we create a new data frame from the “word_sums” values, with the <code>data.frame()</code> function. In accordance with the <code>data.frame()</code> syntax, both “word” and “freq” are given as column names, while the number of rows is dictated by the number of values; in this case, that is the 1044 from above. We set <code>row.names = NULL</code> to avoid each row taking on a name, which in this case would be the words themselves. We also add <code>stringsAsFactors = FALSE</code> in order to keep the words in character class.</p>
+<p>In order to then see which words are the most frequent, we create a new data frame from the “word_sums” values, with the <code>data.frame()</code> function. In accordance with the <code>data.frame()</code> syntax, both “word” and “freq” are given as column names, while the number of rows is dictated by the number of values; in this case, that is the 1040 from above. We set <code>row.names = NULL</code> to avoid each row taking on a name, which in this case would be the words themselves. We also add <code>stringsAsFactors = FALSE</code> in order to keep the words in character class.</p>
 <pre class="r"><code>freq_data &lt;- data.frame(word = names(word_sums), 
                         freq = word_sums, 
                         row.names = NULL,

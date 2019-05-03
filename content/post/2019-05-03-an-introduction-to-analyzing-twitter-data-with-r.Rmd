@@ -283,7 +283,7 @@ davis_tokenized_list <- tokens(davis_df_negative$text_clean)
 
 ```
 
-Next, we turn this list object into a document feature matrix with the `dfm()` command. This turns every row into a document (which in this case is a tweet) and every term (or word) into a column. Finally, we are able to use the `colSums()` command to get the count of use for every word, which we assign to the vector "word_sums." Using `length()` on this vector, we are able to tell that there are 1044 values, or 1044 words.
+Next, we turn this list object into a document feature matrix with the `dfm()` command. This turns every row into a document (which in this case is a tweet) and every term (or word) into a column. Finally, we are able to use the `colSums()` command to get the count of use for every word, which we assign to the vector "word_sums." Using `length()` on this vector, we are able to tell that there are 1040 values, or 1040 words.
 
 ```{r dfm}
 
@@ -294,7 +294,7 @@ length(word_sums)
 
 ```
 
-In order to then see which words are the most frequent, we create a new data frame from the "word_sums" values, with the `data.frame()` function. In accordance with the `data.frame()` syntax, both "word" and "freq" are given as column names, while the number of rows is dictated by the number of values; in this case, that is the 1044 from above. We set `row.names = NULL` to avoid each row taking on a name, which in this case would be the words themselves. We also add `stringsAsFactors = FALSE` in order to keep the words in character class. 
+In order to then see which words are the most frequent, we create a new data frame from the "word_sums" values, with the `data.frame()` function. In accordance with the `data.frame()` syntax, both "word" and "freq" are given as column names, while the number of rows is dictated by the number of values; in this case, that is the 1040 from above. We set `row.names = NULL` to avoid each row taking on a name, which in this case would be the words themselves. We also add `stringsAsFactors = FALSE` in order to keep the words in character class. 
 
 ```{r count of frequency}
 
