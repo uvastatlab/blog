@@ -1,0 +1,322 @@
+---
+title: An Introduction to Analyzing Twitter Data with R
+author: Leah Malkovich
+date: '2019-05-03'
+slug: an-introduction-to-analyzing-twitter-data-with-r
+categories:
+  - R
+tags:
+  - data wrangling
+  - twitter
+  - sentiment analysis
+  - text mining
+---
+
+
+
+<p>In this article, I will walk you through why a researcher or professional might find data from Twitter useful, explain how to collect the relevant tweets and information from Twitter in R, and then finish by demonstrating a few useful analyses (along with accompanying cleaning) you might perform on your Twitter data.</p>
+<div id="part-one-why-twitter-data" class="section level2">
+<h2>Part One: Why Twitter Data?</h2>
+<p>To begin, we should ask: why would someone be interested in using data from Twitter? What is it that tweets and their accompanying data can tell us about the world around us? Specifically, while there are a plethora of interesting research questions stemming from Twitter data–how people communicate, when, and why–what are some potentially business-minded practical uses of such data?</p>
+<p>As someone with a background in both politics and political science, I am especially interested in how an elected official might make sense of and use data that is available for them on Twitter. This is particularly relevant in light of the political events of recent years in which Twitter is often the forum where political actors both make announcements and speak to one another. In addition, Twitter also serves as a medium from which constituents can make direct contact with their elected officials. While tagging the president or a senator may sometimes feel like shouting into the wind, there is always a chance you might receive a personal response. In addition, in recent years, individuals who have had an especially bad experience with a company will sometimes take to Twitter to air their grievances and demand a response. Indeed, in the often looping chain of customer service lines, Twitter can sometimes be a more efficient way to actually speak with a company representative.</p>
+<p>Thus, for a company or a political representative who is seeking to better understand their clients or constituents, Twitter can be a great forum to get first-hand feedback. Bypassing the use of surveys, Twitter data can offer an intimate and real-time look into the minds of consumers, pointing an organization to where they’re going wrong (although, admittedly, not as commonly to what they’re doing well) and what’s important to their consumer base. While the clientele on Twitter skews younger, it is not as young as one might expect.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+<p>So, let’s create a hypothetical situation. Say that I am an individual working for Rodney Davis, a House of Representatives member from the 13th congressional district in Illinois. In 2018, Representative Davis faced a close race, winning by less than a percentage point.<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a><sup>,</sup><a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> As a member of his staff, I might be assigned the task of helping to better understand why Davis almost lost and what constituents are still unhappy about–a question about which Twitter can easily provide large swathes of data. Rather than reading through all of this data myself, I can use R to quickly break down and understand the tweets Rep. Davis receives.</p>
+<p>In the next section, I will explain how to obtain this data. In the final section, I will demonstrate a few techniques–such as network analysis–which may be helpful in understanding what is important to constituents on Twitter.</p>
+</div>
+<div id="part-two-how-to-collect-twitter-data" class="section level2">
+<h2>Part Two: How to Collect Twitter Data</h2>
+<p>In order to download data from Twitter for use in R, the first step is to set up an application with Twitter. To do this, go to: <a href="https://developer.twitter.com/en/apps" class="uri">https://developer.twitter.com/en/apps</a>. Once there, create an account (you can simply sign in with your personal Twitter account if you already have one) and click “Create an app” in the upper right hand corner. You will have to give your application a name, such as “Exploring Text Mining,” a description, and a URL. For the description, you might write that you are learning more about R, are using the data for a course, or write a little bit about the project you’re working on. The URL can be linked to an external site or can simply be your main Twitter profile page.</p>
+<p>Once you finish these steps and gain approval–something which is often nearly instantaneous, but can take several days if you’re unlucky–you are now ready to download data from Twitter to R. In order to download selected tweets, you first need to install and then load the <code>twitteR</code> package in R.</p>
+<pre class="r"><code>library(twitteR)</code></pre>
+<p>Next, return to your application page and click on the “Details” tab. Here, you will find your consumer key, consumer secret, access token, and access secret values. Copy each of these long letter-number values and substitute them in the appropriate spots in the code below. Then, run the <code>setup_twitter_oauth</code> command to link your Twitter account to your R operations.</p>
+<pre class="r"><code>consumer_key &lt;- &quot;XXXXX&quot;
+consumer_secret &lt;- &quot;XXXXX&quot;
+access_token &lt;- &quot;XXXXX&quot;
+access_secret &lt;- &quot;XXXXX&quot;
+
+setup_twitter_oauth(consumer_key, consumer_secret, 
+                    access_token, access_secret)</code></pre>
+<p>Now that R is connected to the Twitter application you made, you need to make a choice. Which text will signal the data which is most interesting to you? In this case, we are interested in tweets which have tagged Rodney Davis, using “<span class="citation">@RodneyDavis</span>”. That is because we want to see what individuals are saying <em>to</em> Representative Davis, rather than those about him (#RodneyDavis) or by him (those coming from the account <span class="citation">@RodneyDavis</span>). Thus, in this case we search for the text “<span class="citation">@rodneydavis</span>.” The command is not case sensitive, so it will still capture any capitalization combination which might exist. I have chosen here to include 1,000 tweets, but you can choose whatever value feels sufficient for your work. I then save this data–which includes 16 pieces of information, such as retweet counts, favorite counts, the username of the tweeter, the text, and the date for each of the 1,000 tweets–to a list I call “davis_list.”"</p>
+<pre class="r"><code>davis_list &lt;- searchTwitter(&quot;@rodneydavis&quot;, n=1000)</code></pre>
+<p>To make this data more easily explored and to prepare it for cleaning, I then convert the list to a data frame named “davis_df” using the <code>dplyr</code> package. In this command, I first turn each part of the list into its own individual data frame with 16 columns (recall the 16 pieces of information above). This is done with the <code>lapply(davis_list, as.data.frame)</code> portion. Then, I combine all of these 1 row data frames into a single, 1000 row data frame so that we have all of the the tweets and their identifying information in a single data frame together. Once the data is in this format, it is easier for us to see what the values of each column look like and decide upon any cleaning we might want to undertake.</p>
+<pre class="r"><code>library(dplyr)
+
+davis_df &lt;- bind_rows(lapply(davis_list, as.data.frame))</code></pre>
+</div>
+<div id="part-three-how-to-analyze-twitter-data" class="section level2">
+<h2>Part Three: How to Analyze Twitter Data</h2>
+<p>With our Twitter data in this easy-to-explore format, we now need to think about what kinds of analyses might be interesting or informative for us to undertake.</p>
+<p>First, we might be interested in when individuals tweet the most. The data that we obtained here ranges from April 19 to April 25 of 2019, a six day period. On what days or at what times are users most active? The simplest way to learn this information is to simply make a density plot.</p>
+<p>In its current state, the <code>created</code> variable is in the format of year-month-day-hour-minute-second. In order to see which days and times individuals tweet most frequently with the “<span class="citation">@rodneydavis</span>” tag, we must first separate out a distinct date and hour variable from the current format. In the code below, I use the <code>lubridate</code> package–a useful package for dealing with time variables in the POSIXct class–to create new variables for date and hour. The <code>day()</code> and <code>hour()</code> commands, when applied to a variable of class POSIXct, efficiently draw out their respective elements. I then assign this to a new, similarly named variable in the <code>davis_df</code>.</p>
+<pre class="r"><code>library(lubridate)
+
+davis_df$date &lt;- day(davis_df$created)
+davis_df$hour &lt;- hour(davis_df$created)</code></pre>
+<p>With these new variables created, I now can create a couple of useful visualizations. In the first plot, I set the x-axis to be the date, while the y-axis displays the volume of tweets. The <code>geom_density()</code> portion designates the graph as displaying density. I load the <code>ggplot2</code> package beforehand in order to run these operations and create the <code>date_plot</code>. After running the code, we can see that the 19th and the 23rd had the highest volume of tweets with <span class="citation">@rodneydavis</span>–although we do not yet know why.</p>
+<pre class="r"><code>library(ggplot2)
+
+ggplot(davis_df, aes(x = date)) + 
+  geom_density()</code></pre>
+<p><img src="/post/2019-05-03-an-introduction-to-analyzing-twitter-data-with-r_files/figure-html/day%20graph-1.png" width="672" /></p>
+<p>Now, I look at what time of day users tweet most frequently with the “<span class="citation">@rodneydavis</span>” designation. I use the same code as above, with only a slight modification in the x-axis value to hour instead. This graph shows us that the highest volume of tweets are sent out during the hours of 12:00am and 2:00pm. Interesting to know, but not necessarily informative without context.</p>
+<pre class="r"><code>ggplot(davis_df, aes(x = hour)) + 
+  geom_density()</code></pre>
+<p><img src="/post/2019-05-03-an-introduction-to-analyzing-twitter-data-with-r_files/figure-html/time%20graph-1.png" width="672" /></p>
+<p>Another question we might be interested in is what words are used most commonly when individuals are speaking negatively about Rodney Davis, and what words are associated with positive speech? However, in order to understand the sentiment of the speech used in these tweets and pinpoint particular words, we must first perform some cleaning operations. This cleaning will make our data smaller and thus easier to manage, as it will remove uninteresting stop words such as “the” and “it,” along with irrelevant punctuation and capitalization.</p>
+<p>We will begin our cleaning by removing any Twitter mentions. In other contexts, we might be curious to know how often users respond to one another. However, here we are only interested in content, not user interaction. Thus, we use the <code>gsub()</code> function to find the pattern of @ signs followed by alphabetical characters; this is designated as <code>@[[:alpha:]]*</code> in code. Then, we write <code>""</code> with no text in between to indicate subbing occurrences of the first pattern with nothing. This is followed by <code>davis_df$text</code> to designate the column within the object that we would like to modify.</p>
+<pre class="r"><code>davis_df$text &lt;- gsub(&quot;@[[:alpha:]]*&quot;,&quot;&quot;, davis_df$text)</code></pre>
+<p>Now, we need to load the <code>tm</code> package. It is through this package that we will do the rest of our data cleaning.</p>
+<pre class="r"><code>library(tm)</code></pre>
+<p>Then, we must convert the portion of our data frame containing text into a corpus object. As with several other text mining packages, the text must be in a corpus object in order for <code>tm</code> to recognize it. In this step, we draw out only the “text” column because we are uninterested in cleaning the rest of the data with tm.</p>
+<pre class="r"><code>text_corpus &lt;- Corpus(VectorSource(davis_df$text))</code></pre>
+<p>Next, we want to convert all of our text to lowercase. This move ensures that text with differing capitalization will all be standardized when we perform our analysis later. This is done through the <code>tm</code> package with the <code>tm_map</code> command. The syntax of the <code>tm_map</code> function asks that we put the object we are modifying first (here, that is <code>text_corpus</code>) and the operation we wish to perform second (<code>tolower</code>).</p>
+<pre class="r"><code>text_corpus &lt;- tm_map(text_corpus, tolower)</code></pre>
+<p>Then, we want to remove mentions of “rodneydavis.” We want to remove this piece of text because, logically, since we selected tweets based on their inclusion of “<span class="citation">@rodneydavis</span>,” having it in our text tells us nothing interesting about their content. Just as with turning all of the words to lowercase, we use the <code>tm_map()</code> command to first indicate the object we are performing our function on, then the act we would like to do. However, in this case, we also specify which word(s) we would like to remove by including them in parentheses. We will also include “rt” and “re” because knowing a tweet is a retweet from another user or a reply to another other is not substantively useful for us. In addition, when the tweets we downloaded, every “&amp;” sign was turned into “amp.”<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> Thus, we remove this abbreviation as well.</p>
+<pre class="r"><code>text_corpus &lt;- tm_map(text_corpus, removeWords, 
+                      c(&quot;rodneydavis&quot;, &quot;rt&quot;, &quot;re&quot;, &quot;amp&quot;))</code></pre>
+<p>Now, we will remove stop words. Stop words are common words that usually do not carry significance for the meaning. As mentioned above, this might include words such as “the,” and “it.” Just as with removing “<span class="citation">@rodneydavis</span>,” here we will use <code>tm_map()</code>, followed by the object we are operating on, the operation we would like to do (<code>removeWords</code>), and the text that will be removed (<code>stopwords("english")</code>).</p>
+<pre class="r"><code>text_corpus &lt;- tm_map(text_corpus, removeWords, 
+                      stopwords(&quot;english&quot;))</code></pre>
+<p>Finally, we will want to remove punctuation. This is because punctuation is not relevant to our analysis of the sentiment contained within these tweets. We have already removed all of the @ signs, but we still need to remove the other punctuation that remains. This does include removing the # sign, too. Just as with the @ symbol, in a different study we might be interested in knowing what hashtags are most common. However, the content of hashtags will still be reported with this operation, just without the accompanying symbol.</p>
+<pre class="r"><code>text_corpus &lt;- tm_map(text_corpus, removePunctuation)</code></pre>
+<p>Now, we need to turn this cleaned corpus back into a data frame, which we will then merge with our initial <code>davis_df</code> data frame. In the code below, I create a column named <code>text_clean</code> which takes on the content of the <code>text_corpus</code>. Then, I convert this set of data into a data frame with the <code>data.frame()</code> command, including <code>stringsAsFactors = FALSE</code> in order to keep the text as class character. This last step will be crucial in our future analyses.</p>
+<pre class="r"><code>text_df &lt;- data.frame(text_clean = get(&quot;content&quot;, text_corpus), 
+                      stringsAsFactors = FALSE)</code></pre>
+<p>Then, I bind <code>text_df</code> with <code>davis_df</code> using the <code>cbind.data.frame</code> function. I specify the latter <code>data.frame</code> portion, because <code>cbind</code> alone in this case will coerce all of the columns to the same class. In this case, that would be the factor class, which is not conducive to sentiment analysis.</p>
+<pre class="r"><code>davis_df &lt;- cbind.data.frame(davis_df, text_df)</code></pre>
+<p>Now, with our cleaned data in hand, we are ready to begin our sentiment analysis.</p>
+<p>Utilizing the <code>SentimentAnalysis</code> package, we can simply apply the command <code>analyzeSentiment()</code> to quickly create a data frame which contains the sentiment scoring for each tweet. Contained in this data frame are 13 sentiment scores from four different dictionaries: GI, HE, LM, and QDAP. Running the <code>analyzeSentiment()</code> command compares the text of the tweets with these various dictionaries, looking for word matches. When there are matches with positively or negatively categorized words, the tweet is given a corresponding sentiment score, which is located in the <code>davis_sentiment</code> data frame.</p>
+<pre class="r"><code>library(SentimentAnalysis)
+
+davis_sentiment &lt;- analyzeSentiment(davis_df$text_clean)</code></pre>
+<p>Returning to our hypothetical role as an individual working to understand what Rodney Davis’ constituents are displeased with, we want to isolate the tweets which contain more negative than positive sentiment.</p>
+<p>To begin this process, I first pare down the <code>davis_sentiment</code> data frame to contain only the sum sentiment analysis results–that is, removing the unnecessary accompanying “Negativity” and “Positivity” measures. This is done with the <code>select()</code> command in the <code>dplyr</code> package, naming only the relevant variables we would like to keep. Once performed, the data we are working with is smaller and easier to understand.</p>
+<pre class="r"><code>davis_sentiment &lt;- dplyr::select(davis_sentiment, 
+                                 SentimentGI, SentimentHE,
+                                 SentimentLM, SentimentQDAP, 
+                                 WordCount)</code></pre>
+<p>Having no theoretical reason to rely on any of these dictionaries more than the others, I will now create a mean value for each tweet’s sentiment level, leaving us with a single sentiment value for each tweet. Using the <code>mutate()</code> command, I create a new variable which takes the average of every row. Since I kept the word count in the last command, we must specify in the code below not to include the 5th column in the mean.</p>
+<pre class="r"><code>davis_sentiment &lt;- dplyr::mutate(davis_sentiment, 
+                                 mean_sentiment = rowMeans(davis_sentiment[,-5]))</code></pre>
+<p>Finally, we remove each of the now unnecessary sentiment measures from the <code>davis_sentiment</code> data frame, leaving us only with word count and the mean measure. We will proceed to merge this data frame with the preexisting <code>davis_df</code> to pair the sentiment measure with each tweet.</p>
+<pre class="r"><code>davis_sentiment &lt;- dplyr::select(davis_sentiment, 
+                                 WordCount, 
+                                 mean_sentiment)
+
+davis_df &lt;- cbind.data.frame(davis_df, davis_sentiment)</code></pre>
+<p>Having paired tweets and their respective mean sentiment measures, we now will strip the data set of any tweets which are more positive than negative. Remember, we are interested in why constituents are unhappy with Rep. Davis, not why they support him. Thus, we use the <code>filter()</code> function to create a new data frame with only tweets whose mean value is less than 0.</p>
+<p>This command gives a data frame with only 306 rows remaining.</p>
+<pre class="r"><code>davis_df_negative &lt;- filter(davis_df, mean_sentiment &lt; 0)
+
+nrow(davis_df_negative)</code></pre>
+<pre><code>## [1] 303</code></pre>
+<p>Now, we want to know what topics are most commonly contained within these tweets. There are two ways we can go about understanding this. The first is to look only at frequency. That is, which words are the most common? The second is to form topic clusters which show us which words are most associated with one another.</p>
+<p>To do the first, finding the most frequent words, we need to begin by separating out each word. We will do this using the <code>quanteda</code> package. This is another text analysis package with a few simple tools to help us get the answers we want. After loading <code>quanteda</code>, we then use the <code>tokens()</code> command to separate out each word individually.</p>
+<pre class="r"><code>library(quanteda)
+
+davis_tokenized_list &lt;- tokens(davis_df_negative$text_clean)</code></pre>
+<p>Next, we turn this list object into a document feature matrix with the <code>dfm()</code> command. This turns every row into a document (which in this case is a tweet) and every term (or word) into a column. Finally, we are able to use the <code>colSums()</code> command to get the count of use for every word, which we assign to the vector “word_sums.” Using <code>length()</code> on this vector, we are able to tell that there are 1044 values, or 1044 words.</p>
+<pre class="r"><code>davis_dfm &lt;- dfm(davis_tokenized_list)
+
+word_sums &lt;- colSums(davis_dfm)
+length(word_sums)</code></pre>
+<pre><code>## [1] 1040</code></pre>
+<p>In order to then see which words are the most frequent, we create a new data frame from the “word_sums” values, with the <code>data.frame()</code> function. In accordance with the <code>data.frame()</code> syntax, both “word” and “freq” are given as column names, while the number of rows is dictated by the number of values; in this case, that is the 1044 from above. We set <code>row.names = NULL</code> to avoid each row taking on a name, which in this case would be the words themselves. We also add <code>stringsAsFactors = FALSE</code> in order to keep the words in character class.</p>
+<pre class="r"><code>freq_data &lt;- data.frame(word = names(word_sums), 
+                        freq = word_sums, 
+                        row.names = NULL,
+                        stringsAsFactors = FALSE)</code></pre>
+<p>Finally, we create a data frame which is sorted by the <code>order()</code> function and accompanying <code>decreasing = TRUE</code> argument from most to least common words. We select the <code>freq</code> column to sort on to achieve this goal. So that our created object is a data frame, rather than a vector, we put everything inside of the <code>freq_data[ , ]</code> brackets. This arrangement, in which the brackets and comma designate [row, column], tells R to keep the columns as they are, but to rearrange the order of the rows. That is, to maintain the integrity of the object as a data frame, but reorder it sorting on frequency.</p>
+<pre class="r"><code>sorted_freq_data &lt;- freq_data[order(freq_data$freq, decreasing = TRUE), ]</code></pre>
+<p>Examining the <code>sorted_freq_data</code> object tells us that some of the most common words with substantive meaning are “tax,” “taxes,” “impeachment,” “tariffs,” and “muellerreport,” giving us a brief but only minimally informative look at what tweeters are concerned with or want to speak to Rep. Davis about. It seems that perhaps a different technique than word frequency could give us more insight.</p>
+<p>Thus, we turn now to our second approach, seeking to form topic clusters to see which words are most related to one another. These clusters require interpretation by us: we will have to see what kind of connections we can make between the words. However, when put in conjunction, some of these words may be more informative than the single word frequencies we already calculated.</p>
+<p>To begin, we must first convert our data into a data term matrix object. This necessitates converting our object first to the corpus format from its existing data frame class. We do this by using the <code>Corpus()</code> command from the <code>tm</code> package, indicating the location of the material being used to create our corpus. In this case, that is the 19th column of the <code>davis_df_negative</code>, which is <code>text_clean</code>.</p>
+<p>We then swiftly turn this corpus into a document term matrix with the <code>DocumentTermMatrix()</code> command.</p>
+<pre class="r"><code>davis_corpus_tm &lt;- Corpus(VectorSource(davis_df_negative[,19]))
+
+davis_dtm &lt;- DocumentTermMatrix(davis_corpus_tm)</code></pre>
+<p>Next, we lower the sparsity of this dtm. Just as with our earlier cleaning operations, this is done to speed up the time it will take to form our clusters. Additionally, we are uninterested in words which are so uncommon that they don’t appear in at least 2% of the documents–this is communicated by the complementary <code>0.98</code> threshold assigned to the <code>removeSparseTerms()</code> command. We can check if this is a reasonable amount of sparsity by looking at the number of words remaining after the next step. Here, it is 81–somewhere around 100 is often a good rule of thumb.</p>
+<p>Finally, we convert this document term matrix into a data frame called <code>davis_df_cluster</code>. This is done by first turning the dtm into a matrix and then a data frame with the <code>as.matrix()</code> and <code>as.data.frame()</code> commands.</p>
+<pre class="r"><code>davis_dtm &lt;- removeSparseTerms(davis_dtm, 0.98)
+
+davis_df_cluster &lt;- as.data.frame(as.matrix(davis_dtm))</code></pre>
+<p>Now, we will create clusters using a technique called Exploratory Graph Analysis (EGA, for short). Install and load the package <code>devtools</code> and <code>EGA</code>. EGA is a form of network analysis which creates word clusters based on correlation. Words which are most correlated with one another will appear in the same cluster (also called a dimension) and it is up to the user to interpret these results. This package was created by Hudson Golino and can be sourced from his GitHub account, as displayed below</p>
+<pre class="r"><code>library(devtools)
+
+# devtools::install_github(&quot;hfgolino/EGA&quot;)
+library(EGA)</code></pre>
+<p>Having installed and loaded our packages, we now use the command <code>EGA()</code> to initially generate our clusters, utilizing the “davis_df_cluster” data frame. This will generate a visual indicating the words in each node, with the colors demarcating clusters.</p>
+<pre class="r"><code>ega_davis &lt;- EGA(davis_df_cluster)</code></pre>
+<p><img src="/post/2019-05-03-an-introduction-to-analyzing-twitter-data-with-r_files/figure-html/run%20ega-1.png" width="672" /></p>
+<p>While this 11-clustered graphic is pretty to look at, it often abbreviates the words and thus is not as informative as it could be. Thus, we select <code>dim.variables</code> from within the <code>ega_davis</code> object to tell us which words belong to which cluster. We have to construct our own meaning from these clusters; for example, both cluster 2 and 3 appear to refer to the Mueller Report–maybe constituents wanted Rep. Davis to take action related to the release of the report. Cluster 6 seems to point to the lack of public town halls held by Rep. Davis–a common critique by his opponents. Cluster 9 is a little bit more difficult to decipher but contains words like “corrupt,” “fraud,” “impeach,” and “hiding.” While the presence of “impeach” seems to indicate this cluster is about President Trump, this cluster might encourage a staffer to look back at the tweets themselves to see what tweets with these words in them typically reference. Finally Cluster 11 relates to the Barr Report and the untruths some constituents thought it contained (see: “spun,” “false,” “deliberately,” “mis…”). Through the result of EGA, it seems we can get a better sense of what Rep. Davis’s constituents are unhappy about than only looking at the frequencies.</p>
+<pre class="r"><code>ega_davis$dim.variables</code></pre>
+<pre><code>##                           items dimension
+## greatbike             greatbike         1
+## taxes                     taxes         1
+## …                             …         1
+## office                   office         1
+## tax                         tax         1
+## year                       year         1
+## just                       just         1
+## even                       even         1
+## president             president         1
+## cut                         cut         1
+## t…                           t…         1
+## get                         get         1
+## attack                   attack         1
+## campaign               campaign         1
+## partisan               partisan         1
+## now                         now         1
+## election               election         1
+## children               children         1
+## mueller                 mueller         2
+## davis                     davis         2
+## money                     money         2
+## report                   report         2
+## see                         see         3
+## eyes                       eyes         3
+## 13voter                 13voter         3
+## barr                       barr         3
+## currently             currently         3
+## deliberately       deliberately         3
+## false                     false         3
+## mis…                       mis…         3
+## reading                 reading         3
+## spun                       spun         3
+## decatur                 decatur         4
+## rodney                   rodney         4
+## know                       know         5
+## ops                         ops         5
+## photo                     photo         5
+## cancer                   cancer         5
+## issues                   issues         5
+## morning                 morning         6
+## muellerreport     muellerreport         6
+## s…                           s…         6
+## town                       town         7
+## held                       held         7
+## hall                       hall         7
+## county                   county         7
+## fall                       fall         7
+## il13                       il13         7
+## last                       last         7
+## indivisible         indivisible         8
+## around                   around         8
+## easier                   easier         8
+## explaining           explaining         8
+## going                     going         8
+## hang                       hang         8
+## impeachment         impeachment         8
+## neck                       neck         8
+## try                         try         8
+## republicans         republicans         9
+## donnie                   donnie         9
+## years                     years         9
+## everything           everything         9
+## tariffs                 tariffs         9
+## think                     think         9
+## ’s                           ’s        10
+## time                       time        10
+## corrupt                 corrupt        10
+## fraud                     fraud        10
+## hiding                   hiding        10
+## impeach                 impeach        10
+## misses                   misses        10
+## treasury               treasury        10
+## &lt;U+2066&gt;&lt;U+2069&gt;   &lt;U+2066&gt;&lt;U+2069&gt;        10
+## elected                 elected        11
+## constitutional   constitutional        11
+## duty                       duty        11
+## evident                 evident        11
+## fear                       fear        11
+## official               official        11
+## recognize             recognize        11</code></pre>
+<p>What we’ve explored today are only a few ways we can make use of Twitter data, but I hope they prove helpful as you engage with your own exploratory analysis.</p>
+<div id="resources" class="section level3">
+<h3>Resources:</h3>
+<ul>
+<li><a href="https://cran.r-project.org/web/packages/twitteR/twitteR.pdf" class="uri">https://cran.r-project.org/web/packages/twitteR/twitteR.pdf</a></li>
+<li><a href="https://stackoverflow.com/questions/18446408/adding-custom-stopwords-in-r-tm" class="uri">https://stackoverflow.com/questions/18446408/adding-custom-stopwords-in-r-tm</a></li>
+<li><a href="https://stackoverflow.com/questions/24703920/r-tm-package-vcorpus-error-in-converting-corpus-to-data-frame" class="uri">https://stackoverflow.com/questions/24703920/r-tm-package-vcorpus-error-in-converting-corpus-to-data-frame</a></li>
+<li><a href="https://stackoverflow.com/questions/10294284/remove-all-special-characters-from-a-string-in-r" class="uri">https://stackoverflow.com/questions/10294284/remove-all-special-characters-from-a-string-in-r</a></li>
+<li><a href="https://stackoverflow.com/questions/28763389/how-does-the-removesparseterms-in-r-work" class="uri">https://stackoverflow.com/questions/28763389/how-does-the-removesparseterms-in-r-work</a></li>
+<li><a href="https://github.com/hfgolino/EGA" class="uri">https://github.com/hfgolino/EGA</a></li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Leah Malkovich</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] EGA_0.4                 usethis_1.5.0          
+##  [3] devtools_2.0.2          quanteda_1.4.3         
+##  [5] dplyr_0.8.0.1           SentimentAnalysis_1.3-3
+##  [7] tm_0.7-6                NLP_0.2-0              
+##  [9] ggplot2_3.1.1           lubridate_1.7.4        
+## [11] readr_1.3.1             twitteR_1.1.9          
+## 
+## loaded via a namespace (and not attached):
+##   [1] colorspace_1.4-1       rjson_0.2.20           rprojroot_1.3-2       
+##   [4] htmlTable_1.13.1       corpcor_1.6.9          base64enc_0.1-3       
+##   [7] fs_1.2.7               rstudioapi_0.10        lavaan_0.6-3          
+##  [10] remotes_2.0.4          SnowballC_0.6.0        bit64_0.9-7           
+##  [13] xml2_1.2.0             codetools_0.2-16       splines_3.6.0         
+##  [16] mnormt_1.5-5           knitr_1.22             glasso_1.10           
+##  [19] pkgload_1.0.2          Formula_1.2-3          cluster_2.0.8         
+##  [22] png_0.1-7              compiler_3.6.0         httr_1.4.0            
+##  [25] backports_1.1.4        assertthat_0.2.1       Matrix_1.2-17         
+##  [28] lazyeval_0.2.2         cli_1.1.0              acepack_1.4.1         
+##  [31] htmltools_0.3.6        prettyunits_1.0.2      tools_3.6.0           
+##  [34] igraph_1.2.4.1         gtable_0.3.0           glue_1.3.1            
+##  [37] reshape2_1.4.3         fastmatch_1.1-0        Rcpp_1.0.1            
+##  [40] slam_0.1-45            nlme_3.1-139           blogdown_0.11         
+##  [43] iterators_1.0.10       psych_1.8.12           xfun_0.6              
+##  [46] stringr_1.4.0          stopwords_0.9.0        ps_1.3.0              
+##  [49] ggm_2.3                gtools_3.8.1           MASS_7.3-51.4         
+##  [52] scales_1.0.0           BDgraph_2.58           hms_0.4.2             
+##  [55] NetworkToolbox_1.2.3   parallel_3.6.0         huge_1.3.2            
+##  [58] RColorBrewer_1.1-2     yaml_2.2.0             pbapply_1.4-0         
+##  [61] memoise_1.1.0          gridExtra_2.3          rpart_4.1-15          
+##  [64] latticeExtra_0.6-28    stringi_1.4.3          desc_1.2.0            
+##  [67] foreach_1.4.4          checkmate_1.9.1        pkgbuild_1.0.3        
+##  [70] d3Network_0.5.2.1      rlang_0.3.4            pkgconfig_2.0.2       
+##  [73] evaluate_0.13          lattice_0.20-38        purrr_0.3.2           
+##  [76] htmlwidgets_1.3        labeling_0.3           bit_1.1-14            
+##  [79] processx_3.3.0         tidyselect_0.2.5       plyr_1.8.4            
+##  [82] magrittr_1.5           bookdown_0.9           R6_2.4.0              
+##  [85] Hmisc_4.2-0            DBI_1.0.0              whisker_0.3-2         
+##  [88] pillar_1.3.1           foreign_0.8-71         withr_2.1.2           
+##  [91] abind_1.4-5            survival_2.44-1.1      nnet_7.3-12           
+##  [94] tibble_2.1.1           crayon_1.3.4           qdapDictionaries_1.0.7
+##  [97] fdrtool_1.2.15         rmarkdown_1.12         jpeg_0.1-8            
+## [100] grid_3.6.0             qgraph_1.6.1           pbivnorm_0.6.0        
+## [103] data.table_1.12.2      callr_3.2.0            digest_0.6.18         
+## [106] spacyr_1.0             stats4_3.6.0           RcppParallel_4.4.2    
+## [109] munsell_0.5.0          sessioninfo_1.1.1</code></pre>
+</div>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p><a href="https://www.pewinternet.org/fact-sheet/social-media/" class="uri">https://www.pewinternet.org/fact-sheet/social-media/</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>Full disclosure: I am originally from this district and voted in this election.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p><a href="https://www.nytimes.com/elections/results/illinois-house-district-13" class="uri">https://www.nytimes.com/elections/results/illinois-house-district-13</a><a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>This anomaly was found by perusing the <code>davis_df</code>.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+</ol>
+</div>
