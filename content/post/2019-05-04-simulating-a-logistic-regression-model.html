@@ -1,0 +1,296 @@
+---
+title: Simulating a Logistic Regression Model
+author: Clay Ford
+date: '2019-05-04'
+slug: simulating-a-logistic-regression-model
+categories:
+  - R
+tags:
+  - power analysis
+  - binary logistic regression
+  - simulation
+---
+
+
+
+<p>Logistic regression is a method for modeling binary data as a function of other variables. For example we might want to model the occurrence or non-occurrence of a disease given predictors such as age, race, weight, etc. The result is a model that returns a predicted probability of occurrence (or non-occurrence, depending on how we set up our data) given certain values of our predictors. We might also be able to interpret the coefficients in our model to summarize how a change in one predictor affects the odds of occurrence. Logistic regression is a mature and effective statistical method used in many fields of study. A quick web search should yield many tutorials for getting started with logistic regression. The topic of this blog post is simulating binary data using a logistic regression model.</p>
+<p>Using the <code>sample</code> function we can easily simulate binary data with specified probabilities. Here’s a sample of 20 zeroes and ones, where 0 has a 30% chance of being sampled and 1 has a 70% chance of being sampled.</p>
+<pre class="r"><code>sample(c(0,1), size = 20, replace = TRUE, prob = c(0.3, 0.7))</code></pre>
+<pre><code>##  [1] 1 1 1 0 1 1 1 1 0 0 1 1 1 0 1 1 1 1 1 0</code></pre>
+<p>Another way is to use the <code>rbinom</code> function, which generates random values from a binomial distribution with a certain trial <em>size</em> and probability <em>p</em> of success or occurrence. To generate similar data as we did with <code>sample</code>, set <code>n = 20</code> to indicate 20 draws from a binomial distribution, set <code>size = 1</code> to indicate the distribution is for 1 trial, and <code>p = 0.7</code> to specify the distribution is for a “success” probability of 0.7:</p>
+<pre class="r"><code>rbinom(n = 20, size = 1, prob = 0.7)</code></pre>
+<pre><code>##  [1] 1 1 0 1 1 1 0 1 1 0 1 0 1 1 0 1 1 0 1 0</code></pre>
+<p>It may help to think of the binomial distribution as the “coin flipping distribution”. Above 20 people flipped a coin 1 time that was loaded to land heads (or tails as the case may be) 70% percent of the time. If we wanted we could simulate 10 people each flipping 5 fair coins and see how many heads they get:</p>
+<pre class="r"><code>rbinom(n = 10, size = 5, prob = 0.5)</code></pre>
+<pre><code>##  [1] 2 2 2 3 3 2 2 2 2 3</code></pre>
+<p>The result is the number of heads each person observed. But in this blog post, we’re concerned with binary data, so we’ll stick to results of 0 and 1 (ie, <code>size = 1</code>).</p>
+<p>Now we may want to simulate binary data where the probability changes <em>conditional</em> on other variables. For example, we might want the probability of a “1” for a 50-year-old male to be higher than the probability of a “1” for a 35-year-old male, which we might want higher than the probability of a “1” for a 35-year-old female. What we want is a <em>model</em> where we can plug in values such as age and gender and generate a probabilities for churning out ones and zeroes. This what a logistic regression model allows us to do.</p>
+<p>Here’s the general logistic regression model:</p>
+<p><span class="math display">\[Prob\{Y = 1|X\} = \frac{1}{1 + \text{exp}(-X\beta)}\]</span></p>
+<p>The <span class="math inline">\(X\)</span> represents our predictors. The <span class="math inline">\(\beta\)</span> represents weights or coefficients for our predictors. If we had two predictors, <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_2\)</span>, then <span class="math inline">\(X\beta = X_1\beta_1 + X_2\beta_2\)</span>. No matter what we plug into the model, it always returns a value between 0 and 1, or a probability. It’s easy to demonstrate with a quick plot.</p>
+<pre class="r"><code>x &lt;- seq(-4, 4, length.out = 100)
+p &lt;- 1/(1 + exp(-x))
+plot(x, p, type = &quot;l&quot;)</code></pre>
+<p><img src="/post/2019-05-04-simulating-a-logistic-regression-model_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>No matter our x value, p is bounded between 0 and 1.</p>
+<p>Let’s use <span class="math inline">\(X\beta\)</span> to generate some probabilities. Assume we have two predictors: gender and age. Gender is 1 for male, 0 for female. Age can take values from 18 to 80. Here’s one way to simulate those variables using the <code>sample</code> and <code>runif</code> functions. The <code>sample</code> function samples from the vector <code>c(0,1)</code> with replacement 100 times. The <code>runif</code> function draws 100 values from a uniform distribution that ranges in value from 18 to 80.</p>
+<pre class="r"><code>set.seed(1)
+gender &lt;- sample(c(0,1), size = 100, replace = TRUE)
+age &lt;- round(runif(100, 18, 80))</code></pre>
+<p>Now let’s pick some values for <span class="math inline">\(\beta\)</span>. The <span class="math inline">\(\beta\)</span> values represent the change in <em>log odds</em> per unit change in the predictors. If that sounds confusing, that’s completely normal. We talk a bit more about how to make sense of these values a little further down. For now let’s just pick some <span class="math inline">\(\beta\)</span> values. Notice we’ve included an intercept.</p>
+<pre class="r"><code>xb &lt;- -9 + 3.5*gender + 0.2*age</code></pre>
+<p>Now we can generate some probabilities using the logistic regression model:</p>
+<pre class="r"><code>p &lt;- 1/(1 + exp(-xb))
+summary(p)</code></pre>
+<pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 0.005486 0.537376 0.895576 0.729096 0.995930 0.999973</code></pre>
+<p>Notice <code>p</code> lies between 0 and 1, as probabilities should. Finally, with our probabilties we can generate ones and zeroes to indicate occurrence and non-occurrence using the <code>rbinom</code> function:</p>
+<pre class="r"><code>y &lt;- rbinom(n = 100, size = 1, prob = p)
+y</code></pre>
+<pre><code>##   [1] 1 0 1 1 1 1 0 1 1 1 1 1 1 1 1 0 1 1 0 1 1 1 1 0 1 1 1 0 1 1 1 0 0 1 1
+##  [36] 1 1 1 1 1 1 1 0 1 1 1 0 1 0 1 1 1 0 0 1 0 1 0 1 0 1 1 1 1 1 0 0 1 1 1
+##  [71] 1 1 1 0 0 1 1 1 1 1 0 1 1 1 1 0 1 1 1 1 1 0 1 1 1 1 0 1 1 1</code></pre>
+<p>For kicks, let’s run a logistic regression on our data and see how well it recovers the “true” <span class="math inline">\(\beta\)</span> values of -9, 3.5, and 0.2. For this we use the <code>glm</code> function with <code>family = "binomial"</code>:</p>
+<pre class="r"><code>mod &lt;- glm(y ~ gender + age, family = &quot;binomial&quot;)
+summary(mod)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y ~ gender + age, family = &quot;binomial&quot;)
+## 
+## Deviance Residuals: 
+##      Min        1Q    Median        3Q       Max  
+## -2.63013   0.00000   0.00146   0.10391   1.63486  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)   
+## (Intercept) -22.4085     6.9378  -3.230  0.00124 **
+## gender        9.4882     3.1282   3.033  0.00242 **
+## age           0.4954     0.1506   3.289  0.00100 **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 110.216  on 99  degrees of freedom
+## Residual deviance:  28.069  on 97  degrees of freedom
+## AIC: 34.069
+## 
+## Number of Fisher Scoring iterations: 9</code></pre>
+<p>The regression worked ok it appears. The true values are within 2 standard errors of the estimated coefficients. Increasing the sample size from 100 to 1000 improves the estimation.</p>
+<pre class="r"><code>gender &lt;- sample(c(0,1), size = 1000, replace = TRUE)
+age &lt;- round(runif(1000, 18, 80))
+xb &lt;- -9 + 3.5*gender + 0.2*age
+p &lt;- 1/(1 + exp(-xb))
+y &lt;- rbinom(n = 1000, size = 1, prob = p)
+mod &lt;- glm(y ~ gender + age, family = &quot;binomial&quot;)
+summary(mod)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y ~ gender + age, family = &quot;binomial&quot;)
+## 
+## Deviance Residuals: 
+##      Min        1Q    Median        3Q       Max  
+## -2.74000  -0.17243   0.03758   0.21775   2.82824  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -9.48889    0.70925  -13.38   &lt;2e-16 ***
+## gender       3.40564    0.33018   10.31   &lt;2e-16 ***
+## age          0.22032    0.01614   13.65   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 1246.09  on 999  degrees of freedom
+## Residual deviance:  449.08  on 997  degrees of freedom
+## AIC: 455.08
+## 
+## Number of Fisher Scoring iterations: 7</code></pre>
+<p>Let’s return to the coefficients we selected. We set the gender coefficient to 3.5. Recall that these values represent change in <em>log odds</em>. So when gender = male (ie, gender = 1), the log odds increase by 3.5. That’s not intuitive. Fortunately we can exponentiate the coefficient to express it in terms of an <em>odds ratio</em>. Let’s do that real quick:</p>
+<pre class="r"><code>exp(3.5)</code></pre>
+<pre><code>## [1] 33.11545</code></pre>
+<p>This says the odds of a “1” for a male are about 33 times the odds of a “1” for a female. This is a little easier to grasp. If the “1” in this case means disease occurrence, this means the odds of a male contracting the disease is 33 times higher than the odds of a female contracting the disease. To express this in terms of a probability we would need to actually use our model to get predicted probabilities. Our model includes age, so let’s set age to 30 and compare the probability of disease between a 30-year-old male and a 30-year-old female. Again we use the general logistic regression model:</p>
+<pre class="r"><code># male, age 30
+p_male &lt;- 1/(1 + exp(-(-9 + 3.5*1 + 0.2*30)))
+p_male</code></pre>
+<pre><code>## [1] 0.6224593</code></pre>
+<pre class="r"><code># female, age 30
+p_female &lt;- 1/(1 + exp(-(-9 + 3.5*0 + 0.2*30)))
+p_female</code></pre>
+<pre><code>## [1] 0.04742587</code></pre>
+<p>62% versus about 5%. We can express that as an odds ratio as follows:</p>
+<pre class="r"><code>(0.62/(1 - 0.62))/(0.047/(1 - 0.047))</code></pre>
+<pre><code>## [1] 33.08287</code></pre>
+<p>Which is close to what we got by simply exponentiating the coefficient. Try the preceding calculations with different ages and you’ll notice you always get an odds ratio of about 33.</p>
+<p>We can do the same with the age coefficient.</p>
+<pre class="r"><code>exp(0.2)</code></pre>
+<pre><code>## [1] 1.221403</code></pre>
+<p>This says the odds of occurrence increase by about 1.2 for each year someone gets older. Sometimes people will say the odds increase by about 20% since multiplying a quantity times 1.2 returns the quantity increased by 20%.</p>
+<p>What about the intercept? Why include it? To see why, let’s simulate the data without it and then create a cross-tabulated table to see how occurrences break down across age and gender. Notice we use the <code>cut</code> function to quickly create 4 arbitrary age groups containing equal numbers of people. This is simply to help create the table.</p>
+<pre class="r"><code>gender &lt;- sample(c(0,1), size = 100, replace = TRUE)
+age &lt;- round(runif(100, 18, 80))
+xb &lt;- 3.5*gender + 0.2*age
+p &lt;- 1/(1 + exp(-xb))
+y &lt;- rbinom(n = 100, size = 1, prob = p)
+xtabs(~ cut(age,4) + gender + y)</code></pre>
+<pre><code>## , , y = 1
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5] 13 14
+##   (33.5,49]    9 10
+##   (49,64.5]   11  7
+##   (64.5,80.1] 18 18</code></pre>
+<p>The result of our simulated data is that everyone got a “1” (occurrence)! It’s no wonder. Look at how high all the probabilities are:</p>
+<pre class="r"><code>summary(p)</code></pre>
+<pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##  0.9734  0.9998  1.0000  0.9986  1.0000  1.0000</code></pre>
+<p>Adding an intercept can help spread out the probabilities. It takes some trial and error. Let’s try adding -9.</p>
+<pre class="r"><code>xb &lt;- -9 + 3.5*gender + 0.2*age
+p &lt;- 1/(1 + exp(-xb))
+y &lt;- rbinom(n = 100, size = 1, prob = p)
+xtabs(~ cut(age,4) + gender + y)</code></pre>
+<pre><code>## , , y = 0
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5] 12  9
+##   (33.5,49]    5  1
+##   (49,64.5]    2  0
+##   (64.5,80.1]  1  0
+## 
+## , , y = 1
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5]  1  5
+##   (33.5,49]    4  9
+##   (49,64.5]    9  7
+##   (64.5,80.1] 17 18</code></pre>
+<p>That’s a little better. Now we’re seeing some non-occurrences. Remember, our plan is to use age as a numeric predictor, not categorical, so the 0 entries in the higher age groups may not bother us. If we want the balance of 0’s and 1’s spread out we could continue to play around with the intercept.</p>
+<p>Recall that the intercept in this example produces the predicted probability of a female (gender = 0) at age = 0. That may not be meaningful (unless we’re dealing with an event that could occur at birth). If we wanted, we could center the age variable by substracting the mean age from each value. That means an age of 0 represents the mean age. In that case the intercept would produce the predicted probability for a female at the mean age. Let’s try that approach without specifying an intercept. Notice we use the <code>scale</code> function on-the-fly to quickly center the age variable:</p>
+<pre class="r"><code>xb &lt;- 3.5*gender + 0.2*scale(age, center = TRUE, scale = FALSE)
+p &lt;- 1/(1 + exp(-xb))
+y &lt;- rbinom(n = 100, size = 1, prob = p)
+xtabs(~ cut(age,4) + gender + y)</code></pre>
+<pre><code>## , , y = 0
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5] 13 11
+##   (33.5,49]    6  1
+##   (49,64.5]    6  0
+##   (64.5,80.1]  0  0
+## 
+## , , y = 1
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5]  0  3
+##   (33.5,49]    3  9
+##   (49,64.5]    5  7
+##   (64.5,80.1] 18 18</code></pre>
+<p>That produces a decent spread of occurrences over gender and age. Let’s see what adding an intercept of -3 does:</p>
+<pre class="r"><code>xb &lt;- -3 + 3.5*gender + 0.2*scale(age, center = TRUE, scale = FALSE)
+p &lt;- 1/(1 + exp(-xb))
+y &lt;- rbinom(n = 100, size = 1, prob = p)
+xtabs(~ cut(age,4) + gender + y)</code></pre>
+<pre><code>## , , y = 0
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5] 13 13
+##   (33.5,49]    8 10
+##   (49,64.5]    9  0
+##   (64.5,80.1]  2  0
+## 
+## , , y = 1
+## 
+##              gender
+## cut(age, 4)    0  1
+##   (17.9,33.5]  0  1
+##   (33.5,49]    1  0
+##   (49,64.5]    2  7
+##   (64.5,80.1] 16 18</code></pre>
+<p>That resulted in more non-occurences. Adding an intercept of 3 results in more occurrences. (Try it.)</p>
+<p>One reason we might want to simulate a logistic regression model is to evaluate possible sample sizes for detecting some effect. For example, we may hypothesize that the effect of age on occurrence is higher for males than for females. That means we think the effects of age and gender <em>interact</em>. We can allow for that in our model by including a coefficient for the product of age and gender.</p>
+<p>Let’s say we hypothesize the following model:</p>
+<pre class="r"><code>xb &lt;- 0.26*(gender == &quot;1&quot;) + 0.05*age + 0.03*(gender == &quot;1&quot;)*age</code></pre>
+<p>Again assume gender = 1 is male. This model says the effect of age is 0.05 for females and 0.08 for males. These effects are on the log odds scale. The corresponding odds ratios are</p>
+<pre class="r"><code>exp(0.05)</code></pre>
+<pre><code>## [1] 1.051271</code></pre>
+<pre class="r"><code>exp(0.08)</code></pre>
+<pre><code>## [1] 1.083287</code></pre>
+<p>If we wanted to work backwards for a given odds ratio, we can just take the log of the proposed coefficient. For example, if we think the odds of occurrence are 5% higher for males than females for each 1-year increase in age, running <code>log(1.05)</code> tells us the corresponding log odds is about 0.05. So we could use 0.05 as our coefficient.</p>
+<p>Now let’s simulate data for 200 subjects, 100 females and 100 males, using the proposed model above. Is 200 a large enough sample size to detect the interaction effect? Notice below we assign sample size to <code>n</code> to help us easily try different sample sizes. Also notice we work with centered age to allow us to not have to worry about specifying an intercept. Plus we set a seed to make sure we both get the results (assuming you’re following along).</p>
+<pre class="r"><code>n &lt;- 200
+gender &lt;- factor(rep(c(0,1), each = n/2))
+age &lt;- round(runif(n, 18, 80))
+age.c &lt;- scale(age, center = TRUE, scale = F)
+xb &lt;- 0.26*(gender == &quot;1&quot;) + 0.05*age.c + 0.03*(gender == &quot;1&quot;)*age.c
+p &lt;- 1/(1 + exp(-xb))
+set.seed(12)
+y &lt;- rbinom(n = n, size = 1, prob = p)
+mod &lt;- glm(y ~ gender + age.c + gender:age.c, family = binomial)
+summary(mod)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y ~ gender + age.c + gender:age.c, family = binomial)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -2.0288  -0.9218   0.3285   0.8412   2.0467  
+## 
+## Coefficients:
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)    0.11687    0.21574   0.542 0.588002    
+## gender1        0.13156    0.33682   0.391 0.696093    
+## age.c          0.04366    0.01247   3.501 0.000464 ***
+## gender1:age.c  0.04463    0.02106   2.119 0.034055 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 276.54  on 199  degrees of freedom
+## Residual deviance: 219.05  on 196  degrees of freedom
+## AIC: 227.05
+## 
+## Number of Fisher Scoring iterations: 4</code></pre>
+<p>The coefficient on the interaction appears significant. It looks like 200 subjects should be enough to successfully detect the hypothesized interaction effect. But this was only one simulation. Will we get the same result with repeated simulations? Let’s find out. To do so we’ll create two functions: one called <code>simFit</code> that will simulate data for one model for a given sample size and run a logistic model, and another called <code>powerEst</code> that will run <code>simFit</code> a certain number of times.</p>
+<p>The <code>simFit</code> function is essentially our code above with two changes. The first is to save the <code>summary</code> result. The second is to extract the coefficients matrix and check if the p-value for the interaction is less than 0.05. (We could also check for other p-values such as 0.01 or 0.005). The function returns TRUE if the p-value is less than 0.05, FALSE otherwise.</p>
+<p>The <code>powerEst</code> function replicates the <code>simFit</code> function <code>N</code> times and returns the <code>mean</code> of the result, which is the proportion of TRUE results. This can be interpreted as a <em>power</em> estimate, the probability of detecting a hypothesized effect assuming it really exists.</p>
+<pre class="r"><code># n: sample size (even number for equal numbers of males and females)
+simFit &lt;- function(n){
+  gender &lt;- factor(rep(c(0,1), each = n/2))
+  age &lt;- round(runif(n, 18, 80))
+  age.c &lt;- scale(age, center = TRUE, scale = F)
+  xb &lt;- 0.26*(gender == &quot;1&quot;) + 0.05*age.c + 0.03*(gender == &quot;1&quot;)*age.c
+  p &lt;- 1/(1 + exp(-xb))
+  y &lt;- rbinom(n = n, size = 1, prob = p)
+  mod &lt;- glm(y ~ gender + age.c + gender:age.c, family = binomial)
+  s.out &lt;- summary(mod)
+  s.out$coefficients[&quot;gender1:age.c&quot;,&quot;Pr(&gt;|z|)&quot;] &lt; 0.05
+}
+
+powerEst &lt;- function(N, n){
+  r.out &lt;- replicate(n = N, simFit(n = n))
+  mean(r.out)
+}</code></pre>
+<p>Let’s run <code>powerEst</code> 500 times with our sample size of 200.</p>
+<pre class="r"><code>powerEst(N = 500, n = 200)</code></pre>
+<pre><code>## [1] 0.32</code></pre>
+<p>The result is low for a power estimate. Ideally we’d like something high, like 0.8 or higher. It’s a good thing we did this instead of trusting the result of a single simulation!</p>
+<p>So how large a sample size should we consider? Let’s <em>apply</em> our <code>simFit</code> function to a range of sample sizes and see where we begin to exceed 0.8. To do this we’ll use the <code>sapply</code> function. The “s” in <code>sapply</code> means “simplify”, which means the function will try to simplify the data structure of the result. In this case it simplifies the result from a list to a vector. (Try running it with <code>lapply</code> to see the difference in data structures.)</p>
+<pre class="r"><code>ss &lt;- seq(300,1000,100) # various sample sizes
+p.out &lt;- sapply(ss, function(x)powerEst(N = 500, n = x))</code></pre>
+<p>Now subset the <code>ss</code> vector conditional on <code>p.out</code> being greater than 0.8:</p>
+<pre class="r"><code>ss[p.out &gt; 0.8]</code></pre>
+<pre><code>## [1]  800  900 1000</code></pre>
+<p>It appears we need at least 800 subjects to have a probability of detecting the hypothesized interaction effect, conditional on the hypothesized gender effect. We can also create a quick plot to visualize the results.</p>
+<pre class="r"><code>plot(ss, p.out, type = &quot;l&quot;, 
+     xlab = &quot;sample size&quot;, ylab = &quot;power&quot;)
+abline(h = 0.8, lty = 2)</code></pre>
+<p><img src="/post/2019-05-04-simulating-a-logistic-regression-model_files/figure-html/unnamed-chunk-28-1.png" width="672" /></p>
+<p>Notice 700 is awfully close to our desired power of 0.8. Perhaps we should try 1000 simulations instead of 500. We’ll leave that to the interested reader.</p>
