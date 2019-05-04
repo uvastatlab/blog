@@ -290,5 +290,12 @@ abline(h = 0.8, lty = 2)
 
 Notice 700 is awfully close to our desired power of 0.8. Perhaps we should try 1000 simulations instead of 500. We'll leave that to the interested reader. 
 
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
 
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
 
+```{r}
+sessionInfo()
+```
