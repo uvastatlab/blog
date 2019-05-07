@@ -1,0 +1,164 @@
+---
+title: Pairwise comparisons of proportions
+author: Clay Ford
+date: '2016-10-20'
+slug: pairwise-comparisons-of-proportions
+categories:
+  - R
+tags:
+  - pairwise comparisons
+---
+
+Pairwise comparison means comparing all pairs of something. If I have three items A, B and C, that means comparing A to B, A to C, and B to C. Given n items, I can determine the number of possible pairs using the <a href="https://en.wikipedia.org/wiki/Binomial_coefficient" target="_blank">binomial coefficient</a>:
+
+$$ \frac{n!}{2!(n - 2)!} = \binom {n}{2}$$
+
+Using the <a href="https://www.r-project.org/" target="_blank">R statistical computing environment</a>, we can use the <code>choose</code> function to quickly calculate this. For example, how many possible 2-item combinations can I "choose" from 10 items:
+
+```{r}
+choose(10,2)
+
+```
+
+We sometimes want to make pairwise comparisons to see where differences occur. Let's say we go to 8 high schools in an area, survey 30 students at each school, and ask them whether or not they floss their teeth at least once a day. When finished we'll have 8 proportions of students who answered "Yes". An obvious first step would be to conduct a hypothesis test for any differences between these proportions. The null would be no difference between the proportions versus some difference. If we reject the null, we have evidence of differences. But where are the differences? This leads us to pairwise comparisons of proportions, where we make multiple comparisons. The outcome of these pairwise comparisons will hopefully tell us which schools have significantly different proportions of students flossing. 
+
+Making multiple comparisons leads to an increased chance of making a false discovery, i.e. rejecting a null hypothesis that should not have been rejected. When we run a hypothesis test, we always run a risk of finding something that isn't there. Think of flipping a fair coin 10 times and getting 9 or 10 heads (or 0 or 1 heads). That's improbable but not impossible. If it happened to us we may conclude the coin is unfair, but that would be the wrong conclusion if the coin truly was fair. It just so happened we were very unlucky to witness such an unusual event. As we said, the chance of this happening is low in a single trial, but we increase our chances of it happening by conducting multiple trials. 
+
+The probability of observing 0, 1, 9 or 10 heads when flipping a fair coin 10 times is about 2% which can be calculated in R as follows:
+
+```{r}
+pbinom(q = 1, size = 10, prob = 0.5) * 2
+
+```
+
+
+Therefore the the probability of getting 2 - 8 heads is about 98%:
+
+```{r}
+1 - pbinom(q = 1, size = 10, prob = 0.5) * 2
+
+```
+
+
+
+The probability of getting 2 - 8 heads in 10 trials is 98% multiplied by itself 10 times:
+
+```{r}
+(1 - pbinom(q = 1, size = 10, prob = 0.5) * 2)^10
+
+```
+
+
+Therefore the probability of getting 0, 1, 9, or 10 heads in 10 trials is now about 20%:
+
+```{r}
+1 - (1 - pbinom(q = 1, size = 10, prob = 0.5) * 2)^10
+
+```
+
+We can think of this as doing multiple hypothesis tests. Flip 10 coins 10 times each, get the proportion of heads for each coin, and use 10 one-sample proportion tests to statistically determine if the results we got are consistent with a fair coin. In other words, do we get any p-values less than, say, 0.05?
+
+We can simulate this in R. First we replicate 1,000 times the act of flipping 10 fair coins 10 times each and counting the number of heads using the <code>rbinom</code> function. This produces a 10 x 1000 matrix of results that we save as "coin.flips". We then apply a function to each column of the matrix that runs 10 one-sample proportion tests using the <code>prop.test</code> function and saves a TRUE/FALSE value if any of the p-values are less than 0.05 (we talk more about the <code>prop.test</code> function below). This returns a vector we save as "results" that contains TRUE or FALSE for each replicate. R treats TRUE and FALSE as 0 or 1, so calling <code>mean</code> on results returns the proportion of TRUEs in the vector. We get about 20%, confirming our calculations. (If you run the code below you'll probably get a slightly different but similar answer.)
+
+```{r}
+trials <- 10
+coin.flips <- replicate(1000, rbinom(n = 10, size = trials, 
+                                     prob = 0.5))
+
+multHypTest <- function(x){
+  pvs <- sapply(x, function(x)prop.test(x = x, n = trials, 
+                                        p = 0.5)$p.value)
+  any(pvs < 0.05)
+}
+
+results <- apply(coin.flips,2,multHypTest)
+mean(results)
+
+```
+
+
+That's just for 10 trials. What about 15 or 20 or more? You can re-run the code above with trials set to a different value. We can also visualize it by plotting the probability of an unusual result (0, 1, 9, or 10 heads) versus the number trials. Notice how rapidly the probability of a false discovery increases with the number of trials. 
+
+```{r}
+curve(expr = 1 - (1 - pbinom(q = 1, size = 10, prob = 0.5) * 2)^x, 
+      xlim = c(1,50),
+      xlab = "Number of tests",
+      ylab = "Probability of 0, 1, 9, or 10 heads")
+
+```
+
+So what does all of this tell us? It reveals that traditional significance levels such as 0.05 are too high when conducting multiple hypothesis tests. We need to either adjust our significance level or adjust our p-values. As we'll see, the usual approach is to adjust the p-values using one of several methods for p-value adjustment. 
+
+Let's return to our example of examining the proportion of high school students (sample size 30 at each school) who floss at 8 different high schools. We'll simulate this data as if the true proportion is 30% at each school (i.e., no difference). We use <code>set.seed</code> to make the data reproducible. 
+
+```{r}
+set.seed(15)
+n <- 30
+k <- 8
+school<- rep(1:k, each = n)
+floss <- replicate(k, sample(x = c("Y","N"),
+                            size = n, 
+                            prob = c(0.3, 0.7), 
+                            replace = TRUE))
+dat<- data.frame(school, floss = as.vector(floss))
+
+```
+
+
+With our data generated, we can tabulate the number of Yes and No responses at each school:
+
+```{r}
+flossTab <- with(dat, table(school, floss))
+flossTab
+
+
+```
+
+
+Using <code>prop.table</code> we can determine the proportions. Specifying <code>margin = 1</code> means proportions are calculated across the rows for each school. (We also round to two decimal places for presentation purposes.) The second column contains the proportion of students who answered Yes at each school.
+
+```{r}
+
+round(prop.table(flossTab, margin = 1), 2)
+```
+
+
+First we might want to run a test to see if we can statistically conclude that not all proportions are equal. We can do this with the <code>prop.test</code> function. The <code>prop.test</code> function requires that Yes (or "success") counts be in the first column of a table and No (or "failure") counts in the second column. Thus we switch the columns using subsetting brackets with a vector indicating column order. 
+
+```{r}
+prop.test(flossTab[,c("Y","N")])
+```
+
+The p-value of 0.055 is borderline significant and indicates some evidence of differences among proportions. We generated the data so we know there actually is no difference! But if this were real data that we had spent considerable resources collecting, we might be led to believe (perhaps even want to believe) some differences indeed exist. That p-value is so close to significance! School #5, in particular, with a proportion of 13% looks far lower than school #3 with 53%. We could conclude this hypothesis test is significant at 0.10 level and proceed to pairwise comparisons. 
+
+To do that in R we use the <code>pairwise.prop.test</code> function which requires a table in the same format as <code>prop.test</code>, Yes counts in the first column and No counts in the second column:
+
+```{r}
+pairwise.prop.test(x = flossTab[,c("Y","N")])
+
+```
+
+
+This produces a table of 28 p-values since there are 28 possible pairs between 8 items. We interpret the table by using row and column numbers to find the p-value for a particular pair. For example the p-value of 0.073 at the intersection of row 5 and column 3 is the p-value for the two-sample proportion test between school #5 and school #3. It appears to be insignificant at the traditional 5% level. All other p-values are clearly insignificant. In fact, most are 1. This is due to the p-value adjustment that was made. The output tells us the "holm" method was used. We won't get into the details of how this method works, but suffice to say it increases the p-values in an effort to adjust for the many comparisons being made. In this case, it does what it's supposed to: it adjusts the p-values and allows us to make a good case there is no differences between schools, at least not at the 5% level, which would be the correct decision. 
+
+We can do pairwise comparisons without adjusted p-values by setting <code>p.adjust.method = "none"</code>. Let's do that and see what happens:
+
+```{r}
+# NOTE: This analysis is wrong!
+pairwise.prop.test(x = flossTab[,c("Y","N")], 
+                   p.adjust.method = "none")
+```
+
+Notice now we have significant differences for 3 pairs: (5,1), (5,3), and (6,5). Again we know this is wrong because we simulated the data. The truth is all schools have a floss rate of 30%. But we see that through random chance and not adjusting our p-values for multiple testing we got what look to be significant results. This illustrates the importance of using adjusted p-values when making multiple comparisons. 
+
+There are other p-value adjustment methods available. A common and conservative choice is the <a href="https://en.wikipedia.org/wiki/Bonferroni_correction" target="_blank">bonferroni</a> method. It simply multiplies all p-values by the number of pairs. In our example that is 28. To see all p-value adjustment methods available in R enter <code>?p.adjust</code> at the console. 
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
