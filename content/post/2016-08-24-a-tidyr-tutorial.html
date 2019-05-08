@@ -1,0 +1,246 @@
+---
+title: A tidyr Tutorial
+author: Clay Ford
+date: '2016-08-24'
+slug: a-tidyr-tutorial
+categories:
+  - R
+tags:
+  - data wrangling
+---
+
+
+
+<p>The tidyr package by <a href="http://hadley.nz/" target="_blank">Hadley Wickham</a> centers on two functions: <code>gather</code> and <code>spread</code>. If you have struggled to understand what exactly these two functions do, this tutorial is for you.</p>
+<p>To begin we need to wrap our heads around the idea of “key-value pairs”. The help pages for <code>gather</code> and <code>spread</code> use this terminology to explain how they work. Without some intuition for key-value pairs, it can be difficult to truly understand how these functions work.</p>
+<p>Let’s generate some data to help explain this concept. The code below comes from the <code>gather</code> help page with a few modifications. It creates stock price data for three fictional companies named X, Y and Z. We’ve added a set.seed line so you can reproduce the results if you wish to follow along.</p>
+<pre class="r"><code>set.seed(1)
+stocks &lt;- data.frame(
+   time = as.Date(&#39;2009-01-01&#39;) + 0:9,
+   X = rnorm(10, 20, 1),
+   Y = rnorm(10, 20, 2),
+   Z = rnorm(10, 20, 4)
+ )
+stocks </code></pre>
+<pre><code>##          time        X        Y        Z
+## 1  2009-01-01 19.37355 23.02356 23.67591
+## 2  2009-01-02 20.18364 20.77969 23.12855
+## 3  2009-01-03 19.16437 18.75752 20.29826
+## 4  2009-01-04 21.59528 15.57060 12.04259
+## 5  2009-01-05 20.32951 22.24986 22.47930
+## 6  2009-01-06 19.17953 19.91013 19.77549
+## 7  2009-01-07 20.48743 19.96762 19.37682
+## 8  2009-01-08 20.73832 21.88767 14.11699
+## 9  2009-01-09 20.57578 21.64244 18.08740
+## 10 2009-01-10 19.69461 21.18780 21.67177</code></pre>
+<p>Look at row 1. It shows three stock prices for companies X, Y and Z for 2009-01-01. The numbers are the values. Which values go with which company? We have to look at the column headers to find out. We can think of the column headers as the “keys” to knowing which value goes with which company. The value 19.37355 is keyed to X. That’s a <em>key-value pair</em>. Another key-value pair is 23.02356 and Y. The value 23.02356 is keyed to stock Y. The three key-value pairs in row 1 are unique to 2009-01-01.</p>
+<p>If you understood the last paragraph, then you understand the concept of key-value pairs (at least well enough to learn how to use the tidyr package). The help page for <code>gather</code> says that it “takes multiple columns and collapses into key-value pairs, duplicating all other columns as needed.” Applying the <code>gather</code> function to the data above would mean gathering the X, Y and Z columns into two columns of key-value pairs. For the date 2009-01-01, that would look something like this:</p>
+<pre><code>2009-01-01     X 19.37355
+2009-01-02     X 20.18364
+2009-01-03     X 19.16437
+</code></pre>
+<p>We took multiple columns (X, Y and Z) and collapsed into two columns consisting of key-value pairs. The column with X, Y and Z contains the keys. The last column contains the values. The date column value was duplicated so we know which key-value pair goes with which date. This is sometimes referred to as “reshaping wide data to long data”. Let’s demonstrate how to do this with the <code>gather</code> function.</p>
+<p>The first argument is the data frame we wish to reshape. The next two arguments are the key and value. What’s tricky is that you give them the names that you want your new key and value columns to be titled. They do NOT refer to columns in the data frame. Below we name our new columns “stock” and “price”. The column headers (X, Y, Z) will be in the stock column. The values in the X, Y and Z columns will go in the price column. The final arguments to provide are the columns that contain the key-value pairs. We assign our reshaped data frame to a new object called “stocksL”.</p>
+<pre class="r"><code># install.packages(&quot;tidyr) 
+library(tidyr)
+stocksL &lt;- gather(data = stocks, 
+                  key = stock, 
+                  value = price, X, Y, Z)
+stocksL</code></pre>
+<pre><code>##          time stock    price
+## 1  2009-01-01     X 19.37355
+## 2  2009-01-02     X 20.18364
+## 3  2009-01-03     X 19.16437
+## 4  2009-01-04     X 21.59528
+## 5  2009-01-05     X 20.32951
+## 6  2009-01-06     X 19.17953
+## 7  2009-01-07     X 20.48743
+## 8  2009-01-08     X 20.73832
+## 9  2009-01-09     X 20.57578
+## 10 2009-01-10     X 19.69461
+## 11 2009-01-01     Y 23.02356
+## 12 2009-01-02     Y 20.77969
+## 13 2009-01-03     Y 18.75752
+## 14 2009-01-04     Y 15.57060
+## 15 2009-01-05     Y 22.24986
+## 16 2009-01-06     Y 19.91013
+## 17 2009-01-07     Y 19.96762
+## 18 2009-01-08     Y 21.88767
+## 19 2009-01-09     Y 21.64244
+## 20 2009-01-10     Y 21.18780
+## 21 2009-01-01     Z 23.67591
+## 22 2009-01-02     Z 23.12855
+## 23 2009-01-03     Z 20.29826
+## 24 2009-01-04     Z 12.04259
+## 25 2009-01-05     Z 22.47930
+## 26 2009-01-06     Z 19.77549
+## 27 2009-01-07     Z 19.37682
+## 28 2009-01-08     Z 14.11699
+## 29 2009-01-09     Z 18.08740
+## 30 2009-01-10     Z 21.67177</code></pre>
+<p>The documentation for <code>gather</code> demonstrates the same operation like this:</p>
+<pre class="r"><code>gather(stocks, stock, price, -time)</code></pre>
+<p>The last argument, -time, means all columns except time contain the key-value pairs. We can also do it like this:</p>
+<pre class="r"><code>gather(stocks, stock, price, X:Z)</code></pre>
+<p>The last argument, X:Z, means the columns X through Z, inclusive, contain the key-value pairs. This method is very useful if you have many adjacent columns that contain key-value pairs.</p>
+<p>Again it’s worth noting the 2nd and 3rd arguments are the column names we want to create after gathering the key-value pairs. Here is the same thing we just did, but with different column names (“stk” and “pr”):</p>
+<pre class="r"><code>head(gather(stocks, stk, pr, -time))</code></pre>
+<pre><code>##         time stk       pr
+## 1 2009-01-01   X 19.37355
+## 2 2009-01-02   X 20.18364
+## 3 2009-01-03   X 19.16437
+## 4 2009-01-04   X 21.59528
+## 5 2009-01-05   X 20.32951
+## 6 2009-01-06   X 19.17953</code></pre>
+<p>The tidyr package description states that it’s “an evolution of ‘reshape2’”. Let’s see how we do the same thing with the reshape2 package.</p>
+<pre class="r"><code># install.packages(&quot;reshape2&quot;) 
+library(reshape2)
+melt(stocks, 
+     measure.vars = c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;), 
+     variable.name = &quot;stock&quot;, 
+     value.name = &quot;price&quot;)</code></pre>
+<pre><code>##          time stock    price
+## 1  2009-01-01     X 19.37355
+## 2  2009-01-02     X 20.18364
+## 3  2009-01-03     X 19.16437
+## 4  2009-01-04     X 21.59528
+## 5  2009-01-05     X 20.32951
+## 6  2009-01-06     X 19.17953
+## 7  2009-01-07     X 20.48743
+## 8  2009-01-08     X 20.73832
+## 9  2009-01-09     X 20.57578
+## 10 2009-01-10     X 19.69461
+## 11 2009-01-01     Y 23.02356
+## 12 2009-01-02     Y 20.77969
+## 13 2009-01-03     Y 18.75752
+## 14 2009-01-04     Y 15.57060
+## 15 2009-01-05     Y 22.24986
+## 16 2009-01-06     Y 19.91013
+## 17 2009-01-07     Y 19.96762
+## 18 2009-01-08     Y 21.88767
+## 19 2009-01-09     Y 21.64244
+## 20 2009-01-10     Y 21.18780
+## 21 2009-01-01     Z 23.67591
+## 22 2009-01-02     Z 23.12855
+## 23 2009-01-03     Z 20.29826
+## 24 2009-01-04     Z 12.04259
+## 25 2009-01-05     Z 22.47930
+## 26 2009-01-06     Z 19.77549
+## 27 2009-01-07     Z 19.37682
+## 28 2009-01-08     Z 14.11699
+## 29 2009-01-09     Z 18.08740
+## 30 2009-01-10     Z 21.67177</code></pre>
+<p>In the <code>melt</code> function, the columns containing the key-value pairs are provided to the measure.vars argument. The variable.name and value.name arguments provide the new column names for the key and value columns, respectively, but these are optional. The <code>melt</code> function will create default column names for us if we don’t provide any. Notice we also have to use quotes around variable names which we don’t have to do with <code>gather</code>.</p>
+<p>Reshaping data wide to long often gives us what Wickham refers to as “tidy data” (Wickham, 2014). Wickham defines tidy data as follows:</p>
+<ol style="list-style-type: decimal">
+<li>Each variable forms a column.</li>
+<li>Each observation forms a row.</li>
+<li>Each type of observational unit forms a table.</li>
+</ol>
+<p>Our stocks data is now “tidy”:</p>
+<ol style="list-style-type: decimal">
+<li>After reshaping (or gathering, or melting) our data, each variable forms a column. Our three variables are time, stock, and price.</li>
+<li>Each row is now an observation. Before reshaping our data, each row represented three observations.</li>
+<li>Our table (or data frame) consists of one type of unit: observations made per company per day</li>
+</ol>
+<p>Tidy data is often required in R (and other statistical programs) in order to carry out tasks such as modeling or plotting. Making data tidy often means reshaping it. But according to Wickham, the word “reshape” is imprecise. He refers to the process as “melting” in his 2014 paper and as “gathering key-value pairs” in the documentation for tidyr. Regardless of what you call the process, the <code>gather</code> function is designed to help you obtain tidy data for further analysis.</p>
+<p>The other primary tidyr function is <code>spread</code>, which spreads key-value pairs across multiple columns. It is the complement of <code>gather</code>. It takes two columns, key and value, and spreads them out such that the keys are the column headers and the values are in the columns to which they’re keyed. This is sometimes called “reshaping long data to wide data”.</p>
+<p>Look at the first 6 records of stocksL:</p>
+<pre class="r"><code>head(stocksL)</code></pre>
+<pre><code>##         time stock    price
+## 1 2009-01-01     X 19.37355
+## 2 2009-01-02     X 20.18364
+## 3 2009-01-03     X 19.16437
+## 4 2009-01-04     X 21.59528
+## 5 2009-01-05     X 20.32951
+## 6 2009-01-06     X 19.17953</code></pre>
+<p>The first key-value pair is X and 19.37355. The next key-value pair is X and 20.18364. And so on. Spreading this data means creating columns for each key (X, Y and Z) and placing their respective values in each column. We demonstrate how to do this with the <code>spread</code> function.</p>
+<p>The first argument is the data frame we want to reshape. The second and third arguments are the key and value columns, respectively. In contrast to <code>gather</code>, these arguments refer to columns that already exist in our data. In this case, that’s stock and price. These are the key-value pairs we want to spread out. Here how’s to do it with the “long” data frame we created, stocksL:</p>
+<pre class="r"><code>spread(data = stocksL, key = stock, value = price)</code></pre>
+<pre><code>##          time        X        Y        Z
+## 1  2009-01-01 19.37355 23.02356 23.67591
+## 2  2009-01-02 20.18364 20.77969 23.12855
+## 3  2009-01-03 19.16437 18.75752 20.29826
+## 4  2009-01-04 21.59528 15.57060 12.04259
+## 5  2009-01-05 20.32951 22.24986 22.47930
+## 6  2009-01-06 19.17953 19.91013 19.77549
+## 7  2009-01-07 20.48743 19.96762 19.37682
+## 8  2009-01-08 20.73832 21.88767 14.11699
+## 9  2009-01-09 20.57578 21.64244 18.08740
+## 10 2009-01-10 19.69461 21.18780 21.67177</code></pre>
+<p>We have recovered our original data frame, undoing the work of <code>gather</code>. That is what we mean when we say <code>spread</code> is the complement of <code>gather</code>.</p>
+<p>The reshape2 package has a function that does this called <code>dcast</code>. It’s a little more complicated to use than <code>spread</code>. First, it requires a “casting formula”. The left hand side is what you want in the first column while the left hand side is what you want to comprise the new columns. The value.var argument is what you want placed in the new columns. Below we show how to reshape the “long” stocksL data frame back to “wide” format using <code>dcast</code>:</p>
+<pre class="r"><code>dcast(stocksL, time ~ stock, value.var = &quot;price&quot;)</code></pre>
+<pre><code>##          time        X        Y        Z
+## 1  2009-01-01 19.37355 23.02356 23.67591
+## 2  2009-01-02 20.18364 20.77969 23.12855
+## 3  2009-01-03 19.16437 18.75752 20.29826
+## 4  2009-01-04 21.59528 15.57060 12.04259
+## 5  2009-01-05 20.32951 22.24986 22.47930
+## 6  2009-01-06 19.17953 19.91013 19.77549
+## 7  2009-01-07 20.48743 19.96762 19.37682
+## 8  2009-01-08 20.73832 21.88767 14.11699
+## 9  2009-01-09 20.57578 21.64244 18.08740
+## 10 2009-01-10 19.69461 21.18780 21.67177</code></pre>
+<p>Notice that while you don’t have to quote the variable names in the casting formula, you do have to quote the variable in the value.var argument. Also, unlike <code>spread</code>, <code>dcast</code> can do more than spread data. It can aggregate data as well. See the <code>dcast</code> documentation for several examples.</p>
+<p>Choosing between tidyr and reshape2 is mostly a personal preference. Both get the job done when it comes to reshaping data. One possible advantage to using tidyr is that it’s designed to work well with dplyr pipelines. dplyr is a package that provides a grammar for data manipulation. It’s meant to make data manipulation easier by providing consistent and easy-to-remember syntax. A pipeline refers to piping, or chaining, together commands. In a dplyr pipeline, the output of one function becomes the input to the next function. One way to think of a pipeline is logically giving instructions, in order, of how to do a task. For example: “take the stocks data, reshape it to long, and then find the maximum and minimum stock price for each company.”</p>
+<p>The way this works with a dplyr data pipeline is as follows:</p>
+<pre class="r"><code># install.packages(&quot;dplyr&quot;)
+library(dplyr)
+stocks %&gt;% 
+   gather(stock,price,X:Z) %&gt;% 
+   group_by(stock) %&gt;% 
+   summarise(min = min(price), max = max(price))</code></pre>
+<pre><code>## # A tibble: 3 x 3
+##   stock   min   max
+##   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
+## 1 X      19.2  21.6
+## 2 Y      15.6  23.0
+## 3 Z      12.0  23.7</code></pre>
+<p>We start with the stocks data frame followed by the pipe operator, <code>%&gt;%</code>. The pipe passes stocks to the first argument of the next function, which is <code>gather</code>. Notice we don’t populate the first argument of the <code>gather</code> function. The pipe operator does this for us. After the <code>gather</code> function another pipe operator passes the reshaped data to a dplyr function, <code>group_by</code>. This function groups the data by stock. This is followed by one more pipe operator which passes the grouped data to another dplyr function, <code>summarise</code>, which calculates the min and max for each group (X, Y and Z). Notice how the pipeline mirrors how we might explain in words what we’re doing to the data: “we’re taking stocks, gathering columns X - Z, grouping by stock, and calculating the minimum and maximum price for each group.”</p>
+<p>If you’re fluent with tidyr and dplyr, this is a fast and easy way to work with data. For comparison, here is the same thing carried out with the base R <code>aggregate</code> function:</p>
+<pre class="r"><code>stocksL &lt;- gather(stocks, stock, price, X, Y, Z)
+aggregate(price ~ stock, data = stocksL, 
+          function(x)c(min=min(x),max=max(x)))</code></pre>
+<pre><code>##   stock price.min price.max
+## 1     X  19.16437  21.59528
+## 2     Y  15.57060  23.02356
+## 3     Z  12.04259  23.67591</code></pre>
+<p>This works just as well, but our column headers are slightly different and we had to know how to create an anonymous function. We also had to save the reshaped data before using it with <code>aggregate</code>, which we didn’t have to do with the pipeline. (Well, we didn’t <em>have</em> to do that. We could have plugged in the entire <code>gather</code> function call into the data argument of <code>aggregate</code>, but that would make for hard-to-read code.)</p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<p>Wickham, Hadley (2014). “Tidy Data.” <em>Journal of Statistical Software</em>, 59(10), <a href="https://www.jstatsoft.org/article/view/v059i10" target="_blank">https://www.jstatsoft.org/article/view/v059i10</a> .</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] dplyr_0.8.0.1  reshape2_1.4.3 tidyr_0.8.3   
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1       knitr_1.22       magrittr_1.5     tidyselect_0.2.5
+##  [5] R6_2.4.0         rlang_0.3.4      fansi_0.4.0      stringr_1.4.0   
+##  [9] plyr_1.8.4       tools_3.6.0      xfun_0.6         utf8_1.1.4      
+## [13] cli_1.1.0        htmltools_0.3.6  assertthat_0.2.1 yaml_2.2.0      
+## [17] digest_0.6.18    tibble_2.1.1     crayon_1.3.4     bookdown_0.9    
+## [21] purrr_0.3.2      glue_1.3.1       evaluate_0.13    rmarkdown_1.12  
+## [25] blogdown_0.11    stringi_1.4.3    compiler_3.6.0   pillar_1.3.1    
+## [29] pkgconfig_2.0.2</code></pre>
+</div>
