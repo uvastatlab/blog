@@ -1,0 +1,160 @@
+---
+title: Getting Started with Factor Analysis
+author: Clay Ford
+date: '2016-08-01'
+slug: getting-started-with-factor-analysis
+categories:
+  - R
+tags:
+  - factor analysis
+---
+
+Take a look at the following correlation matrix for Olympic decathlon data calculated from 280 scores from 1960 through 2004 (Johnson and Wichern, p. 499):
+
+![](/img/fa_data.jpg)
+
+
+If we focus on the first row, 100m (100 meter dash), we see that it has fairly high correlations with LJ and 400m (long jump and 400 meter dash, 0.64 and 0.55) and somewhat lower correlations with all other events. Scoring high in the 100 meter dash seems to correlate with scoring high in the long jump and 400 meter run but gives no solid indication of performance in the other events. Perhaps the 100 meter, 400 meter, and long jump events represent a single underlying construct that is responsible for the strong correlation. We might call it "speed" or "acceleration" since success in these events seem to require both. This may be of interest if we think the concept of "speed" or "acceleration" is tricky to measure in humans. And we have arrived at the purpose of a factor analysis: to describe correlated relationships among many variables in terms of a few unobserved quantities called factors. 
+
+At the conclusion of a factor analysis of decathlon data, we might determine that the decathlon measures four factors: (1) explosive arm strength, (2) explosive leg strength, (3) speed/acceleration, and (4) running endurance. This is what Linden determined in his 1977 paper, "A Factor Analytic Study of Olympic Decathlon Data". 
+
+As you can imagine, factor analysis can lead to controversy if you're trying to measure quantities such as "intelligence", "compassion", "potential" and so forth. Are those quantities that can be measured? Are they responsible for events that we <em>can</em> measure, such as high SAT scores or hours volunteered for community service? The voluminous statistical output of factor analysis does not answer that for you. You need to make those hard decisions. However we can use factor analysis to explore our data and better understand the covariance between our variables. 
+
+In this tutorial we show you how to implement and interpret a basic factor analysis using R. For mathematical details, see most any multivariate statistical analysis textbook such as <em>Applied Multivariate Statistical Analysis</em> by Johnson and Wichern. This is the book we referenced for this article. 
+
+When we run a factor analysis, we need to decide on three things:
+
+1. the number of factors
+2. the method of estimation
+3. the rotation
+
+Setting aside #2 and #3, which we'll explain shortly, we may not be sure about the number of factors. Perhaps there's two, or maybe three or four or more. We don't really know. That's why we're doing the factor analysis. So we typically do multiple factor analyses with different numbers of factors each time. We'll talk about how we decide on the number of factors in a moment. 
+
+What do we mean by "method of estimation" and "rotation"? Before we attempt an answer, let's zoom out and examine what factor analysis is trying to do statistically. Recall the correlation matrix of decathlon events above. It shows the correlations between 10 variables. Factor analysis seeks to model the correlation matrix with fewer variables called factors. If we succeed with, say, four factors, we are able to model the correlation matrix using only four variables instead of ten. Just remember these four variables, or factors, are unobserved. We give them names like "explosive leg strength". They are not subsets of our original variables. 
+
+The statistical model expressed mathematically is
+
+$$\hat{\Sigma} = \hat{L}\hat{L'} + \hat{\Psi}$$ 
+
+The \(L\) is called the loading matrix and the \(\Psi\) is called the uniqueness. (Don't worry, we'll explain these, too.) These are estimated, which is why they have little hats on them. If we multiply the loading matrix by itself transposed and then add the uniqueness, we get an estimate of our original correlation matrix, which is why the \(\Sigma\) has a hat on it as well. If our estimated correlation matrix is good, there should be little difference between it and our original observed correlation matrix.
+
+There are many methods of estimating the loadings and uniqueness, hence the reason we need to pick one when doing a factor analysis, or at least be aware of the default method that our statistical program is using. The base R function, <code>factanal</code>, performs maximum likelihood estimation. The <code>fa</code> function in the psych package offers six different choices for estimation, with the minimum residual method as the default. Johnson and Wichern recommend the maximum likelihood method, and the documentation of the <code>fa</code> function states that "maximum likelihood procedures are probably the most preferred". We'll go with maximum likelihood as well, but in case you're interested the documentation for the <code>fa</code> function provides good explanations for why you might want to consider other methods. For a mathematical review of the maximum likelihood method of estimation, see Johnson and Wichern, chapter 9. 
+
+Let's say we settle on maximum likelihood as a method of estimation and we suspect 3 to 5 factors. Now we need to select a "rotation". What is that? This refers to a rotation of the axes in a coordinate system. In two dimensions this is pretty easy to visualize. The points in the xy plane stay fixed while we rotate the axes. This can have the effect of making points have a high x value with a low y value, or vice versa. We'll see why we want to do that shortly. Again, statistical programs will typically have a default rotation. The base R <code>factanal</code> function has "varimax" as the default rotation. The fa function in the psych package offers 15 possible rotations (!), with "oblimin" as the default. 
+
+When you're getting started with factor analysis, worrying about the distinction between 15 different rotations can distract you from learning the basics. We just work with the varimax rotation in this tutorial. The varimax rotation is a type of orthogonal rotation, which means the rotated axes remain perpendicular (like the two-dimensional example we just described). Another class of rotations are oblique rotations, which means the rotated axes are not perpendicular. One example of an oblique rotation is "promax". This is the other rotation option available to <code>factanal</code>. 
+
+Let's run a factor analysis on our decathlon data and review the output using the <code>factanal</code> function. First we need to get the data into R. The following code should load the data into your workspace.
+
+```{r}
+od.data <- read.table("http://static.lib.virginia.edu/statlab/materials/data/decathlon.dat")
+od.data <- as.matrix(od.data)
+rownames(od.data) <- colnames(od.data) <- c("100m","LJ","SP","HJ",
+                                            "400m","100mH","DS","PV",
+                                            "JV","1500m")
+
+```
+
+
+Let's say we suspect three factors and we're happy to accept the defaults of maximum likelihood estimation and a varimax rotation. (Actually, the <code>factanal</code> function only performs maximum likelihood estimation.) Below we give the correlation matrix to the covmat argument, specify three factors and 280 observations. We don't have to provide the number of observations, but we need it if we wish to perform a hypothesis test that the number of specified factors is sufficient. The rotation argument is not necessary since the default is varimax, but we include it for completeness.
+
+
+```{r}
+fa1 <- factanal(covmat = od.data, factors = 3, 
+                n.obs = 280, rotation = "varimax")
+fa1
+
+```
+
+
+A factor analysis generates lots of output! Let's review each section. 
+
+The first chunk provides the "Uniquenesses", which range from 0 to 1. This is the \(\hat{\Psi}\) in our model above. What we're looking for are high numbers. A high uniqueness for a variable usually means it doesn't fit neatly into our factors. The 1500 meter run, for example, has a uniqueness of about 0.77. It doesn't seem to fall into either of our three factors, whatever they may represent. If we subtract the uniquenesses from 1, we get a quantity called the communality. The communality is the proportion of variance of the <em>i</em>th variable contributed by the <em>m</em> common factors. Here <em>m</em> = 3. Subtracting 0.77 from 1 gives us 0.23, which says about 23% of the 1500 meter variance was contributed by the 3 common factors. In general, we'd like to see low uniquenesses or high communalities, depending on what your statistical program returns. 
+
+(Note: Maximum likelihood estimation can lead to 0 or negative uniqueness values. These are called Heywood cases. Many software programs will try to avoid this by making slight adjustments. The documentation for <code>factanal</code> says "solutions which are ‘Heywood cases’ (with one or more uniquenesses essentially zero) are much more common than most texts and some other programs would lead one to believe.")
+
+The next section is the "Loadings", which range from -1 to 1. This is the \(\hat{L}\) in our model above. What we're looking for are groups of high numbers. In the first column called Factor1, we see that SP and DS (shot put and discus) have high loadings relative to other events. We might think of this factor as "explosive arm strength". Notice there is no entry for certain events. That's because R does not print loadings less than 0.1. This is meant to help us spot groups of variables. The cutoff can be modified if you like. See <code>help(loadings)</code>. 
+
+What are loadings exactly? They are simply correlations with the unobserved factors. Shot put has a correlation of 0.915 with Factor 1 and negligible correlation with the other two factors. The precise values are not our main concern. We're looking for groups of "high" values that hopefully make sense and lead to a descriptive factor such as "explosive arm strength". What are high values? That's hard to say, which is one reason why factor analysis is so subjective. There is no hard cutoff. What you think is high someone else may think is low.    
+
+The next section is technically part of the loadings. The numbers here summarize the factors. The row we're usually most interested in is the last, "Cumulative Var". This tells us the cumulative proportion of variance explained, so these numbers range from 0 to 1. We'd like to see a high final number, where once again "high" is subjective. Our final number of 0.554 seems low. It looks like we should consider more than three factors. The row above, "Proportion Var", is simply the proportion of variance explained by each factor. The "SS loadings" row is the sum of squared loadings. This is sometimes used to determine the value of a particular factor. We say a factor is worth keeping if the SS loading is greater than 1. In our example, all are greater than 1. 
+
+The last section presents the results of a hypothesis test. The null of this test is that 3 factors are sufficient for our model. The low p-value leads us to reject the hypothesis and consider adding more factors. This hypothesis test is available thanks to our method of estimation, maximum likelihood. It's worth stating again that the hypothesis test is not provided if we don't provide the number of observations with our correlation matrix. 
+
+Recall the factor analysis model: \(\hat{\Sigma} = \hat{L}\hat{L'} + \hat{\Psi}\). Let's see how close our three-factor model comes to fitting the observed correlation matrix. We can extract the loadings and uniquenesses from the <code>fa1</code> object and perform the necessary matrix algebra. The <code>%*%</code> operator performs matrix multiplication. The <code>t</code> function transposes a matrix. The <code>diag</code> function takes a vector of <em>k</em> numbers and creates a <em>k</em> x <em>k</em> matrix with the numbers on the diagonal and 0s everywhere else. Below we subtract the fitted correlation matrix from our observed correlation matrix. We also round the result to 3 digits.
+
+```{r}
+round(od.data - (fa1$loadings %*% t(fa1$loadings) + diag(fa1$uniquenesses)), 3)
+
+```
+
+
+This is called the residual matrix. We'd like to see lots of numbers close to 0. In this case we have several numbers greater than 0.05, indicating that our 3-factor model isn't that great.  Let's go ahead and fit a 4-factor model and see how it looks.
+
+```{r}
+fa2 <- factanal(covmat = od.data, factors = 4, 
+                n.obs = 280, rotation = "varimax")
+fa2
+
+
+```
+
+The hypothesis test suggests 4 factors is sufficient. The four factors capture over 60% of the variance originally observed between the 10 variables. The first factor still looks to be "explosive arm strength", the second might be "explosive leg strength" with its high loadings on high jump and long jump, the third looks to be "speed/acceleration" with high loadings on 100 and 400 meter runs, and the fourth could be "running endurance" with high loadings on the 400 and 1500 meter runs. Looking at the uniquenesses, we see that JV (javelin) and 100mH (100 meter hurdles) have high values that indicate these events don't fall neatly into any of the four factors, though we could argue they fit into factors 1 and 2, respectively. 
+
+Let's look at the residual matrix:
+
+```{r}
+round(od.data - (fa2$loadings %*% t(fa2$loadings) + diag(fa2$uniquenesses)), 3)
+```
+
+
+By and large this looks good aside from a sizeable residual for the correlation between pole vault (PV) and 100 meter hurdles (100mH). 
+
+Now is a good time to re-visit the concept of "rotation". The purpose of a rotation is to (hopefully) produce factors with a mix of high and low loadings and few moderate-sized loadings. Johnson and Wichern liken it to sharpening the focus of a microscope. The idea is to help us interpret and give meaning to the factors. From a mathematical viewpoint, there is no difference between a rotated and unrotated matrix. The fitted model is the same, the uniquenesses are the same, and the proportion of variance explained is the same. 
+
+Let's fit two 4-factor models, one with no rotation and one with varimax rotation, and make a scatterplot of the first and third loadings.  
+
+Notice the scatterplot of the unrotated model has points in the "middle" of the upper-right quadrant. There are not many high or low loadings; most are moderate in size.
+
+```{r}
+fa.none <- factanal(covmat = od.data, n.obs = 280, 
+                    factors = 4, rotation = "none")
+plot(fa.none$loadings[,1], fa.none$loadings[,3], 
+     xlim = c(-0.5, 1), ylim = c(-0.5, 1),
+     xlab = "Factor 1", ylab = "Factor 3", 
+     main = "No Rotation")
+abline(h = 0, v = 0)
+```
+
+Now look at the scatterplot of the loadings with a varimax rotation. Notice the points are now clumping around axes. That is they're high on one axis but not the other. We have more high and low loadings and fewer moderate sized loadings, which makes for easier interpretation.
+
+```{r}
+fa.varimax <- factanal(covmat = od.data, n.obs = 280, 
+                       factors = 4, rotation = "varimax")
+plot(fa.varimax$loadings[,1], fa.varimax$loadings[,3], 
+     xlim = c(-0.5, 1), ylim = c(-0.5, 1),
+     xlab = "Factor 1", ylab = "Factor 3", 
+     main = "Varimax Rotation")
+abline(h = 0, v = 0)
+
+```
+
+Factor Analysis can seem overwhelming with so many estimation and rotation options along with gigantic amounts of output. (The output of the <code>factanal</code> function is pretty tame compared to other programs.) However the most important decision is number of factors. The choice of estimation method and rotation is less crucial, according to Johnson and Wichern. If a factor analysis is successful, various combinations of estimations and rotations should result in the same conclusion. 
+
+On a disappointing note, Johnson and Wichern also state the "vast majority of attempted factor analyses do not yield clear-cut results." (p. 526) There is no guarantee a factor analysis will lead to a satisfying discovery of meaningful latent factors. If you find yourself puzzling over the results of a factor analysis because it didn't seem to "work", there's a good chance you did nothing wrong and that the factor analysis simply didn't find anything interesting. A good place to start is examining the correlation matrix of your data. If there are few or no instances of high correlations there really is no use in pursuing a factor analysis. 
+
+### References
+- Johnson, R.A and Wichern, D.W, <em>Applied Multivariate Statistical Analysis</em> (6th ed). Pearson, 2007. Ch 9.
+- Kachigan, S.K., <em>Multivariate Statistical Analysis</em> (2nd ed). Radius Press. 1991. Ch 7.
+- Linden, M. "A Factor Analytic Study of Olympic Decathlon Study." Research Quarterly, 48, no. 3 (1977), 562-568.
+- Venables, W. N. and Ripley, B. D., <em>Modern Applied Statistics with S-PLUS</em> (4th ed). Springer, 2003. Ch 11.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
