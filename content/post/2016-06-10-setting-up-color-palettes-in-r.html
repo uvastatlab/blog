@@ -1,0 +1,163 @@
+---
+title: Setting up Color Palettes in R
+author: Clay Ford
+date: '2016-06-10'
+slug: setting-up-color-palettes-in-r
+categories:
+  - R
+tags:
+  - visualization
+---
+
+
+
+<p>Plotting with color in R is kind of like painting a room in your house: you have to pick some colors. R has some default colors ready to go, but it’s only natural to want to play around and try some different combinations. In this post we’ll look at some ways you can define new color palettes for plotting in R.</p>
+<p>To begin, let’s use the <code>palette</code> function to see what colors are currently available:</p>
+<pre class="r"><code>palette()</code></pre>
+<pre><code>## [1] &quot;black&quot;   &quot;red&quot;     &quot;green3&quot;  &quot;blue&quot;    &quot;cyan&quot;    &quot;magenta&quot; &quot;yellow&quot; 
+## [8] &quot;gray&quot;</code></pre>
+<p>We have 8 colors currently in the palette. That doesn’t mean we can’t use other colors. It just means these are the colors we can refer to by position. “black” is the first color, so the argument <code>col=1</code> will return black. Likewise, <code>col=2</code> produces “red” and so on. Let’s demonstrate by plotting 8 dots with the 8 different colors. Setting <code>cex=3</code> makes the dots 3 times their normal size and <code>pch=19</code> makes solid dots instead of the default open circles:</p>
+<pre class="r"><code>plot(1:8, 1:8, col=1:8, pch=19, cex=3, xlab=&quot;&quot;, ylab=&quot;&quot;)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>The <code>palette</code> function can also be used to change the color palette. For example we could add <code>“purple”</code> and <code>“brown”</code>. Below we first save the current color palette to an object called cc, and then use the <code>c()</code> function to concatenate cc with purple and brown:</p>
+<pre class="r"><code>cc &lt;- palette()
+palette(c(cc,&quot;purple&quot;,&quot;brown&quot;))
+palette()</code></pre>
+<pre><code>##  [1] &quot;black&quot;   &quot;red&quot;     &quot;green3&quot;  &quot;blue&quot;    &quot;cyan&quot;    &quot;magenta&quot; &quot;yellow&quot; 
+##  [8] &quot;gray&quot;    &quot;purple&quot;  &quot;brown&quot;</code></pre>
+<p>If we want to revert back to the default palette, we can call <code>palette</code> with the keyword “default”:</p>
+<pre class="r"><code>palette(&quot;default&quot;)</code></pre>
+<p>How do we know what colors are available for our palette? We can use the colors function to see. Try it! It will list all 657 colors. Below we show the first 20:</p>
+<pre class="r"><code>length(colors()) # 657 colors</code></pre>
+<pre><code>## [1] 657</code></pre>
+<pre class="r"><code>colors()[1:20]</code></pre>
+<pre><code>##  [1] &quot;white&quot;         &quot;aliceblue&quot;     &quot;antiquewhite&quot;  &quot;antiquewhite1&quot;
+##  [5] &quot;antiquewhite2&quot; &quot;antiquewhite3&quot; &quot;antiquewhite4&quot; &quot;aquamarine&quot;   
+##  [9] &quot;aquamarine1&quot;   &quot;aquamarine2&quot;   &quot;aquamarine3&quot;   &quot;aquamarine4&quot;  
+## [13] &quot;azure&quot;         &quot;azure1&quot;        &quot;azure2&quot;        &quot;azure3&quot;       
+## [17] &quot;azure4&quot;        &quot;beige&quot;         &quot;bisque&quot;        &quot;bisque1&quot;</code></pre>
+<p>We can use these colors by name if we like. For example, here’s a scatterplot of the cars data that come with R using the color “aquamarine3”:</p>
+<pre class="r"><code>plot(dist ~ speed, data=cars, col=&quot;aquamarine3&quot;, pch=19)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>The Stowers Institute for Medical Research provides a handy chart that shows all available R colors: <a href="http://research.stowers.org/mcm/efg/R/Color/Chart/ColorChart.pdf">http://research.stowers.org/mcm/efg/R/Color/Chart/ColorChart.pdf</a></p>
+<p>Trying to choose good colors out of 657 choices can be overwhelming and lead to a lot of trial and error. Fortunately a great deal of research has been done on plotting and color combinations and there are several tried-and-tested color palettes to choose from. One R package that provides some of these palettes is RColorBrewer. Named for the creator of these color schemes, Cynthia Brewer, the RColorBrewer package makes it easy to quickly load sensible color palettes.</p>
+<p>The RColorBrewer package does not come with R and needs to be installed if you don’t already have it. Once loaded, it provides functions for viewing and creating color palettes.</p>
+<pre class="r"><code># install.packages(&quot;RColorBrewer&quot;)
+library(RColorBrewer)</code></pre>
+<p>RColorBrewer provides three types of palettes: sequential, diverging and qualitative.</p>
+<ul>
+<li><strong>Sequential</strong> palettes are suited to ordered data that progress from low to high.<br />
+</li>
+<li><strong>Diverging</strong> palettes are suited to centered data with extremes in either direction.</li>
+<li><strong>Qualitative</strong> palettes are suited to nominal or categorical data.</li>
+</ul>
+<p>The available palettes are listed in the documentation. However the <code>display.brewer.all</code> function will plot all of them along with their name. In the graphs below we see the sequential palettes, then the qualitative palettes, and finally the diverging palettes. Notice we use the type argument to specify which palette to view: “seq”, “div”, or “qual”</p>
+<p><strong>Sequential color palettes</strong></p>
+<pre class="r"><code>display.brewer.all(type=&quot;seq&quot;)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p><strong>Diverging color palettes</strong></p>
+<pre class="r"><code>display.brewer.all(type=&quot;div&quot;)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><strong>Qualitative color palettes</strong></p>
+<pre class="r"><code>display.brewer.all(type=&quot;qual&quot;) </code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>To create a RColorBrewer palette, use the <code>brewer.pal</code> function. It takes two arguments: <code>n</code>, the number of colors in the palette; and <code>name</code>, the name of the palette. Let’s make a palette of 8 colors from the qualitative palette, “Set2”.</p>
+<pre class="r"><code>brewer.pal(n = 8, name = &quot;Set2&quot;)</code></pre>
+<pre><code>## [1] &quot;#66C2A5&quot; &quot;#FC8D62&quot; &quot;#8DA0CB&quot; &quot;#E78AC3&quot; &quot;#A6D854&quot; &quot;#FFD92F&quot; &quot;#E5C494&quot;
+## [8] &quot;#B3B3B3&quot;</code></pre>
+<pre class="r"><code>palette(brewer.pal(n = 8, name = &quot;Set2&quot;))</code></pre>
+<p>Notice the <code>brewer.pal</code> function by itself just displays the palette. Also notice the colors are expressed in “hexadecimal triplets” instead of color names. To load the palette we needed to use the <code>palette</code> function. These are now the colors R will use when referencing color by number. For example:</p>
+<pre class="r"><code>plot(dist ~ speed, data=cars, pch=19, col=2)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>What about ggplot2? Changing color palettes works differently for ggplot2. Let’s make a quick plot in ggplot using the iris data that come with R and see what the default colors look like.</p>
+<pre class="r"><code># install.packages(&quot;ggplot2&quot;)
+library(ggplot2)
+ggplot(iris, aes(x=Sepal.Length, 
+                 y=Petal.Length, 
+                 color=Species)) + 
+  geom_point()</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>Clearly these are not the colors in our current color palette. It turns out ggplot generates its own color palettes depending on the scale of the variable that color is mapped to. In the above example, color is mapped to a discrete variable, Species, that takes 3 values. We would call this a qualitative palette and it works well for these data. Let’s map color to a continuous variable, Sepal.Width:</p>
+<pre class="r"><code>ggplot(iris, aes(x=Sepal.Length, 
+                 y=Petal.Length, 
+                 color=Sepal.Width)) + 
+  geom_point()</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p>Notice the palette changed to a blue palette that gets progressively lighter as values increase. This is actually a smooth gradient between two shades of blue.</p>
+<p>To change these palettes we use one of the <code>scale_color</code> functions that come with ggplot2. For example to use the RColorBrewer palette “Set2”, we use the <code>scale_color_brewer</code> function, like so:</p>
+<pre class="r"><code>ggplot(iris, aes(x=Sepal.Length, 
+                 y=Petal.Length, 
+                 color=Species)) + 
+    geom_point() +
+    scale_color_brewer(palette = &quot;Set2&quot;)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+<p>To change the smooth gradient color palette, we use the <code>scale_color_gradient</code> with low and high color values. For example, we can set the low value to white and the high value to red:</p>
+<pre class="r"><code>ggplot(iris, aes(x=Sepal.Length, 
+                 y=Petal.Length, 
+                 color=Sepal.Width)) + 
+    geom_point() +
+    scale_color_gradient(low = &quot;white&quot;, 
+                         high = &quot;red&quot;)</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>Now what if there’s a color palette in ggplot that we would like to use in base R graphics? How can we figure out what those colors are? For example, let’s say we like ggplot’s red, green, and blue colors it used in the first plot above. They’re not simply “red”, “green” and “blue”. They’re a bit lighter and softer.</p>
+<p>It turns out ggplot automatically generates discrete colors by automatically picking evenly spaced hues around something called the <a href="https://www.google.com/search?q=hcl+color+wheel&amp;ie=utf-8&amp;oe=utf-8">hcl color wheel</a>. If a color is mapped to a variable with two groups, the colors for those groups will come from opposite sides of the color wheel, or 180 degrees apart (360/2 = 180). If a color is mapped to a variable with three groups, the colors will come from three evenly spaced points around the wheel, or 120 degrees apart (360/3 = 120). And so on.</p>
+<p>Looking at the documentation for the <code>scale_color_discrete</code> function tells us where on the hcl color wheel ggplot starts picking the color: 15. This known as the h value, which stands for hue. The c and l values, which stand for chroma and luminance, are set to 100 and 65. For three groups, this means the h value are 15, 135 (15 + 120), and 255 (15 + 120 + 120). Now we can use the <code>hcl</code> function that comes with R to get the associated hexadecimal triplets:</p>
+<pre class="r"><code>hcl(h = c(15,135,255), c = 100, l = 65)</code></pre>
+<pre><code>## [1] &quot;#F8766D&quot; &quot;#00BA38&quot; &quot;#619CFF&quot;</code></pre>
+<p>And we can use the <code>palette</code> function to add these colors to the color palette:</p>
+<pre class="r"><code>palette(hcl(h = c(15,135,255), c = 100, l = 65))</code></pre>
+<p>Now we can make a base R plot with ggplot2 colors. For example, here’s the <code>scatterplot</code> function from the car package plotting the iris data with ggplot2 colors. Notice we have to specify that the scatterplot function should use the colors returned by <code>palette</code>. (By default, the <code>car::scatterplot</code> function uses colors from a different pallete.)</p>
+<pre class="r"><code># install.packages(&quot;car&quot;)
+library(car)
+scatterplot(Petal.Length ~ Sepal.Length | Species, 
+            data=iris,
+            col = palette())</code></pre>
+<p><img src="/post/2016-06-10-setting-up-color-palettes-in-r_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p>Finally, it’s relatively straight forward to write a function to generate ggplot2 colors based on the number of groups. Below we first determine the distance between points by dividing 360 by g, the number of groups. Next we determine the actual points on the circle by starting with 15 and cumulatively adding the distance. Finally we call the <code>hcl</code> function to get our colors. Of course the function could be made more robust by allowing the c and l values and the starting point on the color wheel to be varied. But this function works fine if you’re happy with the default ggplot2 colors for discrete variables.</p>
+<pre class="r"><code>ggplotColors&lt;- function(g){
+  d &lt;- 360/g
+  h &lt;- cumsum(c(15, rep(d,g - 1)))
+  hcl(h = h, c = 100, l = 65)
+}</code></pre>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] car_3.0-2          carData_3.0-2      ggplot2_3.1.1     
+## [4] RColorBrewer_1.1-2
+## 
+## loaded via a namespace (and not attached):
+##  [1] zip_2.0.1         Rcpp_1.0.1        cellranger_1.1.0 
+##  [4] pillar_1.3.1      compiler_3.6.0    plyr_1.8.4       
+##  [7] forcats_0.4.0     tools_3.6.0       digest_0.6.18    
+## [10] evaluate_0.13     tibble_2.1.1      gtable_0.3.0     
+## [13] pkgconfig_2.0.2   rlang_0.3.4       openxlsx_4.1.0   
+## [16] curl_3.3          yaml_2.2.0        haven_2.1.0      
+## [19] blogdown_0.11     xfun_0.6          rio_0.5.16       
+## [22] withr_2.1.2       stringr_1.4.0     dplyr_0.8.0.1    
+## [25] knitr_1.22        hms_0.4.2         grid_3.6.0       
+## [28] tidyselect_0.2.5  data.table_1.12.2 glue_1.3.1       
+## [31] R6_2.4.0          readxl_1.3.1      foreign_0.8-71   
+## [34] rmarkdown_1.12    bookdown_0.9      purrr_0.3.2      
+## [37] magrittr_1.5      scales_1.0.0      htmltools_0.3.6  
+## [40] abind_1.4-5       assertthat_0.2.1  colorspace_1.4-1 
+## [43] labeling_0.3      stringi_1.4.3     lazyeval_0.2.2   
+## [46] munsell_0.5.0     crayon_1.3.4</code></pre>
