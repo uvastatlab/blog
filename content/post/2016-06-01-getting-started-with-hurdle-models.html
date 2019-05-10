@@ -1,0 +1,199 @@
+---
+title: Getting Started with Hurdle Models
+author: Clay Ford
+date: '2016-06-01'
+slug: getting-started-with-hurdle-models
+categories:
+  - R
+tags:
+  - hurdle models
+  - count regression
+  - rootogram
+---
+
+
+
+<p>Hurdle Models are a class of models for count data that help handle excess zeros and overdispersion. To motivate their use, let’s look at some data in <a href="https://www.r-project.org/">R</a>.</p>
+<p>The following data come with the <a href="https://cran.r-project.org/web/packages/AER/index.html">AER package</a>. It is a sample of 4,406 individuals, aged 66 and over, who were covered by Medicare in 1988. One of the variables the data provide is number of physician office visits. Let’s say we wish to model the number of vists (a count) by some of the other variables in the data set. To get started, we need to load the data. You may also need to install the AER package.</p>
+<pre class="r"><code># install.packages(&quot;AER&quot;) 
+library(AER)
+data(&quot;NMES1988&quot;)
+
+# select certain columns; Col 1 is number of visits
+nmes &lt;- NMES1988[, c(1, 6:8, 13, 15, 18)]</code></pre>
+<p>With our data loaded, let’s see how the number of visits is distributed. We do that by first counting up the number of occurrences for each visit and then plotting the table.</p>
+<pre class="r"><code>plot(table(nmes$visits))</code></pre>
+<p><img src="/post/2016-06-01-getting-started-with-hurdle-models_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Close to 700 people had 0 visits. And a few people had more than 50 visits. We can count these up if we like:</p>
+<pre class="r"><code>sum(nmes$visits &lt; 1)</code></pre>
+<pre><code>## [1] 683</code></pre>
+<pre class="r"><code>sum(nmes$visits &gt; 50)</code></pre>
+<pre><code>## [1] 13</code></pre>
+<p>A common approach to modeling count data is Poisson regression. When performing Poisson regression we’re assuming our count data follows a Poisson distribution with a mean conditional on our predictors. Let’s fit a Poisson model to our data, regressing number of visits on all other predictors, which include gender, number of years of education, number of chronic conditions, number of hospital stays, private insurance indicator and health (a 3-level categorical variable). Below, the syntax <code>visits ~ .</code> says to regress visits on all other variables in the nmes data frame. This analysis (and several others) is presented in the examples that accompany the NMES1998 data in the AER package.</p>
+<pre class="r"><code>mod1 &lt;- glm(visits ~ ., data = nmes, family = &quot;poisson&quot;)</code></pre>
+<p>Now let’s see how many zeros this model predicts and compared to what we observed. We can do that by first predicting the expected mean count for each observation, and then using those expected mean counts to predict the probability of a zero count. Then we can sum those expected probabilities to get an estimate of how many zero counts we might expect to see.</p>
+<pre class="r"><code># predict expected mean count
+mu &lt;- predict(mod1, type = &quot;response&quot;)
+
+ # sum the probabilities of a 0 count for each mean
+exp &lt;- sum(dpois(x = 0, lambda = mu)) 
+
+# predicted number of 0&#39;s
+round(exp)</code></pre>
+<pre><code>## [1] 47</code></pre>
+<pre class="r"><code># observed number of 0&#39;s
+sum(nmes$visits &lt; 1)                </code></pre>
+<pre><code>## [1] 683</code></pre>
+<p>We see that we’re severely underfitting zero counts. We observed almost 700 zero counts but our model only predicts about 47. This is where the hurdle model comes in. The hurdle model is a two-part model that specifies one process for zero counts and another process for positive counts. The idea is that positive counts occur once a threshold is crossed, or put another way, a hurdle is cleared. If the hurdle is not cleared, then we have a count of 0.</p>
+<p>The first part of the model is typically a binary logit model. This models whether an observation takes a positive count or not. The second part of the model is usually a <em>truncated</em> Poisson or Negative Binomial model. Truncated means we’re only fitting positive counts. If we were to fit a hurdle model to our nmes data, the interpretation would be that one process governs whether a patient visits a doctor or not, and another process governs how many visits are made. Let’s go ahead and do that.</p>
+<p>The <a href="https://cran.r-project.org/web/packages/pscl/index.html">pscl package</a> provides a function, <code>hurdle</code>, for fitting hurdle models. It works pretty much like other model fitting functions in R, except it allows you to fit different models for each part. To begin we’ll fit the same model for both parts.</p>
+<p>First we install the package (in case you don’t already have it), load the package, and then fit a hurdle model. By default the zero-count process is “binomial” (ie, binary logistic regression) and the positive-count process is “poisson”. Notice we can specify those distributions explicitly using the <code>dist</code> and <code>zero.dist</code> arguments. Once again, the syntax <code>visits ~ .</code> says to regress visits on all other variables in the nmes data frame, except now it means we’re doing it for both zero-count and positive-count processes.</p>
+<pre class="r"><code># install.packages(&quot;pscl&quot;)
+library(pscl)
+mod.hurdle &lt;- hurdle(visits ~ ., data = nmes)
+
+# same as this:
+mod.hurdle &lt;- hurdle(visits ~ ., data = nmes, 
+                     dist = &quot;poisson&quot;, 
+                     zero.dist = &quot;binomial&quot;)
+
+summary(mod.hurdle)</code></pre>
+<pre><code>## 
+## Call:
+## hurdle(formula = visits ~ ., data = nmes, dist = &quot;poisson&quot;, zero.dist = &quot;binomial&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -5.4144 -1.1565 -0.4770  0.5432 25.0228 
+## 
+## Count model coefficients (truncated poisson with log link):
+##                  Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)      1.406459   0.024180  58.167  &lt; 2e-16 ***
+## hospital         0.158967   0.006061  26.228  &lt; 2e-16 ***
+## healthpoor       0.253521   0.017708  14.317  &lt; 2e-16 ***
+## healthexcellent -0.303677   0.031150  -9.749  &lt; 2e-16 ***
+## chronic          0.101720   0.004719  21.557  &lt; 2e-16 ***
+## gendermale      -0.062247   0.013055  -4.768 1.86e-06 ***
+## school           0.019078   0.001872  10.194  &lt; 2e-16 ***
+## insuranceyes     0.080879   0.017139   4.719 2.37e-06 ***
+## Zero hurdle model coefficients (binomial with logit link):
+##                  Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)      0.043147   0.139852   0.309 0.757688    
+## hospital         0.312449   0.091437   3.417 0.000633 ***
+## healthpoor      -0.008716   0.161024  -0.054 0.956833    
+## healthexcellent -0.289570   0.142682  -2.029 0.042409 *  
+## chronic          0.535213   0.045378  11.794  &lt; 2e-16 ***
+## gendermale      -0.415658   0.087608  -4.745 2.09e-06 ***
+## school           0.058541   0.011989   4.883 1.05e-06 ***
+## insuranceyes     0.747120   0.100880   7.406 1.30e-13 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Number of iterations in BFGS optimization: 14 
+## Log-likelihood: -1.613e+04 on 16 Df</code></pre>
+<p>In our summary we get output for two different models. The first section of output is for the positive-count process. The second section is for the zero-count process. We can interpret these just as we would for any other model.</p>
+<p>Having fit a hurdle model, how many 0 counts does it predict? This is a little trickier to extract. First we use the predict function with <code>type = “prob”</code>. This returns a predicted probability for all possible observed counts for each observation. In this case, that returns a 4406 x 90 matrix. That’s 4406 rows for each observation, and 90 possible counts. The first column contains the predicted probabilities for getting a 0 count. As before we can sum those probabilities to get an expected number of 0 counts.</p>
+<pre class="r"><code>sum(predict(mod.hurdle, type = &quot;prob&quot;)[,1])</code></pre>
+<pre><code>## [1] 683</code></pre>
+<p>We get 683, which happens to be the number of zeros in the observed data. This is by design. The hurdle model will always predict the same number of zeros as we observed.</p>
+<p>We can also predict the expected mean count using both components of the hurdle model. The mathematical expression for this is</p>
+<p><span class="math display">\[E[y | \textbf{x}] = \frac{1 - f_{1}(0|\textbf{x})}{1 - f_{2}(0|\textbf{x})} \mu_{2}(\textbf{x}) \]</span></p>
+<p>This says the expected count (<em>y</em>) given our predictors (<strong>x</strong>) is a product of two things: a ratio and a mean. The ratio is the probability of a non-zero in the first process divided the probability of a non-zero in the second <em>untruncated</em> process. The <em>f</em> symbols represent distributions. Recall these are logistic and Poisson, respectively, by default but can be others. The mean is for the <em>untruncated</em> version of the positive-count process. For more details on this expression, truncated counts, and hurdle models in general, see Cameron and Trivedi (2013).</p>
+<p>We can use the <code>predict</code> function to get these expected mean counts by setting <code>type = “response”</code>, which is the default.</p>
+<pre class="r"><code># First 5 expected counts
+predict(mod.hurdle, type = &quot;response&quot;)[1:5]</code></pre>
+<pre><code>##         1         2         3         4         5 
+##  5.981262  6.048998 15.030446  7.115653  5.493896</code></pre>
+<p>Referring to the expression above, we can also extract the ratio and the mean by specifying a different <code>type</code> argument:</p>
+<pre class="r"><code># ratio of non-zero probabilities
+predict(mod.hurdle, type = &quot;zero&quot;)[1:5]</code></pre>
+<pre><code>##         1         2         3         4         5 
+## 0.8928488 0.9215760 0.9758270 0.8728787 0.9033806</code></pre>
+<pre class="r"><code># mean for untruncated process
+predict(mod.hurdle, type = &quot;count&quot;)[1:5]</code></pre>
+<pre><code>##         1         2         3         4         5 
+##  6.699076  6.563754 15.402777  8.151937  6.081485</code></pre>
+<p>And of course we can multiply them and confirm they equal the expected hurdle count:</p>
+<pre class="r"><code># multiply ratio and mean
+predict(mod.hurdle, type = &quot;zero&quot;)[1:5] * 
+  predict(mod.hurdle, type = &quot;count&quot;)[1:5]</code></pre>
+<pre><code>##         1         2         3         4         5 
+##  5.981262  6.048998 15.030446  7.115653  5.493896</code></pre>
+<pre class="r"><code># equals hurdle model expected count
+predict(mod.hurdle, type = &quot;response&quot;)[1:5]</code></pre>
+<pre><code>##         1         2         3         4         5 
+##  5.981262  6.048998 15.030446  7.115653  5.493896</code></pre>
+<p>It appears we have addressed the excess 0’s, but what about the overdispersion? We can visualize the fit of this model using a rootogram, available in the <a href="https://r-forge.r-project.org/R/?group_id=522">countreg package</a>:</p>
+<pre class="r"><code># Need to install from R-Forge instead of CRAN
+# install.packages(&quot;countreg&quot;, repos=&quot;http://R-Forge.R-project.org&quot;)
+library(countreg)
+rootogram(mod.hurdle, max = 80) # fit up to count 80</code></pre>
+<p><img src="/post/2016-06-01-getting-started-with-hurdle-models_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p>The line at 0 allows us to easily visualize where the model is over- or under-fitting. At 0 it fits perfectly by design. But at counts 1, 2 and 3 we see dramatic under-fitting (under the line) and then pronounced over-fitting at counts 5 - 9 (over the line). We also see a great deal of under-fitting at the higher counts as well. This points to overdispersion. In other words, the variability of our observed data is much greater than what a Poisson model predicts. Once we get past 40, our model is basically not predicting any counts and, thus, it’s under-fitting. The smooth red line is the theoretical Poisson curve. We can see there are two components to the model: the fit at 0 and counts greater than 0. This is a “hanging rootogram”, so the bars which represent the difference between observed and predicted counts “hang” from the curve.</p>
+<p>One distribution that helps with overdispersion is the negative binomial. We can specify that the positive-count process be fit with a negative binomial model instead of a poisson by setting <code>dist = “negbin”</code>.</p>
+<pre class="r"><code>mod.hurdle.nb &lt;- hurdle(visits ~ ., data = nmes, 
+                        dist = &quot;negbin&quot;)</code></pre>
+<p>A quick look at the associated rootogram shows a much better fit.</p>
+<pre class="r"><code>rootogram(mod.hurdle.nb, max = 80)</code></pre>
+<p><img src="/post/2016-06-01-getting-started-with-hurdle-models_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>Traditional model-comparison criteria such as AIC show the negative binomial version is better fitting as well.</p>
+<pre class="r"><code>AIC(mod.hurdle)</code></pre>
+<pre><code>## [1] 32300.9</code></pre>
+<pre class="r"><code>AIC(mod.hurdle.nb) # lower is better</code></pre>
+<pre><code>## [1] 24210.16</code></pre>
+<p>Recall that each component of a hurdle model can have different sets of predictors. We can do this in the <code>hurdle</code> function by using “|” in the model formula. For example, let’s say we want to fit the zero hurdle component using only the insurance and gender predictors. We can do that as follows:</p>
+<pre class="r"><code>mod.hurdle.nb2 &lt;- hurdle(visits ~ . | gender + insurance, 
+                         data = nmes, 
+                         dist = &quot;negbin&quot;)</code></pre>
+<p>This says fit the count data model (visits regressed on all other variables) conditional on the zero hurdle model (visits regressed on gender and insurance).</p>
+<p>To learn more about hurdle models, see the references below and the documentation that comes with the pscl package.</p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>Cameron AC, Trivedi PK (2013). <em>Regression Analysis of Count Data</em>. Cambridge University Press, Cambridge.</li>
+<li>Kleiber C, Zeileis A (2008). <em>Applied Econometrics with R</em>. Springer-Verlag, New York. ISBN 978-0-387-77316-2.</li>
+<li>Kleiber C, Zeileis A (2016). “Visualizing Count Data Regressions Using Rootograms”. <em>The American Statistician</em>, DOI: 10.1080/00031305.2016.1173590</li>
+<li>Zeileis A, Kleiber C, Jackman S (2008). “Regression Models for Count Data in R”. <em>Journal of Statistical Software</em>, 27(8). URL <a href="https://www.jstatsoft.org/article/view/v027i08">https://www.jstatsoft.org/article/view/v027i08</a>.</li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] countreg_0.2-1    MASS_7.3-51.4     pscl_1.5.2       
+##  [4] AER_1.2-6         survival_2.44-1.1 sandwich_2.5-1   
+##  [7] lmtest_0.9-36     zoo_1.8-5         car_3.0-2        
+## [10] carData_3.0-2    
+## 
+## loaded via a namespace (and not attached):
+##  [1] zip_2.0.1         Rcpp_1.0.1        pillar_1.3.1     
+##  [4] compiler_3.6.0    cellranger_1.1.0  forcats_0.4.0    
+##  [7] tools_3.6.0       digest_0.6.18     evaluate_0.13    
+## [10] tibble_2.1.1      lattice_0.20-38   pkgconfig_2.0.2  
+## [13] rlang_0.3.4       Matrix_1.2-17     openxlsx_4.1.0   
+## [16] curl_3.3          yaml_2.2.0        blogdown_0.11    
+## [19] haven_2.1.0       xfun_0.6          rio_0.5.16       
+## [22] stringr_1.4.0     knitr_1.22        hms_0.4.2        
+## [25] grid_3.6.0        data.table_1.12.2 readxl_1.3.1     
+## [28] foreign_0.8-71    rmarkdown_1.12    bookdown_0.9     
+## [31] Formula_1.2-3     magrittr_1.5      htmltools_0.3.6  
+## [34] splines_3.6.0     abind_1.4-5       stringi_1.4.3    
+## [37] crayon_1.3.4</code></pre>
+</div>
