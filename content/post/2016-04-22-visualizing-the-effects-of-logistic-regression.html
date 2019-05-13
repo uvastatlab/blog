@@ -1,0 +1,218 @@
+---
+title: Visualizing the Effects of Logistic Regression
+author: Clay Ford
+date: '2016-04-22'
+slug: visualizing-the-effects-of-logistic-regression
+categories:
+  - R
+tags:
+  - binary logistic regression
+  - visualization
+  - effect plots
+---
+
+
+
+<p>Logistic regression is a popular and effective way of modeling a binary response. For example, we might wonder what influences a person to volunteer, or not volunteer, for psychological research. Some do, some don’t. Are there independent variables that would help explain or distinguish between those who volunteer and those who don’t? Logistic regression gives us a mathematical model that we can we use to estimate the probability of someone volunteering given certain independent variables.</p>
+<p>The model that logistic regression gives us is usually presented in a table of results with lots of numbers. The coefficients are on the log-odds scale along with standard errors, test statistics and p-values. It can be difficult to translate these numbers into some intuition about how the model “works”, especially if it has interactions.</p>
+<p>One way to make the model more meaningful is to actually use it with some typical values to make predictions. We can plug in various combinations of independent values and get predicted probabilities. Having done this we can then plot the results and see how predicted probabilities change as we vary our independent variables. These kinds of plots are called “effect plots”. In this post we show how to create these plots in R.</p>
+<p>We’ll use the <a href="https://cran.r-project.org/web/packages/effects/index.html">effects</a> package by Fox, et al. The effects package creates graphical and tabular effect displays for various statistical models. Below we show how it works with a logistic model, but it can be used for linear models, mixed-effect models, ordered logit models, and several others.</p>
+<p>We alluded to modeling whether or not someone volunteers for psychological research. The effects package includes such data for demonstration purposes. The data are from Cowles and Davis (1987) and are in the Cowles data frame. First we load the package and fit a model. We fit a logistic model in R using the glm() function with the family argument set to “binomial”. The formula syntax says to model volunteer as a function of sex, neuroticism, extraversion, and the interaction of neuroticism and extraversion. (Neuroticism and extraversion are scale measurements from the <a href="https://en.wikipedia.org/wiki/Eysenck_Personality_Questionnaire">Eysenck personality inventory</a>.)</p>
+<pre class="r"><code># install.packages(&quot;effects&quot;) 
+library(effects)
+mod.cowles &lt;- glm(volunteer ~ sex + neuroticism*extraversion,
+                  data=Cowles, family=binomial)
+summary(mod.cowles)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = volunteer ~ sex + neuroticism * extraversion, family = binomial, 
+##     data = Cowles)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.4749  -1.0602  -0.8934   1.2609   1.9978  
+## 
+## Coefficients:
+##                           Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)              -2.358207   0.501320  -4.704 2.55e-06 ***
+## sexmale                  -0.247152   0.111631  -2.214  0.02683 *  
+## neuroticism               0.110777   0.037648   2.942  0.00326 ** 
+## extraversion              0.166816   0.037719   4.423 9.75e-06 ***
+## neuroticism:extraversion -0.008552   0.002934  -2.915  0.00355 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 1933.5  on 1420  degrees of freedom
+## Residual deviance: 1897.4  on 1416  degrees of freedom
+## AIC: 1907.4
+## 
+## Number of Fisher Scoring iterations: 4</code></pre>
+<p>The summary of results looks promising, at least where statistical significance is concerned. But what does it mean? It appears males are less likely to volunteer because of the negative coefficient (-0.24), but how much less likely? What about the interaction coefficient of -0.008? What are we to make of that? The effects package can help us answer these questions.</p>
+<p>The fast and easy way to get started with the effects package is to simply use the <code>allEffects</code> function in combination with <code>plot</code>, like so:</p>
+<pre class="r"><code>plot(allEffects(mod.cowles))</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Just like that we have two effect plots! Let’s take a closer look at each and see what they tell us.</p>
+<p>On the left we have predicted probabilities for sex. Females have a higher expected probability of volunteering than males (0.44 vs 0.38). The plot also includes 95% error bars to give us some idea of the uncertainty of our estimate.</p>
+<p>So how did the effects package make those estimates? We can figure this out by saving the results of the <code>allEffects</code> function to an object and investigating. When we do it for this model we get a list object with two elements, one for each graph. Within each list element are several values used to create the effect plots. The model.matrix element for the first list element contains the independent variables used in generating the predictions for each sex.</p>
+<pre class="r"><code>e.out &lt;- allEffects(mod.cowles)
+e.out$sex$model.matrix</code></pre>
+<pre><code>##   (Intercept) sexmale neuroticism extraversion neuroticism:extraversion
+## 1           1       0    11.47009     12.37298                 141.9192
+## 2           1       1    11.47009     12.37298                 141.9192
+## attr(,&quot;assign&quot;)
+## [1] 0 1 2 3 4
+## attr(,&quot;contrasts&quot;)
+## attr(,&quot;contrasts&quot;)$sex
+## [1] &quot;contr.treatment&quot;</code></pre>
+<p>This says the predictions were generated using the same values in each case except sex. The values for neuroticism, extraversion, and neuroticism:extraversion are their means:</p>
+<pre class="r"><code>mean(Cowles$neuroticism)</code></pre>
+<pre><code>## [1] 11.47009</code></pre>
+<pre class="r"><code>mean(Cowles$extraversion)</code></pre>
+<pre><code>## [1] 12.37298</code></pre>
+<pre class="r"><code>mean(Cowles$neuroticism) * 
+  mean(Cowles$extraversion) # interaction</code></pre>
+<pre><code>## [1] 141.9192</code></pre>
+<p>We can verify the calculations manually as follows:</p>
+<pre class="r"><code>invLogit &lt;- function(x) exp(x)/(1 + exp(x))
+invLogit(e.out$sex$model.matrix %*% coef(mod.cowles))</code></pre>
+<pre><code>##        [,1]
+## 1 0.4409440
+## 2 0.3811939</code></pre>
+<p>The first line creates a function for us to convert the log-odds to probability (ie, the inverse logit function). The second line is a fancy (and efficient) way to multiply the model.matrix values by their respective coefficients and sum. The <code>%*%</code> operator means “matrix multiplication”. This formula is usually provided in statistics textbooks as</p>
+<p><span class="math display">\[\hat{\boldsymbol{Y}} = \boldsymbol{X\beta} \]</span></p>
+<p>We could also get the same result using the <code>predict</code> function with a new data frame. Notice we have to specify <code>type="response"</code> to get predicted probabilities.</p>
+<pre class="r"><code># using predict with new data
+ndata &lt;- data.frame(sex=factor(c(&quot;female&quot;,&quot;male&quot;)), 
+                      neuroticism=11.47009, 
+                    extraversion=12.37298)
+predict(object = mod.cowles, 
+        newdata = ndata, 
+        type = &quot;response&quot;)</code></pre>
+<pre><code>##         1         2 
+## 0.4409441 0.3811940</code></pre>
+<p>If we want, we can create the sex effect plot using median values for neuroticism and extraversion by setting the typical argument to median, like so:</p>
+<pre class="r"><code>plot(allEffects(mod.cowles, typical=median))</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Now the predicted probabilities are about 0.45 and 0.39, respectively, however the <em>effect</em> of sex is the same. Changing the values used for neuroticism and extraversion shifted the effect plot a little higher on the y axis, but the effect plot is the same.</p>
+<p>The neuroticism*extraversion effect plot shows us how the probability of volunteering changes for various combinations of neuroticism and extraversion scores. To see what those values are, use the <code>allEffects</code> function without plotting it.</p>
+<pre class="r"><code>allEffects(mod.cowles)</code></pre>
+<pre><code>##  model: volunteer ~ sex + neuroticism * extraversion
+## 
+##  sex effect
+## sex
+##    female      male 
+## 0.4409440 0.3811939 
+## 
+##  neuroticism*extraversion effect
+##            extraversion
+## neuroticism         2       7.2        12        18        23
+##          0  0.1056408 0.2194941 0.3851139 0.6301828 0.7969085
+##          6  0.1716423 0.2741987 0.3967524 0.5680733 0.7008823
+##          12 0.2665883 0.3366564 0.4085089 0.5037470 0.5831997
+##          18 0.3893675 0.4053947 0.4203710 0.4392964 0.4552060
+##          24 0.5279854 0.4780532 0.4323257 0.3768301 0.3328688</code></pre>
+<p>We see neuroticism ranges from 0 to 24 in increments of 6, while extraversion ranges from 2 to 23. These values were automatically determined by the <code>allEffects</code> function, but as we’ll see we can specify those values ourselves if we prefer. The plot shows five graphs, one for each value of extraversion. The gray bar in the header of each plot is meant to tell you the value of extraversion being considered in the plot. The bottom left plot has extraversion set to 0. The bottom right plot has extraversion set to 2, and so forth. Within each of the five plots, the values of neuroticism vary along the x-axis.</p>
+<p>In the bottom left plot, we see that the predicted probability of volunteering increases as neuroticism increases given that one has an extraversion score of 2. In the upper right plot, we see the opposite occur. The predicted probability of volunteering decreases as neuroticism increases given that one has an extraversion score of 23. What this plot is demonstrating is interaction. The effect of neuroticism depends on the level of extraversion, and vice versa.</p>
+<p>Once again we’re essentially plugging various values of neuroticism and extraversion into our model to generate predictions. But recall we also have sex in the model. What is that set to? Let’s look at our effects object again, specifically the first few rows of the model.matrix for the neuroticism*extraversion effect plot:</p>
+<pre class="r"><code>head(e.out$`neuroticism:extraversion`$model.matrix)</code></pre>
+<pre><code>##   (Intercept)   sexmale neuroticism extraversion neuroticism:extraversion
+## 1           1 0.4510908           0          2.0                        0
+## 2           1 0.4510908           6          2.0                       12
+## 3           1 0.4510908          12          2.0                       24
+## 4           1 0.4510908          18          2.0                       36
+## 5           1 0.4510908          24          2.0                       48
+## 6           1 0.4510908           0          7.2                        0</code></pre>
+<p>We see sex is set to 0.4510908. Now sex is a 0/1 indicator for whether or not someone is male, so where is 0.4510908 coming from? That’s the proportion of 1’s (or males) in the data:</p>
+<pre class="r"><code>prop.table(table(Cowles$sex))</code></pre>
+<pre><code>## 
+##    female      male 
+## 0.5489092 0.4510908</code></pre>
+<p>That may not sit well with some. There’s a good argument to be made that sex should either take a value of 1 or 0. No one is 0.45 male. We may also want to use different values for neuroticism and extraversion. We can do that with the xlevels and given.values arguments.</p>
+<p>The xlevels argument is used to set the number of levels for any “focal predictor” that is NOT a factor. The term “focal predictor” basically refers to interactions. Neuroticism and extraversion are numeric (not factors), and they have an interaction in the model, so we would need to set their values using xlevels. The given.values argument is used to set particular columns of the model matrix to specific values for predictors that are NOT focal predictors. Sex is not involved in an interaction, so it is not a focal predictor. Let’s use these two arguments to tweak our graphs. Notice that xlevels requires a list while given.values requires a named vector.</p>
+<pre class="r"><code>plot(allEffects(mod.cowles, 
+           xlevels=list(extraversion=
+                          seq(10, 20, 2), 
+                        neuroticism=
+                          10:20),
+           given.values=c(sexmale=1)))</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p>The sex effect plot is the same, but our neuroticism*extraversion effect plot has changed quite a bit. We now have six graphs for the six levels of extraversion we specified. We also set the sex coefficient to 1, so these graphs refer to males. The same interaction is evident as the slopes of the lines change as extraversion changes. But notice the gray confidence band widens as neuroticism increases, indicating we have few subjects with high neuroticism scores, and hence less confidence in our predictions.</p>
+<p>If we just want the neuroticism*extraversion effect plot, we can use the <code>Effect</code> function with <code>plot</code> to create a single graph. (Notice we can also turn off the “rug” in the plot by setting <code>rug = FALSE</code>.)</p>
+<pre class="r"><code>plot(Effect(focal.predictors = 
+              c(&quot;neuroticism&quot;,&quot;extraversion&quot;), 
+            mod = mod.cowles,
+            xlevels=list(extraversion=
+                           seq(10, 20, 2), 
+                         neuroticism=
+                           10:20),
+            given.values=c(sexmale=1)),
+     rug = FALSE)</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>An additional argument is required to specify the focal predictors, but otherwise the syntax is the same as allEffects. We could also specify “sex” as a focal predictor and get 6 plots for each gender.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = 
+              c(&quot;neuroticism&quot;,&quot;extraversion&quot;,&quot;sex&quot;), 
+            mod = mod.cowles,
+            xlevels=list(extraversion=
+                           seq(10, 20, 2), 
+                         neuroticism=
+                           10:20)),
+     rug = FALSE)</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>Or we can specify multiline = TRUE to combine the sex effect into only 6 plots.</p>
+<pre class="r"><code>plot(Effect(focal.predictors = 
+              c(&quot;neuroticism&quot;,&quot;extraversion&quot;,&quot;sex&quot;), 
+            mod = mod.cowles,
+            xlevels=list(extraversion=
+                           seq(10, 20, 2), 
+                         neuroticism=
+                           10:20)),
+     multiline = TRUE,
+     rug = FALSE)</code></pre>
+<p><img src="/post/2016-04-22-visualizing-the-effects-of-logistic-regression_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p>Two things to notice are the confidence bands are removed by default and the lines are parallel in each graph. We can add the confidence bands back into the plot using <code>ci.style = "bands"</code> in the plot function (but it doesn’t look very good and thus we don’t show it.). The lines are parallel since our model does not interact sex with neuroticism and extraversion. As it turns out, neuroticism and extraversion do not significantly interact with sex.</p>
+<p>The effects package can handle many different types of statistical models and its graphs are highly customizable. See the examples in the documentation for several good examples. In the meantime, simply using <code>allEffects</code> with <code>plot</code> is great way to start visualizing your model. The default settings tend to work well and give you a good start on creating your own effect plots.</p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>Fox, J. (2003) Effect displays in R for generalised linear models. <em>Journal of Statistical Software</em> 8:15, 1–27, <a href="http://www.jstatsoft.org/v08/i15/">http://www.jstatsoft.org/v08/i15/</a>.</li>
+<li>Cowles, M. and C. Davis (1987) The subject matter of psychology: Volunteers. <em>British Journal of Social Psychology</em> 26, 97–102.</li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] effects_4.1-0 carData_3.0-2
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1        survey_3.36       knitr_1.22       
+##  [4] magrittr_1.5      splines_3.6.0     MASS_7.3-51.4    
+##  [7] colorspace_1.4-1  lattice_0.20-38   minqa_1.2.4      
+## [10] stringr_1.4.0     tools_3.6.0       nnet_7.3-12      
+## [13] grid_3.6.0        nlme_3.1-139      xfun_0.6         
+## [16] DBI_1.0.0         mitools_2.4       htmltools_0.3.6  
+## [19] survival_2.44-1.1 yaml_2.2.0        lme4_1.1-21      
+## [22] digest_0.6.18     bookdown_0.9      Matrix_1.2-17    
+## [25] nloptr_1.2.1      evaluate_0.13     rmarkdown_1.12   
+## [28] blogdown_0.11     estimability_1.3  stringi_1.4.3    
+## [31] compiler_3.6.0    boot_1.3-22</code></pre>
+</div>
