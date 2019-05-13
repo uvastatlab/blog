@@ -1,0 +1,229 @@
+---
+title: Getting started with Negative Binomial Regression Modeling
+author: Clay Ford
+date: '2016-05-05'
+slug: getting-started-with-negative-binomial-regression-modeling
+categories:
+  - R
+tags:
+  - count regression
+  - negative binomial regression
+  - rootogram
+  - poisson regression
+---
+
+When it comes to modeling counts (ie, whole numbers greater than or equal to 0), we often start with Poisson regression. This is a generalized linear model where a response is assumed to have a Poisson distribution conditional on a weighted sum of predictors. For example, we might model the number of documented concussions to NFL quarterbacks as a function of snaps played and the total years experience of his offensive line. However one potential drawback of Poisson regression is that it may not accurately describe the variability of the counts. 
+
+A Poisson distribution is parameterized by \(\lambda\), which happens to be both its mean and variance. While convenient to remember, it's not often realistic. A distribution of counts will usually have a variance that's not equal to its mean. When we see this happen with data that we assume (or hope) is Poisson distributed, we say we have under- or overdispersion, depending on if the variance is smaller or larger than the mean. Performing Poisson regression on count data that exhibits this behavior results in a model that doesn't fit well. 
+
+One approach that addresses this issue is Negative Binomial Regression. The negative binomial distribution, like the Poisson distribution, describes the probabilities of the occurrence of whole numbers greater than or equal to 0. Unlike the Poisson distribution, the variance and the mean are not equivalent. This suggests it might serve as a useful approximation for modeling counts with variability different from its mean. The variance of a negative binomial distribution is a function of its mean and has an additional parameter, <em>k</em>, called the dispersion parameter. Say our count is random variable Y from a negative binomial distribution, then the variance of <em>Y</em> is
+
+$$ var(Y) = \mu + \mu^{2}/k $$
+
+As the dispersion parameter gets larger and larger, the variance converges to the same value as the mean, and the negative binomial turns into a Poisson distribution.
+
+To illustrate the negative binomial distribution, let's work with some data from the book, <a href="http://www.stat.ufl.edu/~aa/cda2/cda.html">Categorical Data Analysis</a>, by Alan Agresti (2002). The data are presented in Table 13.6 in section 13.4.3. The data are from a survey of 1308 people in which they were asked how many homicide victims they know. The variables are <code>resp</code>, the number of victims the respondent knows, and <code>race</code>, the race of the respondent (black or white). Does race help explain how many homicide victims a person knows? The data first needs to be entered into <a href="https://www.r-project.org/">R</a>:
+
+```{r}
+# Table 13.6
+# Agresti, p. 561
+black <- c(119,16,12,7,3,2,0)
+white <- c(1070,60,14,4,0,0,1)
+resp <- c(rep(0:6,times=black), rep(0:6,times=white))
+race <- factor(c(rep("black", sum(black)), 
+                 rep("white", sum(white))),
+               levels = c("white","black"))
+victim <- data.frame(resp, race)
+
+```
+
+Before we get to modeling, let's explore the data. First we notice most respondents are white:
+
+```{r}
+table(race)
+
+```
+
+Blacks have a higher mean count than whites: 
+
+```{r}
+with(victim, tapply(resp, race, mean))
+
+```
+
+
+For each race the sample variance is roughly double the mean. It appears we have overdispersion.
+
+```{r}
+with(victim, tapply(resp, race, var))
+
+```
+
+
+Finally we look at the distribution of the counts by race. 
+
+```{r}
+table(resp, race)
+
+```
+
+   
+On to model fitting. First we try Poisson regression using the <code>glm()</code> function and show a portion of the summary output.
+
+```{r}
+# Poisson model
+pGLM <- glm(resp ~ race, data = victim, 
+            family = poisson)
+summary(pGLM)$coefficients
+
+```
+
+
+Race is very significant. It appears blacks are much more likely to know someone who was a victim of a homicide. But what does the coefficient 1.73 mean? In this simple model with one dichotomous predictor, it is the difference in log expected counts. If we exponentiate the coefficient we get a ratio of sample means:
+
+```{r}
+exp(coef(pGLM)[2])
+# same thing
+mean(victim$resp[victim$race=="black"])/
+  mean(victim$resp[victim$race=="white"])
+
+
+```
+
+In fact if we make a prediction with this model and exponentiate the results, we get the sample means:
+
+```{r}
+exp(predict(pGLM, newdata = data.frame(race=c("white","black"))))
+# same thing
+with(victim, tapply(resp, race, mean))
+
+```
+
+This says the count of known victims for whites is distributed as a Poisson with mean and variance equal to 0.09, while the count of known victims for blacks is distributed as a Poisson with mean and variance equal to 0.52. We already know from our exploratory analysis that the observed variances were much larger, so we shouldn't be too pleased with the model's estimated variances. If we examine the fitted counts, we'll see even more evidence for the lack of fit:
+
+```{r}
+# fitted counts for Poisson GLM:
+fmeans <- exp(predict(pGLM, newdata = 
+                        data.frame(race = c("white",
+                                            "black"))))
+fmeans
+
+fittedW <- dpois(0:6,lambda = fmeans[1]) * 
+  sum(victim$race=="white") 
+fittedB <- dpois(0:6,lambda = fmeans[2]) * 
+  sum(victim$race=="black") 
+
+data.frame(Response=0:6, 
+           BlackObs=black, 
+           BlackFit=round(fittedB,1), 
+           WhiteObs=white, 
+           WhiteFit=round(fittedW,1))
+
+```
+
+Above we first saved the predicted means into an object called fmeans. We then generated fitted counts by using the dpois function along with the estimated means to predict the probability of getting 0 through 6. We then multiplied those probabilities by the number of respondents to obtain fitted counts. Finally we combined everything into a data frame to easily compare observed and fitted values. Two of the more dramatic things to note is that we're underfitting the 0 counts and overfitting the 1 counts. 
+
+We can use a rootogram to visualize the fit of a count regression model. The <code>rootogram()</code> function in the <a href="https://r-forge.r-project.org/R/?group_id=522">countreg package</a> makes this easy.
+
+```{r}
+countreg::rootogram(pGLM)
+```
+
+
+The red curved line is the theoretical Poisson fit. "Hanging" from each point on the red line is a bar, the height of which represents the difference between expected and observed counts. A bar hanging below 0 indicates underfitting. A bar hanging above 0 indicates overfitting. The counts have been transformed with a square root transformation to prevent smaller counts from getting obscured and overwhelmed by larger counts. We see a great deal of underfitting for counts 2 and higher and massive overfitting for the 1 count.
+
+Now let's try fitting a negative binomial model. We noticed the variability of the counts were larger for both races. It would appear that the negative binomial distribution would better approximate the distribution of the counts.
+
+To fit a negative binomial model in R we turn to the <code>glm.nb()</code> function in the <a href="https://cran.r-project.org/web/packages/MASS/index.html">MASS package</a> (a package that comes installed with R). Again we only show part of the summary output:
+
+```{r}
+# Fit a negative binomial model
+library(MASS)
+nbGLM <- glm.nb(resp ~ race, data=victim)
+summary(nbGLM)
+
+```
+
+
+First notice the coefficients are the same as before. Once again we can exponentiate the race coefficient to get a ratio of sample means and make predictions to get the original sample means. 
+
+```{r}
+# fitted counts for Negative Binomial GLM:
+fmeans <- exp(predict(pGLM, newdata = 
+                        data.frame(race = c("white","black"))))
+fmeans # same as pGLM
+
+```
+
+But notice the standard error for the race coefficient is larger, indicating more uncertainty in our estimate (0.24 versus 0.15). This makes sense given the observed variability in our counts. Also notice the estimate of Theta. That is our dispersion parameter. We can access it directly from our model object as follows:
+
+```{r}
+nbGLM$theta
+
+```
+
+
+And we can use it to get estimated variances for the counts:
+
+```{r}
+fmeans + fmeans^2 * (1/nbGLM$theta)
+```
+
+
+These are much closer to the observed variances than those given by the Poisson model. 
+
+Once again we visualize the fit using a rootogram:
+
+
+```{r}
+countreg::rootogram(nbGLM)
+
+```
+
+
+This looks much better than the Poisson model rootogram. There is slight underfitting/overfitting for counts 1 through 3, but otherwise it looks pretty good. 
+
+To gain further insights to our negative binomial model, let's use its parameters to simulate data and compare the simulated data to the observed data. Below we load the <a href="https://cran.r-project.org/web/packages/magrittr/index.html">magrittr package</a> for access to the %>% operator which allows us to "chain" functions. 
+
+First we tabulate the counts and create a barplot for the white and black participants, respectively. Then we use the model parameters to simulate data from a negative binomial distribution. The two parameters are mu and size (ie, dispersion parameter). Notice we use the <code>coef()</code> function to extract the appropriate coefficients for each race. For white it's just the intercept, for black it's the intercept and slope (thus we sum them). Then we exponentiate to convert from log scale to the original scale. We simulate the same number of observations as we have in our original data.
+
+
+```{r}
+library(magrittr) # for %>% operator
+op <- par(mfrow=c(1,2))
+set.seed(1)
+
+victim$resp %>% `[`(victim$race=="white") %>% 
+  table() %>% barplot(main = "Observed White")
+
+rnbinom(n = 1149, size = nbGLM$theta, 
+        mu = exp(coef(nbGLM)[1])) %>% 
+  table() %>%  barplot(main = "Simulated White")
+
+victim$resp %>% `[`(victim$race=="black") %>% 
+  table() %>% barplot(main = "Observed Black")
+
+rnbinom(n = 159, size = nbGLM$theta, 
+        mu = exp(sum(coef(nbGLM)))) %>% 
+  table() %>%  barplot(main = "Simulated Black")
+par(op) # reset graphic parameters
+
+
+```
+
+
+The simulated data is very similar to the observed data, again giving us confidence in choosing negative binomial regression to model this data. These plots also demonstrate the conditional nature of our model. The negative binomial distribution of the counts depends, or is conditioned on, race. Each race has a different mean but a common dispersion parameter. 
+
+### References
+- Agresti, Alan (2002), <em>Categorical Data Analysis</em>, Wiley.
+- Kleiber, Christian &amp; Zeileis, Achim (2016): Visualizing Count Data Regressions Using Rootograms, <em>The American Statistician</em>, DOI: 10.1080/00031305.2016.1173590
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
