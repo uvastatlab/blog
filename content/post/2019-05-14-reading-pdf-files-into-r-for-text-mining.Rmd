@@ -1,0 +1,199 @@
+---
+title: Reading PDF files into R for text mining
+author: Clay Ford
+date: '2019-05-14'
+slug: reading-pdf-files-into-r-for-text-mining
+categories:
+  - R
+tags:
+  - text mining
+---
+
+Let's say we're interested in text mining the opinions of The Supreme Court of the United States from the 2014 term. The opinions are published as PDF files at the following web page  <a href="http://www.supremecourt.gov/opinions/slipopinion/14" target="_blank">http://www.supremecourt.gov/opinions/slipopinion/14</a>. We would probably want to look at all 76 opinions, but for the purposes of this introductory tutorial we'll just look at the last three of the term: (1) Glossip v. Gross, (2) State Legislature v. Arizona Independent Redistricting Comm’n, and (3) Michigan v. EPA. These are the first three listed on the page. To follow along with this tutorial, download the three opinions by clicking on the name of the case. (If you want to download all the opinions, you may want to look into using a browser extension such as <a href="http://www.downthemall.net/" target="_blank">DownThemAll</a>.)
+
+To begin we load the <code>pdftools</code> package. The <code>pdftools</code> package provides functions for for extracting text from PDF files. 
+
+```{r message=FALSE, warning=FALSE}
+# install.packages("pdftools")
+library(pdftools)
+```
+
+Next create a vector of PDF file names using the <code>list.files</code> function. The <code>pattern</code> argument says to only grab those files ending with "pdf":
+
+```{r include=FALSE}
+files <- readRDS("../../static/data/files.Rds")
+```
+
+
+```{r eval=FALSE}
+files <- list.files(pattern = "pdf$")
+
+```
+
+
+_NOTE: the code above only works if you have your working directory set to the folder where you downloaded the PDF files. A quick way to do this in RStudio is to go to Session...Set Working Directory._
+
+The "files" vector contains the three PDF file names. 
+
+```{r}
+files
+```
+
+
+We'll use this vector to automate the process of reading in the text of the PDF files. 
+
+The pdftools function for extracting text is <code>pdf_text</code>. Using the `lapply` function, we can apply the `pdf_text` function to each element in the "files" vector and create an object called "opinions".
+
+
+```{r include=FALSE}
+opinions <- readRDS("../../static/data/opinions.Rds")
+```
+
+
+```{r eval=FALSE}
+opinions <- lapply(files, pdf_text)
+```
+
+This creates a list object with three elements, one for each document. The `length` function verifies it contains three elements:
+
+```{r}
+length(opinions)
+```
+
+
+Each element is a vector that contains the text of the PDF file. The length of each vector corresponds to the number of pages in the PDF file. For example, the first vector has length 81 because the first PDF file has 81 pages. We can _apply_ the `length` function to each element to see this:
+
+```{r}
+lapply(opinions, length) 
+```
+
+And we're pretty much done! The PDF files are now in R, ready to be cleaned up and analyzed. If you want to see what has been read in, you could enter the following in the console, but it's going to produce unpleasant blocks of text littered with Character Escapes such as `\r` and `\n`. 
+
+```{r eval=FALSE}
+opinions
+```
+
+
+When text has been read into R, we typically proceed to some sort of analysis. Here's a quick demo of what we could do with the `tm` package. (tm = text mining) 
+
+First we load the tm package and then create a corpus, which is basically a database for text. Notice that instead of working with the opinions object we created earlier, we start over. 
+
+```{r include=FALSE}
+corp <- readRDS("../../static/data/corp.Rds")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# install.packages("tm")
+library(tm)
+
+```
+
+
+
+```{r eval=FALSE}
+corp <- Corpus(URISource(files),
+               readerControl = list(reader = readPDF))
+
+```
+
+
+The <code>Corpus</code> function creates a corpus. The first argument to <code>Corpus</code> is what we want to use to create the corpus. In this case, it's the vector of PDF files. To do this, we use the <code>URISource</code> function to indicate that the files vector is a URI source. URI stands for Uniform Resource Identifier. In other words, we're telling the <code>Corpus</code> function that the vector of file names identifies our resources. The second argument, <code>readerControl</code>, tells <code>Corpus</code> which reader to use to read in the text from the PDF files. That would be <code>readPDF</code>, a tm function. The <code>readerControl</code> argument requires a list of control parameters, one of which is <code>reader</code>, so we enter <code>list(reader = readPDF)</code>. Finally we save the result to an object called "corp".
+
+It turns out that the `readPDF` function in the tm package actually _creates_ a function that reads in PDF files. The documentation tells us it uses the `pdftools::pdf_text` function as the default, which is the same function we used above. (`?readPDF`)
+
+Now that we have a corpus, we can create a term-document matrix, or TDM for short. A TDM stores counts of terms for each document. The tm package provides a function to create a TDM called <code>TermDocumentMatrix</code>.
+
+```{r}
+opinions.tdm <- TermDocumentMatrix(corp, 
+                                   control = 
+                                     list(removePunctuation = TRUE,
+                                          stopwords = TRUE,
+                                          tolower = TRUE,
+                                          stemming = TRUE,
+                                          removeNumbers = TRUE,
+                                          bounds = list(global = c(3, Inf)))) 
+```
+
+
+The first argument is our corpus. The second argument is a list of control parameters. In our example we tell the function to clean up the corpus before creating the TDM. We tell it to remove punctuation, remove stopwords (eg, <em>the</em>, <em>of</em>, <em>in</em>, etc.), convert text to lower case, <a href="https://en.wikipedia.org/wiki/Stemming" target="_blank">stem</a> the words, remove numbers, and only count words that appear at least 3 times. We save the result to an object called "opinions.tdm".
+
+To inspect the TDM and see what it looks like, we can use the <code>inspect</code> function. Below we look at the first 10 terms:
+
+```{r}
+inspect(opinions.tdm[1:10,])
+```
+
+We see words preceded with double quotes and dashes even though we specified <code>removePunctuation = TRUE</code>. We even see a series of dashes being treated as a word. What happened? It appears the  <code>pdf_text</code> function preserved the unicode curly-quotes and em-dashes used in the PDF files. 
+
+One way to take care of this is to manually use the `removePunctuation` function with `tm_map`, both functions in the tm package. The `removePunctuation` function has an argument called `ucp` that when set to TRUE will look for unicode punctuation. Here's how we can use use it to remove punctuation from the corpus:
+
+```{r}
+corp <- tm_map(corp, removePunctuation, ucp = TRUE)
+```
+
+
+Now we can re-create the TDM, this time without the `removePunctuation = TRUE` argument.
+
+```{r}
+opinions.tdm <- TermDocumentMatrix(corp, 
+                                   control = 
+                                     list(stopwords = TRUE,
+                                          tolower = TRUE,
+                                          stemming = TRUE,
+                                          removeNumbers = TRUE,
+                                          bounds = list(global = c(3, Inf)))) 
+```
+
+
+And this appears to have taken care of the punctuation problem.
+
+```{r}
+inspect(opinions.tdm[1:10,])
+```
+
+
+We see, for example, that the term "abandon" appears in the third PDF file 8 times. Also notice that words have been stemmed. The word "achiev" is the stemmed version of "achieve", "achieved", "achieves", and so on.
+
+The tm package includes a few functions for summary statistics. We can use the <code>findFreqTerms</code> function to quickly find frequently occurring terms. To find words that occur at least 100 times:
+
+
+```{r}
+findFreqTerms(opinions.tdm, 
+              lowfreq = 100, 
+              highfreq = Inf)
+```
+
+
+To see the counts of those words we could save the result and use it to subset the TDM. Notice we have to use `as.matrix` to see the print out of the subsetted TDM. 
+
+```{r}
+
+ft <- findFreqTerms(opinions.tdm, 
+                    lowfreq = 100, 
+                    highfreq = Inf)
+as.matrix(opinions.tdm[ft,])
+```
+
+
+To see the total counts for those words, we could save the matrix and apply the <code>sum</code> function across the rows:
+
+```{r}
+ft.tdm <- as.matrix(opinions.tdm[ft,])
+sort(apply(ft.tdm, 1, sum), decreasing = TRUE)
+
+```
+
+
+Many more analyses are possible. But again the main point of this tutorial was how to read in text from PDF files for text mining. Hopefully this provides a template to get you started.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+

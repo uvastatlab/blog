@@ -1,0 +1,213 @@
+---
+title: Reading PDF files into R for text mining
+author: Clay Ford
+date: '2019-05-14'
+slug: reading-pdf-files-into-r-for-text-mining
+categories:
+  - R
+tags:
+  - text mining
+---
+
+
+
+<p>Let’s say we’re interested in text mining the opinions of The Supreme Court of the United States from the 2014 term. The opinions are published as PDF files at the following web page <a href="http://www.supremecourt.gov/opinions/slipopinion/14" target="_blank">http://www.supremecourt.gov/opinions/slipopinion/14</a>. We would probably want to look at all 76 opinions, but for the purposes of this introductory tutorial we’ll just look at the last three of the term: (1) Glossip v. Gross, (2) State Legislature v. Arizona Independent Redistricting Comm’n, and (3) Michigan v. EPA. These are the first three listed on the page. To follow along with this tutorial, download the three opinions by clicking on the name of the case. (If you want to download all the opinions, you may want to look into using a browser extension such as <a href="http://www.downthemall.net/" target="_blank">DownThemAll</a>.)</p>
+<p>To begin we load the <code>pdftools</code> package. The <code>pdftools</code> package provides functions for for extracting text from PDF files.</p>
+<pre class="r"><code># install.packages(&quot;pdftools&quot;)
+library(pdftools)</code></pre>
+<p>Next create a vector of PDF file names using the <code>list.files</code> function. The <code>pattern</code> argument says to only grab those files ending with “pdf”:</p>
+<pre class="r"><code>files &lt;- list.files(pattern = &quot;pdf$&quot;)</code></pre>
+<p><em>NOTE: the code above only works if you have your working directory set to the folder where you downloaded the PDF files. A quick way to do this in RStudio is to go to Session…Set Working Directory.</em></p>
+<p>The “files” vector contains the three PDF file names.</p>
+<pre class="r"><code>files</code></pre>
+<pre><code>## [1] &quot;13-1314_3ea4.pdf&quot; &quot;14-46_bqmc.pdf&quot;   &quot;14-7955_aplc.pdf&quot;</code></pre>
+<p>We’ll use this vector to automate the process of reading in the text of the PDF files.</p>
+<p>The pdftools function for extracting text is <code>pdf_text</code>. Using the <code>lapply</code> function, we can apply the <code>pdf_text</code> function to each element in the “files” vector and create an object called “opinions”.</p>
+<pre class="r"><code>opinions &lt;- lapply(files, pdf_text)</code></pre>
+<p>This creates a list object with three elements, one for each document. The <code>length</code> function verifies it contains three elements:</p>
+<pre class="r"><code>length(opinions)</code></pre>
+<pre><code>## [1] 3</code></pre>
+<p>Each element is a vector that contains the text of the PDF file. The length of each vector corresponds to the number of pages in the PDF file. For example, the first vector has length 81 because the first PDF file has 81 pages. We can <em>apply</em> the <code>length</code> function to each element to see this:</p>
+<pre class="r"><code>lapply(opinions, length) </code></pre>
+<pre><code>## [[1]]
+## [1] 81
+## 
+## [[2]]
+## [1] 47
+## 
+## [[3]]
+## [1] 127</code></pre>
+<p>And we’re pretty much done! The PDF files are now in R, ready to be cleaned up and analyzed. If you want to see what has been read in, you could enter the following in the console, but it’s going to produce unpleasant blocks of text littered with Character Escapes such as <code>\r</code> and <code>\n</code>.</p>
+<pre class="r"><code>opinions</code></pre>
+<p>When text has been read into R, we typically proceed to some sort of analysis. Here’s a quick demo of what we could do with the <code>tm</code> package. (tm = text mining)</p>
+<p>First we load the tm package and then create a corpus, which is basically a database for text. Notice that instead of working with the opinions object we created earlier, we start over.</p>
+<pre class="r"><code># install.packages(&quot;tm&quot;)
+library(tm)</code></pre>
+<pre class="r"><code>corp &lt;- Corpus(URISource(files),
+               readerControl = list(reader = readPDF))</code></pre>
+<p>The <code>Corpus</code> function creates a corpus. The first argument to <code>Corpus</code> is what we want to use to create the corpus. In this case, it’s the vector of PDF files. To do this, we use the <code>URISource</code> function to indicate that the files vector is a URI source. URI stands for Uniform Resource Identifier. In other words, we’re telling the <code>Corpus</code> function that the vector of file names identifies our resources. The second argument, <code>readerControl</code>, tells <code>Corpus</code> which reader to use to read in the text from the PDF files. That would be <code>readPDF</code>, a tm function. The <code>readerControl</code> argument requires a list of control parameters, one of which is <code>reader</code>, so we enter <code>list(reader = readPDF)</code>. Finally we save the result to an object called “corp”.</p>
+<p>It turns out that the <code>readPDF</code> function in the tm package actually <em>creates</em> a function that reads in PDF files. The documentation tells us it uses the <code>pdftools::pdf_text</code> function as the default, which is the same function we used above. (<code>?readPDF</code>)</p>
+<p>Now that we have a corpus, we can create a term-document matrix, or TDM for short. A TDM stores counts of terms for each document. The tm package provides a function to create a TDM called <code>TermDocumentMatrix</code>.</p>
+<pre class="r"><code>opinions.tdm &lt;- TermDocumentMatrix(corp, 
+                                   control = 
+                                     list(removePunctuation = TRUE,
+                                          stopwords = TRUE,
+                                          tolower = TRUE,
+                                          stemming = TRUE,
+                                          removeNumbers = TRUE,
+                                          bounds = list(global = c(3, Inf)))) </code></pre>
+<p>The first argument is our corpus. The second argument is a list of control parameters. In our example we tell the function to clean up the corpus before creating the TDM. We tell it to remove punctuation, remove stopwords (eg, <em>the</em>, <em>of</em>, <em>in</em>, etc.), convert text to lower case, <a href="https://en.wikipedia.org/wiki/Stemming" target="_blank">stem</a> the words, remove numbers, and only count words that appear at least 3 times. We save the result to an object called “opinions.tdm”.</p>
+<p>To inspect the TDM and see what it looks like, we can use the <code>inspect</code> function. Below we look at the first 10 terms:</p>
+<pre class="r"><code>inspect(opinions.tdm[1:10,])</code></pre>
+<pre><code>## &lt;&lt;TermDocumentMatrix (terms: 10, documents: 3)&gt;&gt;
+## Non-/sparse entries: 30/0
+## Sparsity           : 0%
+## Maximal term length: 6
+## Weighting          : term frequency (tf)
+## Sample             :
+##         Docs
+## Terms    13-1314_3ea4.pdf 14-46_bqmc.pdf 14-7955_aplc.pdf
+##   ——————               26              6               21
+##   —decid                1              1                1
+##   “all                  1              1                2
+##   “each                 5              1                1
+##   “in                  14              3                5
+##   “is                   3              1                4
+##   “it                   6              3                8
+##   “not                  1              4                6
+##   “on                   1              1                3
+##   “that                 2              1                2</code></pre>
+<p>We see words preceded with double quotes and dashes even though we specified <code>removePunctuation = TRUE</code>. We even see a series of dashes being treated as a word. What happened? It appears the <code>pdf_text</code> function preserved the unicode curly-quotes and em-dashes used in the PDF files.</p>
+<p>One way to take care of this is to manually use the <code>removePunctuation</code> function with <code>tm_map</code>, both functions in the tm package. The <code>removePunctuation</code> function has an argument called <code>ucp</code> that when set to TRUE will look for unicode punctuation. Here’s how we can use use it to remove punctuation from the corpus:</p>
+<pre class="r"><code>corp &lt;- tm_map(corp, removePunctuation, ucp = TRUE)</code></pre>
+<p>Now we can re-create the TDM, this time without the <code>removePunctuation = TRUE</code> argument.</p>
+<pre class="r"><code>opinions.tdm &lt;- TermDocumentMatrix(corp, 
+                                   control = 
+                                     list(stopwords = TRUE,
+                                          tolower = TRUE,
+                                          stemming = TRUE,
+                                          removeNumbers = TRUE,
+                                          bounds = list(global = c(3, Inf)))) </code></pre>
+<p>And this appears to have taken care of the punctuation problem.</p>
+<pre class="r"><code>inspect(opinions.tdm[1:10,])</code></pre>
+<pre><code>## &lt;&lt;TermDocumentMatrix (terms: 10, documents: 3)&gt;&gt;
+## Non-/sparse entries: 30/0
+## Sparsity           : 0%
+## Maximal term length: 10
+## Weighting          : term frequency (tf)
+## Sample             :
+##             Docs
+## Terms        13-1314_3ea4.pdf 14-46_bqmc.pdf 14-7955_aplc.pdf
+##   abandon                   1              1                8
+##   abdic                     1              1                1
+##   absent                    5              2                2
+##   accept                    6              4               12
+##   accompani                 1              2                2
+##   accomplish                4              1                1
+##   accord                   12             10               13
+##   account                   1             26                8
+##   accur                     1              3                1
+##   achiev                    1             15                3</code></pre>
+<p>We see, for example, that the term “abandon” appears in the third PDF file 8 times. Also notice that words have been stemmed. The word “achiev” is the stemmed version of “achieve”, “achieved”, “achieves”, and so on.</p>
+<p>The tm package includes a few functions for summary statistics. We can use the <code>findFreqTerms</code> function to quickly find frequently occurring terms. To find words that occur at least 100 times:</p>
+<pre class="r"><code>findFreqTerms(opinions.tdm, 
+              lowfreq = 100, 
+              highfreq = Inf)</code></pre>
+<pre><code>##  [1] &quot;also&quot;      &quot;amend&quot;     &quot;ant&quot;       &quot;case&quot;      &quot;cite&quot;     
+##  [6] &quot;claus&quot;     &quot;congress&quot;  &quot;constitut&quot; &quot;cost&quot;      &quot;court&quot;    
+## [11] &quot;decis&quot;     &quot;dissent&quot;   &quot;district&quot;  &quot;effect&quot;    &quot;elect&quot;    
+## [16] &quot;execut&quot;    &quot;feder&quot;     &quot;find&quot;      &quot;justic&quot;    &quot;law&quot;      
+## [21] &quot;major&quot;     &quot;make&quot;      &quot;may&quot;       &quot;one&quot;       &quot;opinion&quot;  
+## [26] &quot;petition&quot;  &quot;power&quot;     &quot;reason&quot;    &quot;requir&quot;    &quot;see&quot;      
+## [31] &quot;state&quot;     &quot;time&quot;      &quot;tion&quot;      &quot;unit&quot;      &quot;use&quot;      
+## [36] &quot;year&quot;</code></pre>
+<p>To see the counts of those words we could save the result and use it to subset the TDM. Notice we have to use <code>as.matrix</code> to see the print out of the subsetted TDM.</p>
+<pre class="r"><code>ft &lt;- findFreqTerms(opinions.tdm, 
+                    lowfreq = 100, 
+                    highfreq = Inf)
+as.matrix(opinions.tdm[ft,])</code></pre>
+<pre><code>##            Docs
+## Terms       13-1314_3ea4.pdf 14-46_bqmc.pdf 14-7955_aplc.pdf
+##   also                    24             13               74
+##   amend                   57              9               84
+##   ant                     38             36               46
+##   case                    67             12              109
+##   cite                    52             27               78
+##   claus                  123              4                1
+##   congress                70             43                3
+##   constitut              190              4               81
+##   cost                     1            220                8
+##   court                  197             57              343
+##   decis                   27             41               33
+##   dissent                 77             44              124
+##   district                90              4               81
+##   effect                  10             26              130
+##   elect                  178              1                4
+##   execut                  14              5              290
+##   feder                   77              8               28
+##   find                     9             60               54
+##   justic                  44              7               74
+##   law                    102             15               30
+##   major                   83             42                9
+##   make                    45             41               32
+##   may                     77             17               48
+##   one                     53             24               67
+##   opinion                 87             33              112
+##   petition                 3             11              127
+##   power                   98            115                8
+##   reason                  13             50               42
+##   requir                  22             40               52
+##   see                    101             66              182
+##   state                  529             25              260
+##   time                    29             19               63
+##   tion                    56             17               47
+##   unit                    63             22               38
+##   use                     37             13              140
+##   year                    22             19               92</code></pre>
+<p>To see the total counts for those words, we could save the matrix and apply the <code>sum</code> function across the rows:</p>
+<pre class="r"><code>ft.tdm &lt;- as.matrix(opinions.tdm[ft,])
+sort(apply(ft.tdm, 1, sum), decreasing = TRUE)</code></pre>
+<pre><code>##     state     court       see    execut constitut   dissent   opinion 
+##       814       597       349       309       275       245       232 
+##      cost     power       use      case     elect  district    effect 
+##       229       221       190       188       183       175       166 
+##      cite     amend       law       one       may  petition     major 
+##       157       150       147       144       142       141       134 
+##      year     claus    justic      find      unit       ant      tion 
+##       133       128       125       123       123       120       120 
+##      make  congress    requir     feder      also      time    reason 
+##       118       116       114       113       111       111       105 
+##     decis 
+##       101</code></pre>
+<p>Many more analyses are possible. But again the main point of this tutorial was how to read in text from PDF files for text mining. Hopefully this provides a template to get you started.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] tm_0.7-6     NLP_0.2-0    pdftools_2.2
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1      bookdown_0.9    digest_0.6.18   SnowballC_0.6.0
+##  [5] slam_0.1-45     magrittr_1.5    evaluate_0.13   blogdown_0.11  
+##  [9] stringi_1.4.3   xml2_1.2.0      qpdf_1.1        rmarkdown_1.12 
+## [13] tools_3.6.0     stringr_1.4.0   parallel_3.6.0  xfun_0.6       
+## [17] yaml_2.2.0      compiler_3.6.0  askpass_1.1     htmltools_0.3.6
+## [21] knitr_1.22</code></pre>
