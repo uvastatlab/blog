@@ -1,0 +1,358 @@
+---
+title: Understanding 2-way Interactions
+author: Clay Ford
+date: '2016-03-25'
+slug: understanding-2-way-interactions
+categories:
+  - R
+tags:
+  - interactions
+  - linear regression
+  - effect plots
+---
+
+
+
+<p>When doing linear modeling or ANOVA it’s useful to examine whether or not the effect of one variable depends on the level of one or more variables. If it does then we have what is called an “interaction”. This means variables combine or interact to affect the response. The simplest type of interaction is the interaction between two two-level categorical variables. Let’s say we have gender (male and female), treatment (yes or no), and a continuous response measure. If the response to treatment depends on gender, then we have an interaction.</p>
+<p>Using R, we can simulate data such as this. The following code first generates a vector of gender labels, 20 each of “male” and “female”. Then it generates treatment labels, 10 each of “yes” and “no”, alternating twice so we have 10 treated and 10 untreated for each gender. Next we generate the response by randomly sampling from two different normal distributions, one with mean 15 and the other with mean 10. Notice we create an interaction by sampling from the distributions in a different order for each gender. Finally we combine our vectors into a data frame.</p>
+<pre class="r"><code>gender &lt;- gl(n = 2, k = 20, labels = c(&quot;male&quot;,&quot;female&quot;))
+trt &lt;- rep(rep(c(&quot;yes&quot;,&quot;no&quot;), each=10),2)
+set.seed(1)
+resp &lt;- c(
+  rnorm(n = 20, mean = rep(c(15,10), each =10)),
+  rnorm(n = 20, mean = rep(c(10,15), each =10))
+  )
+dat &lt;- data.frame(gender, trt, resp)</code></pre>
+<p>Now that we have our data, let’s see how the mean response changes based on the two “main” effects:</p>
+<pre class="r"><code>aggregate(resp ~ gender, data = dat, mean)</code></pre>
+<pre><code>##   gender     resp
+## 1   male 12.69052
+## 2 female 12.49353</code></pre>
+<pre class="r"><code>aggregate(resp ~ trt, data = dat, mean)</code></pre>
+<pre><code>##   trt     resp
+## 1  no 12.68479
+## 2 yes 12.49926</code></pre>
+<p>Neither appear to have any effect on the mean response value. But what about their interaction? We can see this by looking at the mean response by both gender and trt using <code>tapply</code>:</p>
+<pre class="r"><code>with(dat, tapply(resp, list(gender, trt), mean))</code></pre>
+<pre><code>##              no       yes
+## male   10.24884 15.132203
+## female 15.12073  9.866327</code></pre>
+<p>Now we see something happening. The effect of trt depends on gender. If you’re male, trt causes the mean response to increase by about 5. If you’re female, trt causes the mean response to decrease by about 5. The two variables interact.</p>
+<p>A helpful function for visualizing interactions is <code>interaction.plot</code>. It basically plots the means we just examined and connects them with lines. The first argument, x.factor, is the variable you want on the x-axis. The second variable, trace.factor, is how you want to group the lines it draws. The third argument, response, is your response variable.</p>
+<pre class="r"><code>interaction.plot(x.factor = dat$trt, 
+                 trace.factor = dat$gender,
+                 response = dat$resp)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>The resulting plot shows an interaction. The lines cross. At the ends of each line are the means we previously examined. A plot such as this can be useful in visualizing an interaction and providing some sense of how strong it is. This is a very strong interaction as the lines are nearly perpendicular. An interaction where the lines cross is sometimes called an “interference” or “antagonistic” interaction effect.</p>
+<p>Boxplots can be also be useful in detecting and visualzing interactions. Below we use the formula notation to specify that resp be plotted by the interaction of gender and trt. That’s what the asterisk means in formula notation.</p>
+<pre class="r"><code>boxplot(resp ~ gender * trt, data=dat)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>By interacting two two-level variables we basically get a new four-level variable. We see once again that the effect of trt flips depending on gender.</p>
+<p>A common method for analyzing the effect of categorical variables on a continuous response variable is the Analysis of Variance, or ANOVA. In R we can do this with the <code>aov</code> function. Once again we employ the formula notation to specify the model. Below it says “model response as a function of gender, treatment and the interaction of gender and treatment.”</p>
+<pre class="r"><code>aov1 &lt;- aov(resp ~ trt*gender, data=dat)
+summary(aov1)</code></pre>
+<pre><code>##             Df Sum Sq Mean Sq F value Pr(&gt;F)    
+## trt          1   0.34    0.34   0.415  0.524    
+## gender       1   0.39    0.39   0.468  0.499    
+## trt:gender   1 256.94  256.94 309.548 &lt;2e-16 ***
+## Residuals   36  29.88    0.83                   
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<p>The main effects by themselves are not significant but the interaction is. This makes sense given our aggregated means above. We saw that the mean response was virtually no different based on gender or trt alone, but did vary substantially when both variables were combined. We can extract the same information from our <code>aov1</code> object using the <code>model.tables</code> function, which reports the grand mean, the means by main effects, and the means by the interaction:</p>
+<pre class="r"><code>model.tables(aov1, type = &quot;means&quot;)</code></pre>
+<pre><code>## Tables of means
+## Grand mean
+##          
+## 12.59203 
+## 
+##  trt 
+## trt
+##     no    yes 
+## 12.685 12.499 
+## 
+##  gender 
+## gender
+##   male female 
+## 12.691 12.494 
+## 
+##  trt:gender 
+##      gender
+## trt   male   female
+##   no  10.249 15.121
+##   yes 15.132  9.866</code></pre>
+<p>We can also fit a linear model to these data using the <code>lm</code> function:</p>
+<pre class="r"><code>lm1 &lt;- lm(resp ~ trt*gender, data=dat)
+summary(lm1)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = resp ~ trt * gender, data = dat)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -2.4635 -0.4570  0.1093  0.6152  1.4631 
+## 
+## Coefficients:
+##                     Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)          10.2488     0.2881   35.57  &lt; 2e-16 ***
+## trtyes                4.8834     0.4074   11.98 3.98e-14 ***
+## genderfemale          4.8719     0.4074   11.96 4.26e-14 ***
+## trtyes:genderfemale -10.1378     0.5762  -17.59  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.9111 on 36 degrees of freedom
+## Multiple R-squared:  0.8961, Adjusted R-squared:  0.8874 
+## F-statistic: 103.5 on 3 and 36 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>This returns a table of coefficients. (Incidentally we can get these same coefficients from the <code>aov1</code> object by using <code>coef(aov1)</code>.) Notice everything is “significant”. This just means the coefficients are significantly different from 0. It does not contradict the ANOVA results.</p>
+<p>The intercept in the linear model output is simply the mean response for gender=“male” and trt=“no”. (Compare it to the model.tables output above.) The coefficient for “genderfemale” is what you add to the intercept to get the mean response for gender=“female” when trt=“no”. Likewise, The coefficient for “trtyes” is what you add to the intercept to get the mean response for trt=“yes” when gender=“male”.</p>
+<p>The remaining combination to estimate is gender=“female” and trt=“yes”. For those settings, we add all the coefficients together to get the mean response for gender=“female” when trt=“yes”. Because of this it’s difficult to interpret the coefficient for the interaction. What does -10 mean exactly? In some sense, at least in this example, it basically offsets the main effects of gender and trt. If we look at the interaction plot again, we see that trt=“yes” and gender=“female” has about the same mean response as trt=“no” and gender=“male”.</p>
+<p><code>lm</code> and <code>aov</code> both give the same results but show different summaries. In fact, <code>aov</code> is just a wrapper for <code>lm</code>. The only reason to use <code>aov</code> is to create an aov object for use with functions such as <code>model.tables</code>.</p>
+<p>Using the effects package we can create a formal interaction plot with standard error bars to indicate the uncertainty in our estimates.</p>
+<pre class="r"><code>library(effects)
+plot(allEffects(aov1), 
+     multiline=TRUE, 
+     ci.style=&quot;bars&quot;)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>Another type of interaction is one in which the variables combine to amplify an effect. Let’s simulate some data to demonstrate. When simulating the response we establish a treatment effect for the first 20 observations by sampling 10 each from N(10,1) and N(13,1) distributions, respectively. We then amplify that effect by gender for the next 20 observations by sampling from N(25,1) and N(17,1) distributions, respectively.</p>
+<pre class="r"><code>set.seed(12)
+resp &lt;- c(
+  rnorm(n = 20, mean = rep(c(10,13), each = 10)),
+  rnorm(n = 20, mean = rep(c(25,17), each = 10))
+)
+
+dat2 &lt;- data.frame(gender, trt, resp)
+interaction.plot(x.factor = dat2$trt, 
+                 trace.factor = dat2$gender,
+                 response = dat2$resp)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>In this interaction the lines depart. An interaction effect like this is sometimes called a “reinforcement” or “synergistic” interaction effect. We see there’s a difference between genders when trt=“no”, but that difference is reinforced when trt=“yes” for each gender.</p>
+<p>Running an ANOVA on these data reveal a significant interaction as we expect, but notice the main effects are significant as well.</p>
+<pre class="r"><code>aov2 &lt;- aov(resp ~ trt*gender, data = dat2)
+summary(aov2)</code></pre>
+<pre><code>##             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+## trt          1   61.3    61.3   77.36 1.71e-10 ***
+## gender       1  985.8   985.8 1244.88  &lt; 2e-16 ***
+## trt:gender   1  330.3   330.3  417.09  &lt; 2e-16 ***
+## Residuals   36   28.5     0.8                     
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<p>That means the effects of gender and trt individually explain a fair amount of variability in the data. We can get a feel for this by looking at the mean response for each of these variables in addition to the mean response by the interaction.</p>
+<pre class="r"><code>model.tables(aov2, type = &quot;means&quot;)</code></pre>
+<pre><code>## Tables of means
+## Grand mean
+##          
+## 16.13323 
+## 
+##  trt 
+## trt
+##     no    yes 
+## 14.896 17.371 
+## 
+##  gender 
+## gender
+##   male female 
+## 11.169 21.098 
+## 
+##  trt:gender 
+##      gender
+## trt   male   female
+##   no  12.805 16.987
+##   yes  9.533 25.209</code></pre>
+<p>Fitting a linear model provides a table of coefficients, but once again it’s hard to interpret the interaction coefficient. As before the intercept is the mean response for males with trt=“no” while the other coefficients are what we add to the intercept to get the other three mean responses. And of course we can make a formal interaction plot with error bars.</p>
+<pre class="r"><code>lm2 &lt;- lm(resp ~ trt*gender, data=dat2)
+summary(lm2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = resp ~ trt * gender, data = dat2)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1.53043 -0.50900 -0.08787  0.40449  2.08545 
+## 
+## Coefficients:
+##                     Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)          12.8048     0.2814  45.503  &lt; 2e-16 ***
+## trtyes               -3.2720     0.3980  -8.222 8.81e-10 ***
+## genderfemale          4.1818     0.3980  10.508 1.63e-12 ***
+## trtyes:genderfemale  11.4942     0.5628  20.423  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.8899 on 36 degrees of freedom
+## Multiple R-squared:  0.9797, Adjusted R-squared:  0.978 
+## F-statistic: 579.8 on 3 and 36 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>plot(allEffects(aov2), 
+     multiline=TRUE, 
+     ci.style=&quot;bars&quot;)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>What about data with no interaction? How does that look? Let’s first simulate it. Notice how we generated the response. The means of the distribution change for each treatment, but the difference between them does not change for each gender.</p>
+<pre class="r"><code>set.seed(12)
+resp &lt;- c(
+  rnorm(n = 20, mean = rep(c(10,15), each = 10)),
+  rnorm(n = 20, mean = rep(c(12,17), each = 10))
+)
+
+dat3 &lt;- data.frame(gender, trt, resp)
+interaction.plot(x.factor = dat3$trt, 
+                 trace.factor = dat3$gender,
+                 response = dat3$resp)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p>The lines are basically parallel indicating the absence of an interaction effect. The effect of trt does not depend gender. If we do an ANOVA, we see the interaction is not significant.</p>
+<pre class="r"><code>summary(aov(resp ~ trt*gender, data = dat3))</code></pre>
+<pre><code>##             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+## trt          1 252.50  252.50 318.850  &lt; 2e-16 ***
+## gender       1  58.99   58.99  74.497 2.72e-10 ***
+## trt:gender   1   0.61    0.61   0.771    0.386    
+## Residuals   36  28.51    0.79                     
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<p>Of course statistical “significance” is just one of several things to check. If your data set is large enough, even the smallest interaction will appear significant. That’s how an interaction plot can help you determine if a statistically significant interaction is also meaningfully significant.</p>
+<p>Interactions can also happen between a continuous and a categorical variable. Let’s see what this looks by simulating some data. This time we generate our response by using a linear model with some random noise from a Normal distribution and then we plot the data using the ggplot2 package. Notice how we map the color of the dots to gender.</p>
+<pre class="r"><code>set.seed(2)
+gender &lt;- sample(0:1, size = 40, replace = TRUE)
+x1 &lt;- sort(runif(n = 40, min = 0, max = 4))
+y &lt;- 20 + 7*x1 + 10*gender - 5*gender*x1 + 
+  rnorm(40,sd = 0.7)
+dat4 &lt;- data.frame(gender = factor(gender, 
+                                   labels = c(&quot;male&quot;,&quot;female&quot;)), 
+                   x1, y)
+
+library(ggplot2)
+ggplot(dat4, aes(x=x1, y=y, color=gender)) + 
+  geom_point()</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>This looks a lot like our first interaction plot, except we have scattered dots replacing lines. As the x1 variable increases, the response increases for both genders, but it increases much more dramatically for males. To analyze this data we use the Analysis of Covariance, or ANCOVA. In R this simply means we use <code>lm</code> to fit the model. Because the scatter of points are intersecting by gender, we want to include an interaction.</p>
+<pre class="r"><code>lm3 &lt;- lm(y ~ x1 * gender, data=dat4)
+summary(lm3)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x1 * gender, data = dat4)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1.37689 -0.55701  0.05924  0.48865  1.70517 
+## 
+## Coefficients:
+##                 Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)      19.5924     0.3512   55.79   &lt;2e-16 ***
+## x1                7.1349     0.1650   43.25   &lt;2e-16 ***
+## genderfemale     10.8778     0.5026   21.64   &lt;2e-16 ***
+## x1:genderfemale  -5.2979     0.2142  -24.73   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.8095 on 36 degrees of freedom
+## Multiple R-squared:  0.9833, Adjusted R-squared:  0.982 
+## F-statistic: 708.2 on 3 and 36 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>Unlike the previous linear models with two categorical predictors, the coefficients in this model have ready interpretations. If we think of gender taking the value 0 for males and 1 for females, we see that the coefficients for the Intercept and x1 are the intercept and slope for the best fitting line through the “male” scatterplot. We can plot that as follows:</p>
+<pre class="r"><code># save the coefficients into a vector
+cs &lt;- coef(lm3)
+ggplot(dat4, aes(x=x1, y=y, color=gender)) + 
+  geom_point() + 
+  geom_abline(intercept = cs[1], 
+              slope = cs[2])</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p>The female coefficient is what we add to the intercept when gender = 1 (ie, for females). Likewise, the interaction coefficient is what we add to the x1 coefficient when gender = 1. Let’s plot that line as well.</p>
+<pre class="r"><code>ggplot(dat4, aes(x=x1, y=y, color=gender)) + 
+  geom_point() + 
+  geom_abline(intercept = cs[1], 
+              slope = cs[2]) + 
+  geom_abline(intercept = cs[1] + cs[3], 
+              slope = cs[2] + cs[4])</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p>The gender coefficient is the difference in intercepts while the interaction coefficient is the difference in slopes. The former may not be of much interest, but the latter is certainly important. It tells us that the trajectory for females is -4.5 lower than males. ggplot will actually plot these lines for us with <code>geom_smooth</code> function and <code>method='lm'</code>:</p>
+<pre class="r"><code>ggplot(dat4, aes(x=x1, y=y, color=gender)) + 
+  geom_point() + 
+  geom_smooth(method=&quot;lm&quot;)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p>Or we can use the effects package again.</p>
+<pre class="r"><code>plot(allEffects(lm3), 
+     multiline=TRUE, 
+     ci.style=&quot;bands&quot;)</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p>It looks like an interaction plot! The difference here is how uncertainty is expressed. With categorical variables the uncertainty is expressed as bars at the ends of the lines. With a continuous variable, the uncertainly is expressed as bands around the lines.</p>
+<p>Interactions can get yet more complicated. Two continuous variables can interact. Three variables can interact. You can have multiple two-way interactions. And so on. Even though software makes it easy to fit lots of interactions, Kutner, et al. (2005) suggest keeping two things in mind when fitting models with interactions:</p>
+<ol style="list-style-type: decimal">
+<li><p>Adding interaction terms to a regression model can result in high multicollinearities. A partial remedy is to center the predictor variables.</p></li>
+<li><p>When you have a large number of predictor variables, the potential number of interactions is large. Therefore it’s desireable, if possible, to identify those interactions that most likely influence the response. One thing you can try is plotting the residuals of a main-effects-only model against different interaction terms to see which ones appear to be influential in affecting the response.</p></li>
+</ol>
+<p>As an example of #1, run the following R code to see how centering the predictor variables reduces the variance inflation factors (VIF). A VIF in excess of 10 is usually taken as an indication that multicollinearity is influencing the model. Before centering, the VIF is about 60 for the main effects and 200 for the interaction. But after centering they fall well below 10.</p>
+<pre class="r"><code># stackloss: sample data that come with R
+fit1 &lt;- lm(stack.loss ~ Air.Flow * Water.Temp, 
+           data = stackloss)
+
+library(faraway) # for vif function
+vif(fit1)</code></pre>
+<pre><code>##            Air.Flow          Water.Temp Air.Flow:Water.Temp 
+##            63.96093            56.47550           206.24164</code></pre>
+<pre class="r"><code># center variables, refit model, and re-check VIF
+stackloss$Air.Flow.c &lt;- scale(stackloss$Air.Flow, 
+                              center = T, scale = F)
+stackloss$Water.Temp.c &lt;- scale(stackloss$Water.Temp, 
+                               center = T, scale = F)
+
+fit2 &lt;- lm(stack.loss ~ Air.Flow.c * Water.Temp.c, 
+           data = stackloss)
+vif(fit2)</code></pre>
+<pre><code>##              Air.Flow.c            Water.Temp.c Air.Flow.c:Water.Temp.c 
+##                2.963958                2.621931                1.657815</code></pre>
+<p>As an example of #2, the following R code fits a main-effects-only model and then plots the residuals against interactions. You’ll notice that none appear to influence the response. There is no pattern in the plot. Hence we may decide not to model interactions.</p>
+<pre class="r"><code>fit3 &lt;- lm(stack.loss ~ Air.Flow + Water.Temp + 
+             Acid.Conc., 
+           data = stackloss)
+
+plot(stackloss$Air.Flow*stackloss$Water.Temp, 
+     residuals(fit3))</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+<pre class="r"><code>plot(stackloss$Air.Flow*stackloss$Acid.Conc., 
+     residuals(fit3))</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-23-2.png" width="672" /></p>
+<pre class="r"><code>plot(stackloss$Water.Temp*stackloss$Acid.Conc., 
+     residuals(fit3))</code></pre>
+<p><img src="/post/2016-03-25-understanding-2-way-interactions_files/figure-html/unnamed-chunk-23-3.png" width="672" /></p>
+<div id="references" class="section level3">
+<h3>References</h3>
+<p>Kutner, et al. (2005). <em>Applied Linear Statistical Models</em>. McGraw-Hill. (Ch. 8)</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] faraway_1.0.7 ggplot2_3.1.1 effects_4.1-0 carData_3.0-2
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1        pillar_1.3.1      compiler_3.6.0   
+##  [4] nloptr_1.2.1      plyr_1.8.4        tools_3.6.0      
+##  [7] boot_1.3-22       digest_0.6.18     lme4_1.1-21      
+## [10] tibble_2.1.1      evaluate_0.13     nlme_3.1-139     
+## [13] gtable_0.3.0      lattice_0.20-38   pkgconfig_2.0.2  
+## [16] rlang_0.3.4       Matrix_1.2-17     DBI_1.0.0        
+## [19] yaml_2.2.0        blogdown_0.11     xfun_0.6         
+## [22] withr_2.1.2       dplyr_0.8.0.1     stringr_1.4.0    
+## [25] knitr_1.22        mitools_2.4       tidyselect_0.2.5 
+## [28] grid_3.6.0        nnet_7.3-12       glue_1.3.1       
+## [31] R6_2.4.0          survival_2.44-1.1 rmarkdown_1.12   
+## [34] bookdown_0.9      minqa_1.2.4       purrr_0.3.2      
+## [37] magrittr_1.5      scales_1.0.0      htmltools_0.3.6  
+## [40] MASS_7.3-51.4     splines_3.6.0     assertthat_0.2.1 
+## [43] colorspace_1.4-1  labeling_0.3      stringi_1.4.3    
+## [46] estimability_1.3  survey_3.36       lazyeval_0.2.2   
+## [49] munsell_0.5.0     crayon_1.3.4</code></pre>
+</div>

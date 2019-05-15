@@ -12,7 +12,7 @@ tags:
 
 
 <p>Let’s say we’re interested in text mining the opinions of The Supreme Court of the United States from the 2014 term. The opinions are published as PDF files at the following web page <a href="http://www.supremecourt.gov/opinions/slipopinion/14" target="_blank">http://www.supremecourt.gov/opinions/slipopinion/14</a>. We would probably want to look at all 76 opinions, but for the purposes of this introductory tutorial we’ll just look at the last three of the term: (1) Glossip v. Gross, (2) State Legislature v. Arizona Independent Redistricting Comm’n, and (3) Michigan v. EPA. These are the first three listed on the page. To follow along with this tutorial, download the three opinions by clicking on the name of the case. (If you want to download all the opinions, you may want to look into using a browser extension such as <a href="http://www.downthemall.net/" target="_blank">DownThemAll</a>.)</p>
-<p>To begin we load the <code>pdftools</code> package. The <code>pdftools</code> package provides functions for for extracting text from PDF files.</p>
+<p>To begin we load the <code>pdftools</code> package. The <code>pdftools</code> package provides functions for extracting text from PDF files.</p>
 <pre class="r"><code># install.packages(&quot;pdftools&quot;)
 library(pdftools)</code></pre>
 <p>Next create a vector of PDF file names using the <code>list.files</code> function. The <code>pattern</code> argument says to only grab those files ending with “pdf”:</p>
