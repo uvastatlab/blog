@@ -45,8 +45,13 @@ summary(brfss)</code></pre>
 </ul>
 <p>We wish to investigate the effect of smoking on COPD. Does smoking increase the chance of contracting COPD? Obviously this is not something we could carry out as a randomized experiment. But perhaps using this observational data and matching methods we can simulate what our data might look like had we carried out a randomized experiment. We can create two groups, smokers and non-smokers, who are roughly equivalent in age, race, sex, weight and alcohol consumption. (Please note this is only for educational purposes. While the data is real and the methods are sound, we would certainly include several other variables as well as enlist the help of doctors and epidemiologists to investigate a research question like this.)</p>
 <p>Before we start matching, let’s check the balance and overlap of our data. By balance we mean that the distributions of our data in the smoking and non-smoking groups are similar. By overlap, we mean that the continuous variables in the smoking and non-smoking groups span the same range of values. We can informally check both with some plots. Notice below we use the <code>factor()</code> function to ensure ggplot recognizes smoking as a categorical variable. We have smoking stored in our data as a numeric column of zeroes and ones because that’s how the MatchIt package requires treatment variables to be stored.</p>
-<pre class="r"><code>library(ggplot2)
-p &lt;- ggplot(brfss, aes(fill = factor(SMOKE))) + 
+<pre class="r"><code>library(ggplot2)</code></pre>
+<pre><code>## Registered S3 methods overwritten by &#39;ggplot2&#39;:
+##   method         from 
+##   [.quosures     rlang
+##   c.quosures     rlang
+##   print.quosures rlang</code></pre>
+<pre class="r"><code>p &lt;- ggplot(brfss, aes(fill = factor(SMOKE))) + 
   geom_bar(position = &quot;dodge&quot;) + 
   scale_fill_discrete(&quot;Smoke&quot;)
 p + aes(x = AGE)</code></pre>
@@ -287,12 +292,17 @@ Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Fo
 <em>Statistical Research Consultant</em><br />
 <em>University of Virginia Library</em></p>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 3.5.3 (2019-03-11)
+<pre><code>## R version 3.6.0 (2019-04-26)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
 ## Running under: Windows 10 x64 (build 17134)
 ## 
 ## Matrix products: default
 ## 
+## Random number generation:
+##  RNG:     Mersenne-Twister 
+##  Normal:  Inversion 
+##  Sample:  Rounding 
+##  
 ## locale:
 ## [1] LC_COLLATE=English_United States.1252 
 ## [2] LC_CTYPE=English_United States.1252   
@@ -307,12 +317,12 @@ Stuart, E. (2010). Matching Methods for Causal Inference: A Review and a Look Fo
 ## [1] MatchIt_3.0.2 ggplot2_3.1.1
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] Rcpp_1.0.1       knitr_1.22       magrittr_1.5     MASS_7.3-51.3   
+##  [1] Rcpp_1.0.1       knitr_1.22       magrittr_1.5     MASS_7.3-51.4   
 ##  [5] tidyselect_0.2.5 munsell_0.5.0    colorspace_1.4-1 R6_2.4.0        
 ##  [9] rlang_0.3.4      dplyr_0.8.0.1    stringr_1.4.0    plyr_1.8.4      
-## [13] tools_3.5.3      grid_3.5.3       gtable_0.3.0     xfun_0.6        
+## [13] tools_3.6.0      grid_3.6.0       gtable_0.3.0     xfun_0.6        
 ## [17] withr_2.1.2      htmltools_0.3.6  assertthat_0.2.1 yaml_2.2.0      
 ## [21] lazyeval_0.2.2   digest_0.6.18    tibble_2.1.1     crayon_1.3.4    
 ## [25] bookdown_0.9     purrr_0.3.2      glue_1.3.1       evaluate_0.13   
 ## [29] rmarkdown_1.12   blogdown_0.11    labeling_0.3     stringi_1.4.3   
-## [33] compiler_3.5.3   pillar_1.3.1     scales_1.0.0     pkgconfig_2.0.2</code></pre>
+## [33] compiler_3.6.0   pillar_1.3.1     scales_1.0.0     pkgconfig_2.0.2</code></pre>

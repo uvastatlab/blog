@@ -291,6 +291,11 @@ p</code></pre>
 }</code></pre>
 <p>Here’s a demonstration of the function.</p>
 <pre class="r"><code>predictionEllipse(mod = mlm2, newdata = nd)</code></pre>
+<pre><code>## Registered S3 methods overwritten by &#39;ggplot2&#39;:
+##   method         from 
+##   [.quosures     rlang
+##   c.quosures     rlang
+##   print.quosures rlang</code></pre>
 <p><img src="/post/2017-10-27-getting-started-with-multivariate-multiple-regression_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
 <p>The dot in the center is our predicted values for TOT and AMI. The ellipse represents the uncertainty in this prediction. We’re 95% confident the true values of TOT and AMI when GEN = 1 and AMT = 1200 are within the area of the ellipse. Notice also that TOT and AMI seem to be positively correlated. Predicting higher values of TOT means predicting higher values of AMI, and vice versa.</p>
 <div id="references" class="section level3">
@@ -305,7 +310,7 @@ p</code></pre>
 <em>Statistical Research Consultant</em><br />
 <em>University of Virginia Library</em></p>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 3.5.3 (2019-03-11)
+<pre><code>## R version 3.6.0 (2019-04-26)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
 ## Running under: Windows 10 x64 (build 17134)
 ## 
@@ -326,15 +331,15 @@ p</code></pre>
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] zip_2.0.1         Rcpp_1.0.1        plyr_1.8.4       
-##  [4] pillar_1.3.1      compiler_3.5.3    cellranger_1.1.0 
-##  [7] forcats_0.4.0     tools_3.5.3       digest_0.6.18    
+##  [4] pillar_1.3.1      compiler_3.6.0    cellranger_1.1.0 
+##  [7] forcats_0.4.0     tools_3.6.0       digest_0.6.18    
 ## [10] evaluate_0.13     tibble_2.1.1      gtable_0.3.0     
 ## [13] pkgconfig_2.0.2   rlang_0.3.4       openxlsx_4.1.0   
 ## [16] curl_3.3          yaml_2.2.0        blogdown_0.11    
 ## [19] haven_2.1.0       xfun_0.6          rio_0.5.16       
 ## [22] withr_2.1.2       dplyr_0.8.0.1     stringr_1.4.0    
 ## [25] knitr_1.22        hms_0.4.2         tidyselect_0.2.5 
-## [28] grid_3.5.3        glue_1.3.1        data.table_1.12.2
+## [28] grid_3.6.0        glue_1.3.1        data.table_1.12.2
 ## [31] R6_2.4.0          readxl_1.3.1      foreign_0.8-71   
 ## [34] rmarkdown_1.12    bookdown_0.9      purrr_0.3.2      
 ## [37] magrittr_1.5      scales_1.0.0      htmltools_0.3.6  

@@ -141,7 +141,7 @@ med.diff &lt;- function(d, i) {
                  R = 1000)</code></pre>
 <p>The boot.out object is a list object. The element named “t” contains the 1000 differences in medians. Taking the median of those values gives us a point estimate of the estimated difference in medians.</p>
 <pre class="r"><code>median(boot.out$t)</code></pre>
-<pre><code>## [1] -5.05</code></pre>
+<pre><code>## [1] -4.9</code></pre>
 <p>Next we use the <code>boot.ci</code> function to calculate confidence intervals. We specify <code>type = “perc”</code> to obtain the bootstrap percentile interval.</p>
 <pre class="r"><code>boot.ci(boot.out, type = &quot;perc&quot;)</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
@@ -152,7 +152,7 @@ med.diff &lt;- function(d, i) {
 ## 
 ## Intervals : 
 ## Level     Percentile     
-## 95%   (-9.8, -0.2 )  
+## 95%   (-9.40, -0.05 )  
 ## Calculations and Intervals on Original Scale</code></pre>
 <p>We notice the interval is not too different from what the <code>wilcox.test</code> function returned, but certainly bigger on the lower bound. Like the Wilcoxon rank sum test, bootstrapping is a non-parametric approach that can be useful for small and/or non-normal data.</p>
 <div id="references" class="section level3">

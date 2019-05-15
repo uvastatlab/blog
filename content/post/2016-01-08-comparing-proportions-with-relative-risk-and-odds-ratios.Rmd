@@ -1,0 +1,149 @@
+---
+title: Comparing Proportions with Relative Risk and Odds Ratios
+author: Clay Ford
+date: '2016-01-08'
+slug: comparing-proportions-with-relative-risk-and-odds-ratios
+categories:
+  - R
+tags:
+  - odds ratio
+  - relative risk
+---
+
+The classic two-by-two table displays counts of what may be called "successes" and "failures" versus some two-level grouping variable, such as gender (male and female) or treatment (placebo and active drug). An example of one such table is given in the book <em>An Introduction to Categorical Data Analysis</em> (Agresti, 1996, p. 20). The table classifies Myocardial Infarction (yes/no) with Group (Placebo/Aspirin). The data were "taken from a report on the relationship between aspirin use and myocardial infarction (heart attacks) by the Physicians' Health Study Research Group at Harvard Medical School."
+
+Let's reproduce the table in <a href="https://www.r-project.org/" target="_blank">R</a> and display it.
+
+```{r}
+# Table 2.3, page 20
+MI <- matrix(c(189, 104, 10845, 10933), nrow = 2)
+dimnames(MI) <- list("Group" = c("Placebo","Aspirin"), 
+                     "MI" = c("Yes","No"))
+MI
+```
+
+The first line creates the table as a matrix object and assigns it to the name "MI". Since we provide 4 numbers and specify "nrow = 2", we get a 2 x 2 table. (Notice that R fills the matrix by column by default.) The next line provides names for the dimensions of the table. The third line prints the table.
+
+At first glance we see relatively few physicians experienced Myocardial Infarction, which we'll call "MI" from here on out. We can calculate proportions in R using the <code>prop.table</code> function:
+
+```{r}
+prop.table(MI, margin = 1)
+```
+
+We specify `margin = 1` so the proportions are calculated row-wise. We see that the proportion of MI ("Yes") for both groups are not only small, but pretty close together. The Placebo group was about 2% while the Aspirin group was about 1%.
+
+Let's now work with this table and explore how we can compare these proportions. We'll cover much of what is presented in pages 20 - 25 of Agresti, but we’ll provide R code to show how to carry out the calculations.
+
+### Difference of Proportions
+
+A common approach to comparing proportions is to subtract one from the other and look at the difference. Of course if our data is a sample, the calculated difference in proportions is just an estimate. If we were take another sample and calculate the difference in proportions we would get a different estimate. So we need to calculate a standard error for the difference in proportions to give us some indication of its variability. Then we can use that standard error to form a confidence interval. To see the details of this we refer you to most any introductory statistics book or Google. For now let’s just do it in R.
+
+The easiest way is to use the prop.test function. If we give it a 2 x 2 table, it will test the null hypothesis that the proportions in both groups are the same. In addition it will provide a confidence interval for the difference in proportions. If we read the documentation for prop.test it says it requires “a two-dimensional table (or matrix) with 2 columns, giving the counts of successes and failures, respectively.”
+
+If we think of "Yes" as success and "No" as failure, that's exactly what we have with our MI matrix. The <code>prop.test</code> function will then calculate the proportion of "Yes" in the Placebo group and Aspirin group, respectively, test if they're equal or not, and output a confidence interval for the difference in the two proportions.
+
+```{r}
+prop.test(MI)
+```
+
+
+The 95 percent confidence interval is reported to be about (0.005, 0.011). It doesn't overlap with 0 and therefore we can feel pretty confident that there is a difference between proportions. The actual estimated difference is not provided but we can calculate it easily enough as follows:
+
+Above we saved the output of `prop.test` into an object called `p.out`. We then accessed the "estimate" element of the object, which contained both estimated proportions, and calculated the difference.
+
+Now the difference is small (less than 1%) and the sample is pretty big. We may be tempted to dismiss this difference as not practical and just an artifact of our large sample size. Standard errors, and hence p-values, are functions of sample size, so really large samples almost always lead to confidence intervals that don't overlap 0.
+
+But a difference between two proportions near 0 or 1 may be more noteworthy than a difference between two proportions that fall closer to the middle of the [0,1] range.
+
+To investigate this we turn to relative risk and odds ratios.
+
+### Relative Risk
+
+Relative risk is usually defined as the ratio of two "success" proportions. In our case, that’s the "Yes" group. We can calculate the relative risk in R "by hand" doing something like this:
+
+```{r}
+prop.out <- prop.table(MI, margin = 1)
+# relative risk of placebo vs. aspirin
+prop.out[1,1]/prop.out[2,1]
+
+```
+
+In the first line we save the result into an object called prop.out. It contains the row-wise proportions. In the next line we take the proportion of "Placebo/Yes" (row 1, column 1) and divide it by the proportion of "Aspirin/Yes" (row 2, column 1). The result of 1.82 can be interpreted as "the proportion of MI cases for physicians taking placebo was about 1.82 times the proportion of MI cases for physicians taking aspirin." Or stated another way, the sample proportion of MI cases was about 82% higher for the placebo group.
+
+So while the difference in proportions was slight (only about 0.008), the relative risk tells a different story. As Agresti states on page 22, "using the difference of proportions alone to compare two groups can be somewhat misleading when the proportions are both close to zero."
+
+Like the difference in proportions, relative risk is just an estimate when working with a sample. Its a good idea to calculate a confidence interval for the relative risk to determine a range of plausible values. Once again we'll let R do this for us, but this time we’ll use the <a href="https://CRAN.R-project.org/package=epitools" target="_blank">epitools</a> package, which provides functions for analysis in epidemiology. The function we want is <code>riskratio</code>.
+
+```{r}
+# install.packages("epitools")
+library(epitools)
+rr.out <- riskratio(MI)
+rr.out$measure
+```
+
+First we load the epitools package so we can access its function, then we feed MI to the <code>riskratio</code> function and save the results to an object called "rr.out". The "rr.out" object is a list object with 4 elements. We access the element named "measure" which contains the relative risk labeled as "risk ratio". But notice the calculation of 1.00784 is different than what we calculated above. What happened? Well, the <code>riskratio</code> function likes tables constructed differently than the <code>prop.test</code> function. If we review the documentation (<code>?riskratio</code>) we see that the function expects the "success" count in the right column. The epitools author refers to this as "disease=1". We have "success" in the left column. So the function took our MI table returned the risk ratio of the proportion of "No MI" in each group. That's not what we want. Fortunately the <code>riskratio</code> function has an argument called "rev" that allows you to easily switch (or reverse) the order of columns, rows, or both. Let's use it:
+
+```{r}
+rr.out <- riskratio(MI, rev="c")
+rr.out$measure
+```
+
+"rev=c" means reverse the order of columns. OK, we got something different but still not what we calculated by hand. What's going on? Actually the output clues us in. Notice the first row shows Placebo listed with a risk ratio estimate of 1. That means it's the reference level, or put another way, the denominator in the risk ratio calculation. So we see the <code>riskratio</code> function expects the first row to be the control group, or "exposed=0" as it's called in the documentation. That's actually what we have in the MI matrix, but we calculated the risk ratio as if Aspirin was the reference group, not the Placebo. What happened here is that Placebo was treated as the reference level and the risk ratio is thus calculated as 0.55. This translates to "physicians taking aspirin had 0.55 times the risk of MI compared to physicians in the Placebo group." This is not a wrong answer, it's just a different way of summarizing our table. If we want to replicate what we calculated by hand, then we need to reverse the order of both rows and columns like so (rev="b" means "both"):
+
+```{r}
+rr.out <- riskratio(MI, rev="b")
+rr.out$measure
+```
+
+Now we get the same answer as we calculated by hand along with a 95% confidence interval of (1.43, 2.31). Whereas we'd like to see a confidence interval for a difference not overlap 0, here we'd like to see a confidence interval not overlap 1. This one does not and we conclude that the proportions are different. Using the lower boundary of the interval we could say "the risk of MI is at least 43% higher for the placebo group." It's common to express a risk ratio as a percent increase when the risk ratio is greater than 1, and a percent decrease when the risk ratio is less than 1. Formulas for determining the percent increase or decrease are as follows:
+
+Percent increase = (Risk Ratio lower bound - 1) x 100    
+Percent decrease = (1 - Risk Ratio upper bound) x 100    
+
+It's worth stating again: when comparing two proportions close to 1 or 0, the risk ratio is usually a better summary than the raw difference.
+
+
+<strong>Odds Ratios</strong>
+
+We now turn to odds ratios as yet another way to summarize a 2 x 2 table. Odds are another way of expressing the likelihood of "success". We might say an event has a 75% chance of occurring. That's a probability of 0.75. To convert that to odds, we divide 0.75 by (1 - 0.75 = 0.25) and get 3. The odds of success are 3 to 1. We expect 3 successes for every 1 failure. Using our prop.out object we created earlier that contains row-wise proportions of MI, we can calculate the odds of MI in each group:
+
+```{r}
+# odds of MI in Placebo
+prop.out[1,1]/prop.out[1,2]
+
+# odds of MI in Aspirin
+prop.out[2,1]/prop.out[2,2]
+
+```
+
+The estimated odds don't look much different from the estimated probability (or proportions). This happens with probabilities close to 0. Using the fractions function that comes with the MASS package (included with base R), we can get a rational approximation of these values.
+
+```{r}
+MASS::fractions(prop.out[1,1]/prop.out[1,2])
+MASS::fractions(prop.out[2,1]/prop.out[2,2])
+```
+
+For the placebo group we expect to observe 21 heart attacks for every 1205 who don't have a heart attack. Likewise in the aspirin group we expect to observe 8 heart attacks for every 841 who don't have a heart attack.
+
+Just as we took the ratio of probabilities to get relative risk, we can take the ratio of odds to get an odds ratio. Once again we turn to the epitools package for its <code>oddsratio</code> function. The same table layout expectations apply to odds ratio that apply to <code>riskratio</code>: Our response (Yes/No) comprise the columns with "Yes" (success) in the right column, and our grouping variable (Placebo/Aspirin) comprise the rows with "Placebo" (control) in the first row. That means we need to switch our rows and columns again. Like <code>riskratio</code>, <code>oddsratio</code> has a "rev" argument to make this easy. Let's do it.
+
+```{r}
+or.out <- oddsratio(MI, rev="b")
+or.out$measure
+```
+
+As before, we save the results of oddsratio to an object, this time named "or.out". It, too, is a list object with an element called "measure" that contains the odds ratio and a 95% confidence interval.
+
+The odds ratio is reported as 1.83 with a confidence interval of (1.44, 2.34). Like we did with relative risk, we could look at the lower boundary and make a statement such as "the odds of MI are at least 44% higher for subjects taking placebo than for subjects taking aspirin." Or we might say "the estimated odds of MI were 83% higher for the placebo group."
+
+You may have noticed that the odds ratio and relative risk are very similar in this case. This happens when the proportions being compared are both close to 0. Which one you decide to use is a matter of personal preference and perhaps your audience.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```

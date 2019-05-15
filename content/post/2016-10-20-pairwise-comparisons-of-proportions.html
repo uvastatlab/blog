@@ -44,7 +44,7 @@ multHypTest &lt;- function(x){
 
 results &lt;- apply(coin.flips,2,multHypTest)
 mean(results)</code></pre>
-<pre><code>## [1] 0.199</code></pre>
+<pre><code>## [1] 0.186</code></pre>
 <p>That’s just for 10 trials. What about 15 or 20 or more? You can re-run the code above with trials set to a different value. We can also visualize it by plotting the probability of an unusual result (0, 1, 9, or 10 heads) versus the number trials. Notice how rapidly the probability of a false discovery increases with the number of trials.</p>
 <pre class="r"><code>curve(expr = 1 - (1 - pbinom(q = 1, size = 10, prob = 0.5) * 2)^x, 
       xlim = c(1,50),
