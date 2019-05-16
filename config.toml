@@ -13,10 +13,6 @@ publishDir = "../uvastatlab.github.io"
 [[menu.main]]
     name = " About"
     url = "/about/"
-
-[[menu.main]]
-    name = " Categories"
-    url = "/categories/"
     
 [[menu.main]]
     name = " Tags"
