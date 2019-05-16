@@ -1,0 +1,160 @@
+---
+title: Is R-squared Useless?
+author: Clay Ford
+date: '2015-10-17'
+slug: is-r-squared-useless
+categories:
+  - R
+tags:
+  - simulation
+  - r-squared
+---
+
+
+
+<p>On Thursday, October 16, 2015, a disbelieving student posted on Reddit <a href="https://www.reddit.com/r/statistics/comments/3ow1cd/my_stats_professor_just_went_on_a_rant_about_how/" target="_blank">My stats professor just went on a rant about how R-squared values are essentially useless, is there any truth to this?</a> It attracted a fair amount of attention, at least compared to other posts about statistics on Reddit.</p>
+<p>It turns out the student’s stats professor was <a href="http://www.stat.cmu.edu/~cshalizi/mreg/15/" target="_blank">Cosma Shalizi</a> of Carnegie Mellon University. Shalizi provides free and open access to his class lecture materials so we can see what exactly he was “ranting” about. It all begins in Section 3.2 of <a href="http://www.stat.cmu.edu/~cshalizi/mreg/15/lectures/10/lecture-10.pdf" target="_blank">his Lecture 10 notes</a>.</p>
+<p>In case you forgot or didn’t know, R-squared is a statistic that often accompanies regression output. It ranges in value from 0 to 1 and is usually interpreted as summarizing the percent of variation in the response that the regression model explains. So an R-squared of 0.65 might mean that the model explains about 65% of the variation in our dependent variable. Given this logic, we prefer our regression models have a high R-squared. Shalizi, however, disputes this logic with convincing arguments.</p>
+<p>In R, we typically get R-squared by calling the summary function on a model object. Here’s a quick example using simulated data:</p>
+<pre class="r"><code>x &lt;- 1:20                        # independent variable
+set.seed(1)                      # for reproducibility
+y &lt;- 2 + 0.5*x + rnorm(20,0,3)   # dependent variable
+mod &lt;- lm(y~x)                   # simple linear regression
+summary(mod)$r.squared           # r-squared value</code></pre>
+<pre><code>## [1] 0.6026682</code></pre>
+<p>One way to express R-squared is as the sum of squared fitted-value deviations divided by the sum of squared original-value deviations:</p>
+<p><span class="math display">\[R^{2} =  \frac{\sum (\hat{y} - \bar{\hat{y}})^{2}}{\sum (y - \bar{y})^{2}} \]</span></p>
+<p>We can calculate it directly using our model object like so:</p>
+<pre class="r"><code>f &lt;- mod$fitted.values       
+mss &lt;- sum((f - mean(f))^2) 
+tss &lt;- sum((y - mean(y))^2) 
+mss/tss</code></pre>
+<pre><code>## [1] 0.6026682</code></pre>
+<p>Now let’s take a look at a few of Shalizi’s statements about R-squared and demonstrate them with simulations in R.</p>
+<ol style="list-style-type: decimal">
+<li><em>R-squared does not measure goodness of fit. It can be arbitrarily low when the model is completely correct. By making <span class="math inline">\(\sigma^{2}\)</span> large, we drive R-squared towards 0, even when every assumption of the simple linear regression model is correct in every particular.</em></li>
+</ol>
+<p>What is <span class="math inline">\(\sigma^{2}\)</span>? When we perform linear regression, we assume our model almost predicts our dependent variable. The difference between “almost” and “exact” is assumed to be a draw from a Normal distribution with mean 0 and some variance we call <span class="math inline">\(\sigma^{2}\)</span>.</p>
+<p>Shalizi’s statement is easy enough to demonstrate. The way we do it here is to create a function that (1) generates data meeting the assumptions of simple linear regression (independent observations, normally distributed errors with constant variance), (2) fits a simple linear model to the data, and (3) reports the R-squared. Notice the only parameter for sake of simplicity is <code>sigma</code>. We then “apply” this function to a series of increasing <span class="math inline">\(\sigma\)</span> values and plot the results.</p>
+<pre class="r"><code>r2.0 &lt;- function(sig){
+  x &lt;- seq(1,10,length.out = 100)        
+  y &lt;- 2 + 1.2*x + rnorm(100,0,sd = sig) 
+  summary(lm(y ~ x))$r.squared           
+}
+
+sigmas &lt;- seq(0.5,20,length.out = 20)
+rout &lt;- sapply(sigmas, r2.0)
+plot(rout ~ sigmas, type=&quot;b&quot;)</code></pre>
+<p><img src="/post/2015-10-17-is-r-squared-useless_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>Sure enough, R-squared tanks hard with increasing sigma, even though the model is <em>completely correct</em> in every respect.</p>
+<ol start="2" style="list-style-type: decimal">
+<li><em>R-squared can be arbitrarily close to 1 when the model is totally wrong. </em></li>
+</ol>
+<p>Again, the point being made is that R-squared does not measure goodness of fit. Here we use code from a different section of Shalizi’s lecture 10 notes to generate non-linear data.</p>
+<pre class="r"><code>set.seed(1)
+# our predictor is data from an exponential distribution
+x &lt;- rexp(50,rate=0.005)                     
+# non-linear data generation
+y &lt;- (x-1)^2 * runif(50, min=0.8, max=1.2)   
+plot(x,y) # clearly non-linear</code></pre>
+<p><img src="/post/2015-10-17-is-r-squared-useless_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>Now check the R-squared:</p>
+<pre class="r"><code>summary(lm(y ~ x))$r.squared</code></pre>
+<pre><code>## [1] 0.8485146</code></pre>
+<p>It’s very high at about 0.85, but the model is completely wrong. Using R-squared to justify the “goodness” of our model in this instance would be a mistake. Hopefully one would plot the data first and recognize that a simple linear regression in this case would be inappropriate.</p>
+<ol start="3" style="list-style-type: decimal">
+<li><em>R-squared says nothing about prediction error, even with <span class="math inline">\(\sigma^{2}\)</span> exactly the same, and no change in the coefficients. R-squared can be anywhere between 0 and 1 just by changing the range of X. We’re better off using Mean Square Error (MSE) as a measure of prediction error.</em></li>
+</ol>
+<p>MSE is basically the fitted y values minus the observed y values, squared, then summed, and then divided by the number of observations.</p>
+<p>Let’s demonstrate this statement by first generating data that meets all simple linear regression assumptions and then regressing y on x to assess both R-squared and MSE.</p>
+<pre class="r"><code>x &lt;- seq(1,10,length.out = 100)
+set.seed(1)
+y &lt;- 2 + 1.2*x + rnorm(100,0,sd = 0.9)
+mod1 &lt;- lm(y ~ x)
+summary(mod1)$r.squared</code></pre>
+<pre><code>## [1] 0.9383379</code></pre>
+<pre class="r"><code># Mean squared error
+sum((fitted(mod1) - y)^2)/100 </code></pre>
+<pre><code>## [1] 0.6468052</code></pre>
+<p>Now repeat the above code, but this time with a different range of x. Leave everything else the same:</p>
+<pre class="r"><code># new range of x
+x &lt;- seq(1,2,length.out = 100)       
+set.seed(1)
+y &lt;- 2 + 1.2*x + rnorm(100,0,sd = 0.9)
+mod1 &lt;- lm(y ~ x)
+summary(mod1)$r.squared</code></pre>
+<pre><code>## [1] 0.1502448</code></pre>
+<pre class="r"><code># Mean squared error
+sum((fitted(mod1) - y)^2)/100        </code></pre>
+<pre><code>## [1] 0.6468052</code></pre>
+<p>The R-squared falls from 0.94 to 0.15 but the MSE remains the same. In other words the predictive ability is the same for both data sets, but the R-squared would lead you to believe the first example somehow had a model with more predictive power.</p>
+<ol start="4" style="list-style-type: decimal">
+<li><em>R-squared cannot be compared between a model with untransformed Y and one with transformed Y, or between different transformations of Y. R-squared can easily go down when the model assumptions are better fulfilled.</em></li>
+</ol>
+<p>Let’s examine this by generating data that would benefit from transformation. Notice the R code below is very much like our previous efforts but now we exponentiate our y variable.</p>
+<pre class="r"><code>x &lt;- seq(1,2,length.out = 100)
+set.seed(1)
+y &lt;- exp(-2 - 0.09*x + rnorm(100,0,sd = 2.5))
+summary(lm(y ~ x))$r.squared</code></pre>
+<pre><code>## [1] 0.003281718</code></pre>
+<pre class="r"><code>plot(lm(y ~ x), which=3)</code></pre>
+<p><img src="/post/2015-10-17-is-r-squared-useless_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>R-squared is very low and our residuals vs. fitted plot reveals outliers and non-constant variance. A common fix for this is to log transform the data. Let’s try that and see what happens:</p>
+<pre class="r"><code>plot(lm(log(y)~x),which = 3) </code></pre>
+<p><img src="/post/2015-10-17-is-r-squared-useless_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>The diagnostic plot looks much better. Our assumption of constant variance appears to be met. But look at the R-squared:</p>
+<pre class="r"><code>summary(lm(log(y)~x))$r.squared </code></pre>
+<pre><code>## [1] 0.0006921086</code></pre>
+<p>It’s even lower! This is an extreme case and it doesn’t always happen like this. In fact, a log transformation will usually produce an increase in R-squared. But as just demonstrated, assumptions that are better fulfilled don’t always lead to higher R-squared. And hence R-squared cannot be compared between models.</p>
+<ol start="5" style="list-style-type: decimal">
+<li><em>It is very common to say that R-squared is “the fraction of variance explained” by the regression. [Yet] if we regressed X on Y, we’d get exactly the same R-squared. This in itself should be enough to show that a high R-squared says nothing about explaining one variable by another.</em></li>
+</ol>
+<p>This is the easiest statement to demonstrate:</p>
+<pre class="r"><code>x &lt;- seq(1,10,length.out = 100)
+y &lt;- 2 + 1.2*x + rnorm(100,0,sd = 2)
+summary(lm(y ~ x))$r.squared</code></pre>
+<pre><code>## [1] 0.737738</code></pre>
+<pre class="r"><code>summary(lm(x ~ y))$r.squared</code></pre>
+<pre><code>## [1] 0.737738</code></pre>
+<p>Does x explain y, or does y explain x? Are we saying “explain” to dance around the word “cause”? In a simple scenario with two variables such as this, R-squared is simply the square of the correlation between x and y:</p>
+<pre class="r"><code>all.equal(cor(x,y)^2, 
+          summary(lm(x ~ y))$r.squared, 
+          summary(lm(y ~ x))$r.squared
+          )</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<p>Why not just use correlation instead of R-squared in this case? But then again correlation summarizes <em>linear</em> relationships, which may not be appropriate for the data. This is another instance where plotting your data is strongly advised.</p>
+<p>Let’s recap:</p>
+<ul>
+<li>R-squared does not measure goodness of fit.</li>
+<li>R-squared does not measure predictive error.</li>
+<li>R-squared does not allow you to compare models using transformed responses.</li>
+<li>R-squared does not measure how one variable explains another.</li>
+</ul>
+<p>And that’s just what we covered in this article. Shalizi gives even more reasons in his lecture notes. And it should be noted that Adjusted R-squared does nothing to address any of these issues.</p>
+<p>So is there any reason at all to use R-squared? Shalizi says no. (“I have never found a situation where it helped at all.”) No doubt, some statisticians and Redditors might disagree. Whatever your view, if you choose to use R-squared to inform your data analysis, it would be wise to double-check that it’s telling you what you think it’s telling you.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.6.0  magrittr_1.5    bookdown_0.9    tools_3.6.0    
+##  [5] htmltools_0.3.6 yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3  
+##  [9] rmarkdown_1.12  blogdown_0.11   knitr_1.22      stringr_1.4.0  
+## [13] digest_0.6.18   xfun_0.6        evaluate_0.13</code></pre>
