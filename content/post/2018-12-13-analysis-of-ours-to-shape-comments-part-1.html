@@ -1,0 +1,246 @@
+---
+title: Analysis of Ours to Shape Comments, Part 1
+author: Michele Claibourn
+date: '2018-12-13'
+slug: analysis-of-ours-to-shape-comments-part-1
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>As part of a series of workshops on quantitative analysis of text this fall, I started examining the comments submitted to President Ryan’s <a href="http://ourstoshape.virginia.edu/">Ours to Shape website</a>. The site invites people to share their ideas and insights for UVA going forward, particularly in the domains of service, discovery, and community. The website was only one venue for providing suggestions and voicing possibilities – President Ryan has hosted community discussions as well – but the website afforded an opportunity for individuals to chime in multiple times and at their convenience, so in theory should represent an especially inclusive collection.</p>
+<p>After spending several weeks developing this example for the workshops, I thought I’d share some interesting bits in a series of blog posts.</p>
+<p>I’m going to focus on results rather than code, but if you’re interested, the full code – to scrape the content (using <a href="https://github.com/ropensci/RSelenium">RSelenium</a> and <a href="https://github.com/hadley/rvest">rvest</a>), read in and clean up the comments (using <a href="http://quanteda.io/">quanteda</a>), and analyze the text (mostly with quanteda) in multiple ways – is available on <a href="https://github.com/mclaibourn/textanalysis_2018workshops/tree/master">GitHub</a>. If you’re new to quanteda and would like to know more, check out our new StatLab article (by Leah Malkovich) on <a href="https://data.library.virginia.edu/a-beginners-guide-to-text-analysis-with-quanteda/">getting started with quanteda!</a></p>
+</div>
+<div id="comments-categories-and-connections" class="section level2">
+<h2>Comments, Categories, and Connections</h2>
+<p>First, let’s get to know the data!</p>
+<pre><code>## 
+## community discovery   service 
+##       481       212       155</code></pre>
+<p>We have 848 comments (as of December 7, 2018), with over half of the comments added under the “community” tag. I was actually pretty excited about that at first, all that attention to community, but we’ll dig a little further into what that means in a later post.</p>
+<p>When contributing ideas on the website, individuals were asked to identify their connection to UVa – let’s see who’s adding their thoughts.</p>
+<pre><code>##   alumni community staff student supporter faculty parent number
+## 1   0.47      0.23  0.22     0.2      0.15    0.14   0.13   1.53</code></pre>
+<p>Alumni are the most frequent contributors, with 47% indicating that status, followed by members of the community, university staff, students, individuals identifying as university supporters, faculty, and parents of students. But individuals could identify with multiple (pre-defined) roles, and on average, they identified 1.5 connections.</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/numroles-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>The bulk of comments (66%) come from individuals who identified only a single connection. There are a small number who intersect with UVa in multiple ways, but so few that I truncated the upper end of number of roles to 4 or more in a measure of connection strength/number of connections.</p>
+<p>It’s also worth thinking about individual’s primary connection, so I also construct a mutually exclusive categorization of each commenter’s primary role. That is, if someone is both a faculty member at UVA and an alumnus of UVA, I’ll argue that the current faculty role is the primary role, the one that has the strongest influence on one’s current thinking. Similarly, if one is both a student and a supporter, one’s experience as a student is likely to have a stronger influence. And if an individual identifies as both UVA staff and a community member, her experience as an employee is likely to have a primary influence. One can disagree with any of these rankings, of course, so it’s worth being clear on the primacy I’ve given to each role.</p>
+<ul>
+<li>Faculty, staff, or student will take precedence over alumni, parent, community member, and supporter</li>
+<li>Faculty will take precedence (on the presumption that individuals claiming this role are faculty)</li>
+<li>Student will take precedence over staff (on the presumption that these are students who are also employed by UVA)</li>
+<li>Alumni will take precedence over community, supporter, and parent (on the presumption that one’s experience within UVA will be the more powerful)</li>
+<li>Parent will take precedence over community and supporter</li>
+<li>Community will take precedence over supporter</li>
+</ul>
+<p>Given this operationalization of “primary role”, the distribution of contributors looks like…</p>
+<pre><code>## 
+##    alumni community   faculty    parent     staff   student supporter 
+##       312        44       110        39       172       163         8</code></pre>
+<p>The comments are still dominated by individuals whose primary connection is as alumni (36%), followed by staff and students (20% each), then faculty (13%), community members and parents (5% each), and institutional supporters (1%).</p>
+<p>Do those with more connections contribute more to comments about community, discovery, or service?</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/crosstab-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>There is no apparent relationship between the number of connections a contributor identifies and the category of their comments (a chi-square test confirms the absence of any statistically discernible difference in category distribution by number of connections). Okay, what about the nature of the primary connection?</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/crosstab2-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Here there are differences. In particular, faculty are more likely than others to comment in the category of “discovery” and are the least likely to add ideas to the “community” field. Supporters, too, add to the “discovery” category at rates higher than other contributors. The trade offs are primarily between community and discovery; contributions to the “service” category are relatively low across all primary connections.</p>
+</div>
+<div id="length-and-readability" class="section level2">
+<h2>Length and Readability</h2>
+<p>So far, we’ve been looking at the document metadata. Next, let’s create a corpus from the text of the comments, extract the length of each comment (number of words), and compare across comment categories and commenter type.</p>
+<pre><code>## Corpus consisting of 848 documents and 14 docvars.</code></pre>
+<pre><code>## # A tibble: 3 x 3
+##   type      `mean(words)` `sd(words)`
+##   &lt;chr&gt;             &lt;dbl&gt;       &lt;dbl&gt;
+## 1 community         132.        181. 
+## 2 discovery         106.        128. 
+## 3 service            82.8        51.1</code></pre>
+<p>Not only are there more “community” comments, these tend to be a bit longer, though the length of these comments is also highly variable (check out that standard deviation – bigger than the mean!). Indeed, the figure below shows that comments have similar lengths across categories, but the community category attracts a small number of extremely long comments.</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/wordfig-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Length by number of connections?</p>
+<pre><code>## # A tibble: 4 x 3
+##   numroles4 `mean(words)` `sd(words)`
+##       &lt;dbl&gt;         &lt;dbl&gt;       &lt;dbl&gt;
+## 1         1         135.        185. 
+## 2         2          82.9        35.9
+## 3         3          77.4        30.2
+## 4         4          83.7        28.4</code></pre>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/wordfig2,%20-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Those identifying only one connection do leave lengthier comments, on average. This surprised me a bit as my prior was that those who intersect with UVA in multiple ways would have more to say, or would speak to multiple dimensions. What about comment length by a contributor’s primary connection?</p>
+<pre><code>## # A tibble: 7 x 3
+##   primary   `mean(words)` `sd(words)`
+##   &lt;chr&gt;             &lt;dbl&gt;       &lt;dbl&gt;
+## 1 alumni             84.7        64.6
+## 2 community         128.        139. 
+## 3 faculty           118.        193. 
+## 4 parent             87.2        56.8
+## 5 staff             111.        145. 
+## 6 student           187         234. 
+## 7 supporter          99.9        42.7</code></pre>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/wordfig3,%20-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Some suggestive differences arise by primary connection – in particular, the cluster of relatively wordy comments by students, compared to other groups.</p>
+<p>Comment length is one way of considering complexity. Another is the readability of the text. Readability here is a measure of how easy a comment is to read based on vocabulary and sentence complexity. Let’s extract readability and compare it across groups.</p>
+<pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   -2.23   10.09   12.17   12.46   14.46   29.45</code></pre>
+<p>On average, comments to Ours to Shape are written just over a 12th-grade reading level. That’s a reasonably high level of complexity – newspapers hover around the 11th-grade reading level and common advice is to write material intended for the mass public at the 9th-grade level. Does readability/grade-level of comments differ across comment categories?</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/readfig1-1.png" width="480" style="display: block; margin: auto;" />
+No, not really. There’s no real difference in the readability/complexity of the comments by category (community, service, discovery) or by the number of connections a commenter has to the university (numroles4). What about by the number of connections a contributor has with UVA?</p>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/readfig2-1.png" width="288" style="display: block; margin: auto;" /></p>
+<p>Again, no apparent differences. And here’s the average readability by primary connection:</p>
+<pre><code>## # A tibble: 7 x 4
+##   primary   `mean(read)` `sd(read)` `n()`
+##   &lt;chr&gt;            &lt;dbl&gt;      &lt;dbl&gt; &lt;int&gt;
+## 1 alumni            12.1       3.57   312
+## 2 community         11.3       4.37    44
+## 3 faculty           13.2       3.87   110
+## 4 parent            11.1       4.36    39
+## 5 staff             13.2       3.76   172
+## 6 student           12.4       3.64   163
+## 7 supporter         14.7       5.77     8</code></pre>
+<p><img src="/post/2018-12-13-analysis-of-ours-to-shape-comments-part-1_files/figure-html/readfig3-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Nothing, really – though I think the violin plots are pretty! There are no substantive difference by comment category, number of connections, or primary connection. We’re all writing, on average, equally complex feedback!</p>
+<p>For fun, here’s the least “easy-to-read” comment based on this measure:</p>
+<pre><code>##      type     read
+## 1 service 29.44754
+##                                                                                                                                                                                                                                                                                                                                                                                                                                     text
+## 1 Prepare students for the real world—a world without “safe spaces” and “trigger warnings”, a world where opinions must be bassed on facts instead of feelings, and where if they don&#39;t become mature, responsible adults (instead of coddled children) they will be utterly subjugated by China (which produces more engineers in a year than we produce college graduates and doesn&#39;t care about your feelings) by the time they&#39;re 50</code></pre>
+<p>Huh… okay… not as much fun as I’d hoped…</p>
+</div>
+<div id="key-words-in-context" class="section level2">
+<h2>Key Words in Context</h2>
+<p>Moving on, let’s look at a few key words and see how they’re used. This is a really useful way to get to know a corpus. Here I’m just going straight to my own interests, looking for occurrences of words around equity/equality and around library. First up, equity! Here are all 27 occurrences of equity/equitable, equal(s)/equality across 23 Ours to Shape comments.</p>
+<pre><code>##                                                                      
+##  [24, 225]       , which almost |  equals   | to the GDP             
+##   [32, 69]    everyone is given |   equal   | opportunities. This    
+##  [34, 493]        fitness to be |   equal   | to the development     
+##   [55, 66]     staff members as |  equals   | . More should          
+##  [57, 125]    action to support |  equity   | .                      
+##  [88, 128]          where I had |   equal   | male and female        
+##  [292, 33]   Pathways to Health |  Equity   | &quot;&quot; report              
+##  [295, 17] resources to promote |  equity   | . The University       
+##  [295, 26]    Action for Racial |  Equity   | &quot;&quot; Call                
+##  [295, 62]  point for promoting |  equity   | .                      
+##  [327, 86]   after separate but |   equal   | status in the          
+##  [352, 51]    do to incentivize |  equity   | , sustainability,      
+##  [357, 56]     attachment to an | equitable | workplace as well      
+##  [359, 42]      basic values of | equality  | and justice.           
+##  [388, 42]    Action for Racial |  Equity   | ) and especially       
+##  [409, 47]          a leader in | equality  | , equity and           
+##  [409, 49]         in equality, |  equity   | and academic excellence
+##  [428, 10]   online learners as |   equal   | members of our         
+##  [431, 10] the community toward | equality  | for all people         
+##  [431, 22]  beyond appearances. | Equality  | means a decent         
+##  [472, 30]        our values of |  equity   | and inclusion in       
+##  [549, 92]           for a more | equitable | understanding of the   
+##  [602, 10] that promotes health |  equity   | , research should      
+##  [697, 44]        every one has |   equal   | respect. One           
+##  [715, 85]            . Only as |  equals   | can we serve           
+##  [772, 73]     service in which |  equity   | and the environment    
+##  [811, 56]     all opinions are |   equal   | , nor are</code></pre>
+<p>All but a handful appear to be referencing notions of equity, though, to be honest, this represents less attention to equity than I’d expected.</p>
+<p>How (often) does the library come up?</p>
+<pre><code>##                                                                    
+##     [3, 59]             the UVA | libraries | are available        
+##     [3, 78]           the Small |  Library  | and the              
+##   [14, 426]         in Alderman |  library  | resulted in          
+##   [24, 664]          our school |  library  | . I                  
+##   [118, 32]         of Alderman |  Library  | . While              
+##   [118, 38]         believe the |  library  | does need            
+##  [118, 109]           using the |  library  | in their             
+##   [125, 42]         of Alderman |  Library  | . While              
+##   [125, 48]         believe the |  library  | does need            
+##  [125, 123]           using the |  library  | in their             
+##   [131, 13]         at Alderman |  library  | not be               
+##   [131, 97]      have completed |  library  | renovations by       
+##   [133, 88]         and Clemons | libraries | &#39; storage            
+##   [243, 61]              in the |  library  | who have             
+##   [483, 21]        the Alderman |  Library  | . Without            
+##   [483, 43]           other UVA | libraries | ) remain             
+##    [519, 4]        the Alderman |  Library  | renovation,          
+##  [524, 132]         of Alderman |  Library  | . Our                
+##  [524, 150]         of Virginia |  Library  | system.              
+##  [524, 257]         of Alderman |  Library  | dramatically lower   
+##  [524, 512]       main research |  library  | at the               
+##  [524, 587]         at Alderman |  Library  | and the              
+##  [524, 595] Special Collections |  Library  | , all                
+##   [527, 30]           access to |  library  | holdings-            
+##    [529, 5]       , competitive |  library  | collection with      
+##   [530, 16]           a vibrant |  library  | . The                
+##   [530, 89]            trend in | libraries | has a                
+##    [531, 6]           plans for |  library  | renovation from      
+##   [531, 32]          . Alderman |  Library  | used to              
+##   [532, 27]         of Alderman |  Library  | , as                 
+##   [532, 41]              by the | library&#39;s | administration with  
+##   [532, 88]             use the |  library  | for our              
+##   [533, 28]         the current |  library  | volume will          
+##   [533, 67]          with their |  library  | capacities decreasing
+##   [535, 10]         of Alderman |  Library  | prioritizes keeping  
+##   [535, 41]       adjusting the | library&#39;s | layout.              
+##   [624, 45]         world class |  library  | collections,         
+##    [626, 4]            faculty, |  Library  | and library          
+##    [626, 6]         Library and |  library  | help are             
+##   [626, 19]               , the |  Library  | became a             
+##   [626, 32]               . But |  Library  | services have        
+##   [644, 17]             . UVA&#39;s | libraries | , lecture            
+##    [646, 8]         of Alderman |  library  | MUST be              
+##    [659, 8]       a world-class |  library  | that provides        
+##    [718, 9]   renovate Alderman |  Library  | are both             
+##   [718, 51]         and easiest |  library  | that was</code></pre>
+<p>There are 46 references to the library across 24 comments, mostly connected to the planned renovation of Alderman Library. Sigh. Notice the repeated comment, though? Comment 118 and 125? This is the first hint of a behavior we’ll see again later, the same comment submitted multiple times…</p>
+</div>
+<div id="still-to-come" class="section level2">
+<h2>Still to Come</h2>
+<p>In the next post, we’ll create a document feature matrix and start examining word frequencies, relative frequencies by groups, distinctive words, and n-grams. Later, we’ll take some forays into document similarity and feature co-occurrence, sentiment analysis, document clustering, and topic modeling.</p>
+<p>For questions or clarifications regarding this article, contact the UVa
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Michele Claibourn</em><br />
+<em>Director, Research Data Services</em><br />
+<em>University of Virginia Library</em></p>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] ggpubr_0.2         magrittr_1.5       scales_1.0.0      
+##  [4] RColorBrewer_1.1-2 forcats_0.4.0      stringr_1.4.0     
+##  [7] dplyr_0.8.1        purrr_0.3.2        readr_1.3.1       
+## [10] tidyr_0.8.3        tibble_2.1.1       ggplot2_3.1.1     
+## [13] tidyverse_1.2.1    readtext_0.74      quanteda_1.4.3    
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1         lubridate_1.7.4    lattice_0.20-38   
+##  [4] zeallot_0.1.0      assertthat_0.2.1   digest_0.6.18     
+##  [7] utf8_1.1.4         R6_2.4.0           cellranger_1.1.0  
+## [10] plyr_1.8.4         backports_1.1.4    evaluate_0.13     
+## [13] httr_1.4.0         blogdown_0.12      pillar_1.4.0      
+## [16] rlang_0.3.4        lazyeval_0.2.2     readxl_1.3.1      
+## [19] rstudioapi_0.10    data.table_1.12.2  Matrix_1.2-17     
+## [22] rmarkdown_1.12     labeling_0.3       munsell_0.5.0     
+## [25] broom_0.5.2        compiler_3.6.0     spacyr_1.0        
+## [28] modelr_0.1.4       xfun_0.7           pkgconfig_2.0.2   
+## [31] htmltools_0.3.6    tidyselect_0.2.5   bookdown_0.10     
+## [34] fansi_0.4.0        crayon_1.3.4       withr_2.1.2       
+## [37] grid_3.6.0         nlme_3.1-139       jsonlite_1.6      
+## [40] gtable_0.3.0       RcppParallel_4.4.2 cli_1.1.0         
+## [43] stringi_1.4.3      xml2_1.2.0         vctrs_0.1.0       
+## [46] stopwords_0.9.0    generics_0.0.2     fastmatch_1.1-0   
+## [49] tools_3.6.0        glue_1.3.1         hms_0.4.2         
+## [52] yaml_2.2.0         colorspace_1.4-1   rvest_0.3.3       
+## [55] knitr_1.22         haven_2.1.0</code></pre>
+</div>

@@ -1,0 +1,285 @@
+---
+title: Analysis of Ours to Shape Comments, Part 1
+author: Michele Claibourn
+date: '2018-12-13'
+slug: analysis-of-ours-to-shape-comments-part-1
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(quanteda) # main text package
+library(readtext) # flexibly read in text
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+library(ggpubr) # graphs of summary statistics
+```
+
+
+## Introduction
+
+As part of a series of workshops on quantitative analysis of text this fall, I started examining the comments submitted to President Ryan's [Ours to Shape website](http://ourstoshape.virginia.edu/). The site invites people to share their ideas and insights for UVA going forward, particularly in the domains of service, discovery, and community. The website was only one venue for providing suggestions and voicing possibilities -- President Ryan has hosted community discussions as well -- but the website afforded an opportunity for individuals to chime in multiple times and at their convenience, so in theory should represent an especially inclusive collection.
+
+After spending several weeks developing this example for the workshops, I thought I'd share some interesting bits in a series of blog posts.
+
+I'm going to focus on results rather than code, but if you're interested, the full code -- to scrape the content (using [RSelenium](https://github.com/ropensci/RSelenium) and [rvest](https://github.com/hadley/rvest)), read in and clean up the comments (using [quanteda](http://quanteda.io/)), and analyze the text (mostly with quanteda) in multiple ways -- is available on [GitHub](https://github.com/mclaibourn/textanalysis_2018workshops/tree/master). If you're new to quanteda and would like to know more, check out our new StatLab article (by Leah Malkovich) on [getting started with quanteda!](https://data.library.virginia.edu/a-beginners-guide-to-text-analysis-with-quanteda/)
+
+
+## Comments, Categories, and Connections
+
+First, let's get to know the data!
+```{r data}
+# if you'd like to follow along, you can find the data and scripts on GitHub
+#   https://github.com/mclaibourn/textanalysis_2018workshops/tree/master
+# once you've acquired the data, point your working directory appropriately
+
+# read in scraped comments
+comments <- readtext("../../static/data/ots_comments.csv", text_field = "comment")
+
+# and simplify doc_id (remove the source filename)
+comments <- comments %>% mutate(doc_id = str_sub(doc_id, 18))
+# multiple roles could be selected; I want binary indicators 
+comments <- comments %>% 
+  mutate(alum = ifelse(str_detect(role, "Alumna/us"), 1, 0),
+         community = ifelse(str_detect(role, "Community Member"), 1, 0),
+         faculty = ifelse(str_detect(role, "Faculty"), 1, 0),
+         parent = ifelse(str_detect(role, "Parent"), 1, 0),
+         staff = ifelse(str_detect(role, "Staff"), 1, 0),
+         student = ifelse(str_detect(role, "Student"), 1, 0),
+         supporter = ifelse(str_detect(role, "Supporter"), 1, 0))
+comments$numroles <- rowSums(comments[,6:12])
+# number of comments by type
+table(comments$type)
+# factor type
+comments <- comments %>% mutate(type_f = as.factor(type))
+```
+
+We have 848 comments (as of December 7, 2018), with over half of the comments added under the "community" tag. I was actually pretty excited about that at first, all that attention to community, but we'll dig a little further into what that means in a later post.
+
+When contributing ideas on the website, individuals were asked to identify their connection to UVa -- let's see who's adding their thoughts.
+
+```{r roles}
+# which roles
+comments %>% summarize(alumni = mean(alum), community = mean(community),
+                       staff = mean(staff), student = mean(student),
+                       supporter = mean(supporter), faculty = mean(faculty),
+                       parent = mean(parent), number = mean(numroles)) %>% 
+  round(digits = 2)
+```
+
+Alumni are the most frequent contributors, with 47% indicating that status, followed by members of the community, university staff, students, individuals identifying as university supporters, faculty, and parents of students. But individuals could identify with multiple (pre-defined) roles, and on average, they identified 1.5 connections.
+
+```{r numroles, fig.height = 3, fig.width = 5, fig.align = "center"}
+ggplot(comments, aes(x = numroles)) + geom_bar() + 
+  labs(title = "Number of Contributor-Identified Roles",
+       x = "Number of Roles Selected", y = "Number of Contributors")
+ggsave("blog1_1.jpg", width = 5, height = 3)
+# collapse number of roles: 4 or more
+comments <- comments %>% 
+  mutate(numroles4 = ifelse(numroles >3, 4, numroles))
+```
+
+The bulk of comments (66%) come from individuals who identified only a single connection. There are a small number who intersect with UVa in multiple ways, but so few that I truncated the upper end of number of roles to 4 or more in a measure of connection strength/number of connections.
+
+It's also worth thinking about individual's primary connection, so I also construct a mutually exclusive categorization of each commenter's primary role. That is, if someone is both a faculty member at UVA and an alumnus of UVA, I'll argue that the current faculty role is the primary role, the one that has the strongest influence on one's current thinking. Similarly, if one is both a student and a supporter, one's experience as a student is likely to have a stronger influence. And if an individual identifies as both UVA staff and a community member, her experience as an employee is likely to have a primary influence. One can disagree with any of these rankings, of course, so it's worth being clear on the primacy I've given to each role.
+
+* Faculty, staff, or student will take precedence over alumni, parent, community member, and supporter
+* Faculty will take precedence (on the presumption that individuals claiming this role are faculty)
+* Student will take precedence over staff (on the presumption that these are students who are also employed by UVA)
+* Alumni will take precedence over community, supporter, and parent (on the presumption that one's experience within UVA will be the more powerful)
+* Parent will take precedence over community and supporter
+* Community will take precedence over supporter
+
+Given this operationalization of "primary role", the distribution of contributors looks like...
+
+```{r primary}
+comments <- comments %>% 
+  mutate(primary = ifelse(grepl("Faculty", role), "faculty", NA),
+         primary = ifelse(grepl("Staff", role) & !grepl("Student", role), "staff", primary),
+         primary = ifelse(grepl("Student", role) & is.na(primary), "student", primary),
+         primary = ifelse(grepl("Alumna/us", role) & is.na(primary), "alumni", primary),
+         primary = ifelse(grepl("Parent", role) & is.na(primary), "parent", primary),
+         primary = ifelse(grepl("Community", role) & is.na(primary), "community", primary),
+         primary = ifelse(grepl("Supporter", role) & is.na(primary), "supporter", primary))
+table(comments$primary) 
+```
+
+The comments are still dominated by individuals whose primary connection is as alumni (36%), followed by staff and students (20% each), then faculty (13%), community members and parents (5% each), and institutional supporters (1%).
+
+Do those with more connections  contribute more to comments about community, discovery, or service?
+
+```{r crosstab, fig.height = 3, fig.width = 5, fig.align = "center"}
+comments %>% group_by(numroles4, type) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count)) %>% 
+  ggplot(aes (x = numroles4, y = perc*100, fill = type)) + 
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = c("darkblue", "darkorange", "turquoise")) +
+  labs(x = "Number of Connections", y = "Percent of Comments", 
+       fill = "Category", title = "Distribution of Comment Categories", 
+       subtitle = "By Number of Connections")
+```
+
+There is no apparent relationship between the number of connections a contributor identifies and the category of their comments (a chi-square test confirms the absence of any statistically discernible difference in category distribution by number of connections). Okay, what about the nature of the primary connection? 
+
+```{r crosstab2, fig.height = 3, fig.width = 5, fig.align = "center"}
+comments %>% group_by(primary, type) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count)) %>% 
+  ggplot(aes (x = primary, y = perc*100, fill = type)) + 
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = c("darkblue", "darkorange", "turquoise")) +
+  labs(x = "Primary Connections", y = "Percent of Comments", 
+       fill = "Category", title = "Distribution of Comment Categories", 
+       subtitle = "By Primary Connections") + coord_flip() 
+```
+
+Here there are differences. In particular, faculty are more likely than others to comment in the category of "discovery" and are the least likely to add ideas to the "community" field. Supporters, too, add to the "discovery" category at rates higher than other contributors. The trade offs are primarily between community and discovery; contributions to the "service" category are relatively low across all primary connections.
+
+
+## Length and Readability
+
+So far, we've been looking at the document metadata. Next, let's create a corpus from the text of the comments, extract the length of each comment (number of words), and compare across comment categories and commenter type.
+
+```{r corpus}
+# Create corpus
+comments_corpus <- corpus(comments) # generate corpus object
+comments_corpus
+
+# add number of tokens and sentence length to initial data frame
+comments$words <- ntoken(comments_corpus) # add number of words/tokens
+comments$sentences <- nsentence(comments_corpus) # add number of sentences
+comments %>% group_by(type) %>% summarize(mean(words), sd(words))
+```
+
+Not only are there more "community" comments, these tend to be a bit longer, though the length of these comments is also highly variable (check out that standard deviation -- bigger than the mean!). Indeed, the figure below shows that comments have similar lengths across categories, but the community category attracts a small number of extremely long comments.
+
+```{r wordfig, fig.height = 3, fig.width = 5, fig.align = "center"}
+# graph the means
+ggboxplot(comments, x = "type_f", y = "words", 
+          color = "type_f", palette = c("darkblue", "darkorange", "turquoise"),
+          order = c("community", "discovery", "service"),
+          ylab = "Words", xlab = "Type", title = "Number of Words by Comment Category")
+```
+
+Length by number of connections?
+
+```{r wordfig2, , fig.height = 3, fig.width = 5, fig.align = "center"}
+# length by number of connections
+comments %>% group_by(numroles4) %>% summarize(mean(words), sd(words))
+# lineplot
+ggline(comments, x = "numroles4", y = "words", 
+       add = c("mean_se", "jitter"), 
+       ylab = "Words", xlab = "Number of Connections",
+       title = "Number of Words", subtitle = "By Number of Connection")
+```
+
+Those identifying only one connection do leave lengthier comments, on average. This surprised me a bit as my prior was that those who intersect with UVA in multiple ways would have more to say, or would speak to multiple dimensions. What about comment length by a contributor's primary connection?
+
+```{r wordfig3, , fig.height = 3, fig.width = 5, fig.align = "center"}
+# length by number of connections
+comments %>% group_by(primary) %>% summarize(mean(words), sd(words))
+# lineplot
+ggline(comments, x = "primary", y = "words", 
+       add = c("mean_se", "jitter"), 
+       ylab = "Words", xlab = "Primary Connections",
+       title = "Number of Words", subtitle = "By Primary Connection")
+```
+
+Some suggestive differences arise by primary connection -- in particular, the cluster of relatively wordy comments by students, compared to other groups. 
+
+Comment length is one way of considering complexity. Another is the readability of the text. Readability here is a measure of how easy a comment is to read based on vocabulary and sentence complexity. Let's extract readability and compare it across groups.
+
+```{r read}
+comment_read <- textstat_readability(comments_corpus, measure = "Flesch.Kincaid") # readability
+comments$read <- comment_read$Flesch.Kincaid # add to initial data frame
+summary(comments$read)
+```
+
+On average, comments to Ours to Shape are written just over a 12th-grade reading level. That's a reasonably high level of complexity -- newspapers hover around the 11th-grade reading level and common advice is to write material intended for the mass public at the 9th-grade level. Does readability/grade-level of comments differ across comment categories? 
+
+```{r readfig1, fig.height = 3, fig.width = 5, fig.align = "center"}
+ggviolin(comments, x = "type_f", y = "read", 
+          color = "type_f", palette = c("darkblue", "darkorange", "turquoise"),
+          order = c("community", "discovery", "service"),
+          ylab = "Grade Level", xlab = "Comment Category", title = "Readability by Comment Category") + 
+  theme(legend.position="none")
+```
+No, not really. There's no real difference in the readability/complexity of the comments by category (community, service, discovery) or by the number of connections a commenter has to the university (numroles4). What about by the number of connections a contributor has with UVA?
+
+```{r readfig2, fig.height = 3, fig.width = 3, fig.align = "center"}
+ggviolin(comments, x = "numroles4", y = "read", 
+         color = "numroles4", palette = brewer.pal(9, "Blues")[c(3,5,7,9)],
+         ylab = "Grade Level", xlab = "Number of Connections",
+         title = "Readability by Number of Connections") + 
+  theme(legend.position="none")
+```
+
+Again, no apparent differences. And here's the average readability by primary connection:
+
+```{r readfig3, fig.height = 3, fig.width = 5, fig.align = "center"}
+comments %>% group_by(primary) %>% summarize(mean(read), sd(read), n())
+ggviolin(comments, x = "primary", y = "read", 
+         color = "primary", palette = brewer.pal(9, "Blues")[3:9],
+         ylab = "Grade Level", xlab = "Primary Connection", 
+         title = "Readability by Primary Connection") + 
+  theme(legend.position="none")
+```
+
+Nothing, really -- though I think the violin plots are pretty! There are no substantive difference by comment category, number of connections, or primary connection. We're all writing, on average, equally complex feedback!
+
+For fun, here's the least "easy-to-read" comment based on this measure:
+
+```{r least}
+# Which comments are the most complex/least readable?
+comments %>% 
+  filter(read > 29) %>% 
+  select("type", "read", "text")
+```
+
+Huh... okay... not as much fun as I'd hoped... 
+
+
+## Key Words in Context
+
+Moving on, let's look at a few key words and see how they're used. This is a really useful way to get to know a corpus. Here I'm just going straight to my own interests, looking for occurrences of words around equity/equality and around library. First up, equity! Here are all 27 occurrences of equity/equitable, equal(s)/equality across 23 Ours to Shape comments.
+
+```{r kwic1}
+kwic(comments_corpus, c("equit*", "equal", "equals", "equali*"), window = 3)
+```
+
+All but a handful appear to be referencing notions of equity, though, to be honest, this represents less attention to equity than I'd expected. 
+
+How (often) does the library come up?
+
+```{r kwic2}
+kwic(comments_corpus, "librar*", window = 2) # shorten window for fit
+```
+
+There are 46 references to the library across 24 comments, mostly connected to the planned renovation of Alderman Library. Sigh. Notice the repeated comment, though? Comment 118 and 125? This is the first hint of a behavior we'll see again later, the same comment submitted multiple times...
+
+
+## Still to Come
+
+In the next post, we'll create a document feature matrix and start examining word frequencies, relative frequencies by groups, distinctive words, and n-grams. Later, we'll take some forays into document similarity and feature co-occurrence, sentiment analysis, document clustering, and topic modeling.
+
+```{r save}
+save.image("../../static/data/ots_blog1.RData")
+```
+
+For questions or clarifications regarding this article, contact the UVa 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Michele Claibourn_   
+_Director, Research Data Services_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
