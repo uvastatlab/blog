@@ -1,0 +1,151 @@
+---
+title: Getting Started with Quantile Regression
+author: Clay Ford
+date: '2015-09-20'
+slug: getting-started-with-quantile-regression
+categories:
+  - R
+tags:
+  - quantile regression
+---
+
+When we think of regression we usually think of linear regression, the tried and true method for estimating a mean of some variable conditional on the levels or values of independent variables. In other words, we're pretty sure the mean of our variable of interest differs depending on other variables. For example the mean weight of 1st year UVa males is some unknown value. But we could in theory take a random sample and discover there is a relationship between weight and height. We may find there is a positive relationship and that the mean weight of males 5'10" is higher than the mean weight of males 5'9". There is variability in the weights of 1st year UVa males and it appears height explains some of that variability.
+
+But we don't have to always estimate the conditional mean. We could estimate the median, or the 0.25 quantile, or the 0.90 quantile. That's where quantile regression comes in. The math under the hood is a little different, but the interpretation is basically the same. In the end we have regression coefficients that estimate an independent variable's effect on a specified quantile of our dependent variable. Using our example above, we could estimate the 0.10 and 0.90 quantile weights for 1st year UVa males given their height. We may find that the relationship between height and weight changes depending on which quantile we look at.
+
+By the way, if you're wondering if "quantile" is the same as "percentile", yes, for the most part it is. Quantiles refer to fractions (0.25) while percentiles refer to percents (25%).
+
+Now why use quantile regression? Does it have any benefit beyond estimating quantiles? It does in fact. Let's provide motivation with an example. Below we generate data with non-constant variance using R and then plot the data using the ggplot2 package:
+
+```{r message=FALSE, warning=FALSE}
+
+# generate independent variable
+x <- seq(0,100,length.out = 100)
+
+# generate non-constant variance; we'll use below
+sig <- 0.1 + 0.05*x      
+
+# true intercept and slope
+b_0 <- 6    
+b_1 <- 0.1
+
+# make the next line reproducible
+set.seed(1)
+
+# normal random error with non-constant variance
+e <- rnorm(100,mean = 0, sd = sig)
+
+# generate dependent variable
+y <- b_0 + b_1*x + e
+dat <- data.frame(x,y)
+
+library(ggplot2)
+ggplot(dat, aes(x,y)) + geom_point()
+
+```
+
+The increasing variability is easy to see. As x gets bigger, y becomes more variable. This violates a key assumption of linear regression: normal errors with constant variance. Our errors are normal, but the variance depends on x. Therefore linear regression in this scenario is of limited value. Yes, the estimated mean conditional on x is unbiased and as good an estimate of the mean as we could hope to get, but it doesn't tell us much about the relationship between x and y, especially as x gets larger. Plus the confidence interval for predicted mean values is just plain too small. We can quickly visualize this by adding a layer to our original plot. The <code>geom_smooth()</code> function regresses y on x, plots the fitted line and adds a confidence interval:
+
+```{r}
+ggplot(dat, aes(x,y)) + 
+  geom_point() + 
+  geom_smooth(method="lm")
+
+```
+
+
+If we were to estimate mean values of y when x = 75, with those confidence limits, we would be way too confident! (This is why we plot our data and do regression diagnostics.) One way to deal with non-constant variance is to use something called weighted least squares regression. We won't cover it in this article, but suffice to say it attempts to address the issues we just raised. Instead we present quantile regression. 
+
+Looking again at the plot above, we see that linear regression provides a good estimate of y when x is close to 0. But as x increases, the mean of y given x becomes less meaningful. As a predictor of y it's pretty useless. But what about a quantile, like the 0.90 quantile? We can quickly visualize this using ggplot2 with the <code>geom_quantile(</code>) function:
+
+```{r message=FALSE, warning=FALSE, cache=TRUE}
+ggplot(dat, aes(x,y)) + 
+  geom_point() + 
+  geom_quantile(quantiles = 0.9)
+```
+
+Behind the scenes ggplot ran a quantile regression for the 0.90 quantile and then plotted the fitted line. We see the scatter about the plotted line is relatively uniform. It appears we can make decent estimates of the 0.90 quantile for increasing values of x despite the increasing variability. 
+
+To perform quantile regression in R we recommend the <a href="https://cran.r-project.org/web/packages/quantreg/index.html" target="_blank">quantreg</a> package, the versatile and mature package written by Roger Koenker, the guy who literally wrote the book on quantile regression. (Koenker, R. W. (2005). <em>Quantile Regression</em>, Cambridge U. Press). Here's how we perform the quantile regression that ggplot2 did for us using the quantreg function <code>rq()</code>:
+
+```{r message=FALSE, warning=FALSE}
+library(quantreg)
+qr1 <- rq(y ~ x, data=dat, tau = 0.9)
+
+```
+
+This is identical to the way we perform linear regression with the <code>lm()</code> function in R except we have an extra argument called <code>tau</code> that we use to specify the quantile. (The default <code>tau</code> setting is 0.5, the median.) We can use the <code>summary</code> function to extract details about the model.
+
+```{r message=FALSE, warning=FALSE}
+summary(qr1)
+```
+
+The "lower bd" and "upper bd" values are confidence intervals calculated using the "rank" method. To read about the rank method and the four other methods available enter <code>?summary.rq</code> in the R console. The x coefficient estimate of 0.16 says the 0.90 quantile of y increases by about 0.16 for every one unit increase in x.
+
+Using the <code>coef()</code> function in combination with the <code>geom_abline()</code> function we can recreate what we got with <code>geom_quantile()</code> and ensure our results match:
+
+```{r}
+ggplot(dat, aes(x,y)) + 
+  geom_point() + 
+  geom_abline(intercept=coef(qr1)[1], 
+              slope=coef(qr1)[2])
+```
+
+The <code>rq()</code> function can perform regression for more than one quantile. Simply pass a vector of quantiles to the <code>tau</code> argument. Here's how to perform quantile regression for the 0.10, 0.20, ...,0.90 quantiles:
+
+```{r}
+qs <- 1:9/10
+qr2 <- rq(y ~ x, data=dat, tau = qs)
+```
+
+Calling the <code>summary()</code> function on qr2 will return 9 different summaries. We won't show this here but we will show the <code>coef()</code> function:
+
+```{r}
+coef(qr2)
+```
+
+The intercept estimate doesn't change much but the slopes steadily increase. We can visualize this easily using <code>geom_quantile()</code>:
+
+```{r}
+ggplot(dat, aes(x,y)) + 
+  geom_point() + 
+  geom_quantile(quantiles = qs, 
+                formula = y ~ x)
+```
+
+The quantreg package includes a plot method to visualize the change in quantile coefficients along with confidence intervals. We use the <code>parm</code> argument to indicate we only want to see the slope coefficients.
+
+```{r warning=FALSE, message=FALSE}
+plot(summary(qr2), parm="x")
+```
+
+Each black dot is the slope coefficient for the quantile indicated on the x axis. The red lines are the least squares estimate and its confidence interval. You can see how the lower and upper quartiles are well beyond the least squares estimate. What happens if we generate data with normal errors and constant variance and then try quantile regression? Let's see:
+
+
+```{r warning=FALSE, message=FALSE}
+x <- seq(0,100,length.out = 100)
+b_0 <- 6
+b_1 <- 0.1
+set.seed(1)
+e <- rnorm(100,mean = 0, sd = 0.5)
+y <- b_0 + b_1*x + e
+dat2 <- data.frame(x,y)
+qr3 <- rq(y ~ x, data=dat2, tau = qs)
+plot(summary(qr3), parm="x")
+```
+
+It appears the linear regression slope is sufficient to describe the relationship between x and y. The quantile slope estimates are not statistically different from the least squares estimate.
+
+If you're a Stata user, check out the <a href="http://www.stata.com/manuals13/rqreg.pdf" target="_blank">qreg</a> function for performing quantile regression. There's also a user-contributed Stata package called <a href="https://ideas.repec.org/c/boc/bocode/s437001.html" target="_blank">grqreg</a> that creates graphs similar to R's quantreg plotting method.
+
+There's much more to say about quantile regression such as how the coefficients are estimated, the various standard errors, comparing models, nonlinear quantile regression, and so on. But hopefully this primer will be enough to get you started. For another introduction to quantile regression see <em>A gentle introduction to quantile regression for ecologists</em>. Front Ecol Environ 1(8): 412- 420, by Brian Cade and Barry Noon.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
