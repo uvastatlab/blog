@@ -1,0 +1,116 @@
+---
+title: Simulating Endogeneity
+author: Clay Ford
+date: '2015-09-10'
+slug: simulating-endogeneity
+categories:
+  - R
+tags:
+  - endogeneity
+  - two stage least squares
+  - simulation
+---
+
+
+
+<p>First off, what is endogeneity, and why would we want to simulate it?</p>
+<p>Endogeneity occurs when a statistical model has an independent variable that is correlated with the error term. The reason we would want to simulate it is to understand what exactly that definition means!</p>
+<p>Let’s first simulate ideal data for simple linear regression using R.</p>
+<pre class="r"><code># independent variable
+x &lt;- seq(1,5,length.out = 100) 
+
+# error (uncorrelated with x)
+set.seed(1)
+e &lt;- rnorm(100,sd = 1.5)
+
+# generate dependent variable
+y &lt;- 2 + 2*x + e </code></pre>
+<p>We generate <code>x</code> and <code>e</code> independent of one another. Then we generate <code>y</code> using <code>x</code> and <code>e</code>. The <code>set.seed</code> function allows us to generate the same data in case you want to follow along. Next we can use linear regression to attempt to unravel the relationship between <code>y</code> and <code>x</code>. Since we generated the data, we know <code>y</code> has a linear relationship with <code>x</code> with a slope of 2 and an intercept of 2 plus some random noise from a Normal distribution with a standard deviation of 1.5. But our statistical modeling function, <code>lm</code>, doesn’t know this. How does it do?</p>
+<pre class="r"><code>lm1 &lt;- lm(y ~ x)
+coef(lm1)[2]</code></pre>
+<pre><code>##        x 
+## 1.983255</code></pre>
+<p>Not bad! The <code>lm</code> function used a method called “ordinary least squares” regression to figure out that <code>y</code> increases by about 1.98 for every one unit increase in x. Recall the actual value in the data generation process was 2. This works so well because all of the assumptions for ordinary least squares regression have been met. <a href="https://www.google.com/search?q=ordinary+least+squares+assumptions&amp;ie=utf-8&amp;oe=utf-8#q=assumptions+ordinary+least+squares+" target="_blank">A Google search</a> will turn up those assumptions, but the big one we’re interested in is the assumption that the independent variable(s), <code>x</code> in our generated data, is independent of the error in the model. In other words, no matter what value our predictor variable <code>x</code> takes, we expect the error to be Normally distributed with mean 0 and some finite variance that we usually signify with <span class="math inline">\(\sigma\)</span>.</p>
+<p>Now let’s generate some data where this assumption is <em>not</em> met. This is a little trickier. We create an R function called <code>genEndogData</code> to simulate the data, which we can then use in other simulations. I’ll provide the code and then describe what it does.</p>
+<pre class="r"><code>genEndogData &lt;- function(n=100){
+  sigma &lt;- matrix(c(40,12,12,20), ncol=2)
+  de &lt;- mvtnorm::rmvnorm(n=n, mean=c(0,0), sigma=sigma)
+  Z &lt;- seq(1,5,length.out = n)
+  X &lt;- 3*Z + de[,1]
+  Y &lt;- 2*X + de[,2] 
+  data.frame(Y,X,Z)
+}</code></pre>
+<p><code>genEndogData</code> is the name of the function and it has one argument, <code>n</code>, that allows you to specify how many rows of data you want. The default is 100. The first line defines a matrix we call <code>sigma</code>. This will be our variance-covariance matrix for the next line which generates data from a multivariate Normal distribution. Why do that? Because we want to generate correlated data. In this case we’re generating two columns of data in a matrix called <code>de</code> that have positive covariance. We will use these two columns in the following lines to simulate error. (I could have added additional arguments to allow different <code>sigma</code> matrices be specified, but I opted to keep the function simple for this post.)</p>
+<p>In the next three lines we define variables <code>Z</code>, <code>X</code> and <code>Y</code>. <code>Z</code> is simply a sequence of 100 numbers from 1 to 5. Then we derive <code>X</code> in the same way we originally derived our “ideal” data using <code>Z</code>. Finally we derive <code>Y</code> just like we did <code>X</code>, except now we use <code>X</code> instead of <code>Z</code>! Notice in each case we use a column from the <code>de</code> matrix as our error, which are correlated. To end the function, we put our variables in a data frame. To use this function with the default <code>n</code>, we just run <code>genEndogData()</code>.</p>
+<p>What happens now when we regress <code>Y</code> on <code>X</code> using simulated data from <code>genEndogData()</code>? Do we come close to the true coefficient 2?</p>
+<pre class="r"><code>set.seed(1)
+lm2 &lt;- lm(Y ~ X, data=genEndogData())
+coef(lm2)[2]</code></pre>
+<pre><code>##        X 
+## 2.228276</code></pre>
+<p>Not as close before. Maybe that was random chance. Instead of trying once, we can try it 1000 times using the <code>replicate</code> function and see how often we come close to 2:</p>
+<pre class="r"><code>xout &lt;- replicate(n = 1000,expr = coef(lm(Y ~ X, genEndogData()))[2])
+summary(xout)</code></pre>
+<pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   2.012   2.194   2.229   2.231   2.269   2.393</code></pre>
+<p>75% of the data is greater than 2.19. For some reason the estimate is biased. Why is that happening? Endogeneity. <em>The error in our data generation process is correlated with the independent variable</em>. To say it another way, <code>X</code> is endogenous, which means a major assumption of ordinary least squares regression is violated and it no longer works as advertised.</p>
+<p>How can we unravel the true relationship? One approach would be to take our cues from the data generating process. Notice <code>X</code> was generated from <code>Z</code> with error. We could regress <code>X</code> on <code>Z</code> to create a model, and then get fitted values for <code>X</code>. These fitted values of <code>X</code> would be our best guess of <code>X</code> without the error. We could then regress <code>Y</code> on the fitted values of <code>X</code> to get a better sense of the relationship between <code>Y</code> and <code>X</code>. So we do two stages of regression. Let’s try it.</p>
+<pre class="r"><code>set.seed(111)
+dat &lt;- genEndogData()
+
+# stage 1: regress X on Z
+stage1 &lt;- lm(X ~ Z, data=dat) 
+
+# fitted values for X
+dat$fitX &lt;- fitted(stage1)
+
+# stage 2: regress Y on X
+stage2 &lt;- lm(Y ~ fitX, data=dat) 
+coef(stage2)[2]</code></pre>
+<pre><code>##     fitX 
+## 2.034136</code></pre>
+<p>Compare to the traditional OLS approach:</p>
+<pre class="r"><code>coef(lm(Y ~ X, data=dat))[2]</code></pre>
+<pre><code>##       X 
+## 2.24973</code></pre>
+<p>We see our two-stage approach got us much closer to the true slope of 2. In fact there’s a method called <a href="https://www.google.com/search?q=Two-Stage+Least+Squares&amp;ie=utf-8&amp;oe=utf-8" target="_blank">Two-Stage Least Squares</a> that does precisely this. The implementation is different than what was demonstrated above, but the idea is the same. The <code>sem</code> package provides a function called <code>tsls()</code> that performs two stage least squares. A quick demo:</p>
+<pre class="r"><code># install.packages(&quot;sem&quot;)
+library(sem)
+coef(tsls(Y ~ X, ~ Z, data=dat))[2]</code></pre>
+<pre><code>##        X 
+## 2.034136</code></pre>
+<p>This works great with simulated data when we know we have endogeneity. We knew we had this additional variable <code>Z</code> on which we could regress <code>X</code> to get an updated version of <code>X</code> without the error. However in real life it’s very hard to find a <code>Z</code> (or as it’s formally called, an “instrument”). And that’s assuming you’ve detected the endogeneity! How would you know?</p>
+<p>Fortunately, there are statistical tests for endogeneity. One such test is the <a href="https://en.wikipedia.org/wiki/Durbin%E2%80%93Wu%E2%80%93Hausman_test" target="_blank">Durbin–Wu–Hausman test</a>. There are also several tests regarding the strength of your instrument. And now we’re stepping into a large and complex domain of econometrics that doesn’t neatly fit into a single article! We’ll stop here, but hopefully you have a better understanding of what endogeneity means and what causes it.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] sem_3.1-9
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.1       knitr_1.22       magrittr_1.5     splines_3.6.0   
+##  [5] MASS_7.3-51.4    arm_1.10-1       lattice_0.20-38  mi_1.0          
+##  [9] minqa_1.2.4      stringr_1.4.0    tools_3.6.0      matrixcalc_1.0-3
+## [13] grid_3.6.0       nlme_3.1-139     xfun_0.6         coda_0.19-2     
+## [17] htmltools_0.3.6  abind_1.4-5      yaml_2.2.0       lme4_1.1-21     
+## [21] digest_0.6.18    bookdown_0.9     Matrix_1.2-17    nloptr_1.2.1    
+## [25] evaluate_0.13    rmarkdown_1.12   blogdown_0.11    stringi_1.4.3   
+## [29] compiler_3.6.0   stats4_3.6.0     boot_1.3-22      mvtnorm_1.0-10</code></pre>
