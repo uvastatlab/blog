@@ -1,0 +1,75 @@
+---
+title: Understanding Q-Q Plots
+author: Clay Ford
+date: '2015-08-26'
+slug: understanding-q-q-plots
+categories:
+  - R
+tags:
+  - qqplot
+  - visualization
+---
+
+
+
+<p>The Q-Q plot, or quantile-quantile plot, is a graphical tool to help us assess if a set of data plausibly came from some theoretical distribution such as a Normal or exponential. For example, if we run a statistical analysis that assumes our dependent variable is Normally distributed, we can use a Normal Q-Q plot to check that assumption. It’s just a visual check, not an air-tight proof, so it is somewhat subjective. But it allows us to see at-a-glance if our assumption is plausible, and if not, how the assumption is violated and what data points contribute to the violation.</p>
+<p>A Q-Q plot is a scatterplot created by plotting two sets of quantiles against one another. If both sets of quantiles came from the same distribution, we should see the points forming a line that’s roughly straight. Here’s an example of a Normal Q-Q plot when both sets of quantiles truly come from Normal distributions.</p>
+<p><img src="/img/example_qq.jpeg" /></p>
+<p>Now what are “quantiles”? These are often referred to as “percentiles”. These are points in your data below which a certain proportion of your data fall. For example, imagine the classic bell-curve standard Normal distribution with a mean of 0. The 0.5 quantile, or 50th percentile, is 0. Half the data lie below 0. That’s the peak of the hump in the curve. The 0.95 quantile, or 95th percentile, is about 1.64. 95 percent of the data lie below 1.64. The following R code generates the quantiles for a standard Normal distribution from 0.01 to 0.99 by increments of 0.01:</p>
+<pre class="r"><code>qnorm(seq(0.01,0.99,0.01))</code></pre>
+<p>We can also randomly generate data from a standard Normal distribution and then find the quantiles. Here we generate a sample of size 200 and find the quantiles for 0.01 to 0.99 using the <code>quantile</code> function:</p>
+<pre class="r"><code>quantile(rnorm(200),probs = seq(0.01,0.99,0.01))</code></pre>
+<p>So we see that quantiles are basically just your data sorted in ascending order, with various data points labelled as being the point below which a certain proportion of the data fall. However it’s worth noting there are many ways to calculate quantiles. In fact, the <code>quantile</code> function in R offers 9 different quantile algorithms! See <code>help(quantile)</code> for more information.</p>
+<p>Q-Q plots take your sample data, sort it in ascending order, and then plot them versus quantiles calculated from a theoretical distribution. The number of quantiles is selected to match the size of your sample data. While Normal Q-Q Plots are the ones most often used in practice due to so many statistical methods assuming normality, Q-Q Plots can actually be created for any distribution.</p>
+<p>In R, there are two functions to create Q-Q plots: <code>qqnorm</code> and <code>qqplot</code>.</p>
+<p><code>qqnorm</code> creates a Normal Q-Q plot. You give it a vector of data and R plots the data in sorted order versus quantiles from a standard Normal distribution. For example, consider the <code>trees</code> data set that comes with R. It provides measurements of the girth, height and volume of timber in 31 felled black cherry trees. One of the variables is <code>Height</code>. Can we assume our sample of Heights comes from a population that is Normally distributed?</p>
+<pre class="r"><code>qqnorm(trees$Height)</code></pre>
+<p><img src="/post/2015-08-26-understanding-q-q-plots_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>That appears to be a fairly safe assumption. The points seem to fall about a straight line. Notice the x-axis plots the theoretical quantiles. Those are the quantiles from the standard Normal distribution with mean 0 and standard deviation 1.</p>
+<p>The <code>qqplot</code> function allows you to create a Q-Q plot for any distribution. Unlike the <code>qqnorm</code> function, you have to provide two arguments: the first set of data and the second set of data. Let’s look at the <code>randu</code> data that come with R. It’s a data frame that contains 3 columns of random numbers on the interval (0,1). Random numbers should be uniformly distributed. Therefore we can check this assumption by creating a Q-Q plot of the sorted random numbers versus quantiles from a theoretical uniform (0,1) distribution. Here we create a Q-Q plot for the first column of numbers, called <code>x</code>:</p>
+<pre class="r"><code>n &lt;- length(randu$x)
+y &lt;- qunif(ppoints(n))
+qqplot(randu$x,y)</code></pre>
+<p><img src="/post/2015-08-26-understanding-q-q-plots_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>The <code>ppoints</code> function generates a given number of probabilities or proportions. I wanted the same number of values in <code>randu<span class="math inline">\(x&lt;/code&gt;, so I gave it the argument &lt;code&gt;length(randu\)</span>x)</code>, which returns 400. The <code>qunif</code> function then returns 400 quantiles from a uniform distribution for the 400 proportions. I save that to <code>y</code> and then plot <code>y</code> versus <code>randu$x</code> in the <code>qqplot</code> function. Again, we see points falling along a straight line in the Q-Q plot, which provide strong evidence that these numbers truly did come from a uniform distribution.</p>
+<p>Another approach is to simply sample 400 random values from a uniform distribution, get their quantiles, and use that as the “Theoretical Quantiles”, like so:</p>
+<pre class="r"><code>n &lt;- length(randu$x)
+y &lt;- qunif(runif(n))
+qqplot(randu$x,y)</code></pre>
+<p><img src="/post/2015-08-26-understanding-q-q-plots_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>What about when points don’t fall on a straight line? What can we infer about our data? To help us answer this, let’s generate data from one distribution and plot against the quantiles of another. First we plot a distribution that’s skewed right, a Chi-square distribution with 3 degrees of freedom, against a Normal distribution.</p>
+<pre class="r"><code>qqplot(qnorm(ppoints(30)), 
+       qchisq(ppoints(30),df=3))</code></pre>
+<p><img src="/post/2015-08-26-understanding-q-q-plots_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>Notice the points form a curve instead of a straight line. Normal Q-Q plots that look like this usually mean your sample data are skewed.</p>
+<p>Next we plot a distribution with “heavy tails” versus a Normal distribution:</p>
+<pre class="r"><code>qqplot(qnorm(ppoints(100)), 
+       qcauchy(ppoints(100)))</code></pre>
+<p><img src="/post/2015-08-26-understanding-q-q-plots_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Notice the points fall along a line in the middle of the graph, but curve off in the extremities. Normal Q-Q plots that exhibit this behavior usually mean your data have more extreme values than would be expected if they truly came from a Normal distribution.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.6.0  magrittr_1.5    bookdown_0.9    tools_3.6.0    
+##  [5] htmltools_0.3.6 yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3  
+##  [9] rmarkdown_1.12  blogdown_0.11   knitr_1.22      stringr_1.4.0  
+## [13] digest_0.6.18   xfun_0.6        evaluate_0.13</code></pre>
