@@ -1,0 +1,203 @@
+---
+title: Analysis of Ours to Shape Comments, Part 2
+author: ''
+date: '2018-12-14'
+slug: analysis-of-ours-to-shape-comments-part-2
+categories:
+  - R
+tags:
+  - text analysis
+  - text mining
+---
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>In the <a href="https://uvastatlab.github.io/2018/12/13/analysis-of-ours-to-shape-comments-part-1/">last post</a>, we began exploring the Ours to Shape comments – the distribution across categories and contributors, the length and readability of the comments, and a few key words in context. While I did more exploration of the data than reported, the first post gives a taste of the kind of dive into the data that usefully proceeds analysis.</p>
+<p>In this post, we’ll start digging into word frequencies, relative frequencies by groups, and distinguishing words.</p>
+<pre class="r"><code>library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs</code></pre>
+</div>
+<div id="word-frequency" class="section level2">
+<h2>Word Frequency</h2>
+<p>Let’s load the files we created in the <a href="https://uvastatlab.github.io/2018/12/13/analysis-of-ours-to-shape-comments-part-1/">first post</a>.</p>
+<pre class="r"><code>load(&quot;../../static/data/ots_blog1.RData&quot;)</code></pre>
+<p>From the corpus of comments, I create a document-feature matrix (or dfm) – documents (commments) are on the rows and features (words) are on the columns. The dfm captures the number of times each word in the corpus appears within each comment. A document-feature matrix tends to be large – <span class="math inline">\(n\)</span> documents by thousands of words – and sparse – with many words not appearing at all in many documents – so I begin by reducing the dimensionality a bit: changing everything to lowercase (so “Library” and “library” are treated as the same word), removing punctuation, and removing a set of stop words (words that are commonly used but carry little substantive content, e.g., the, of, that, etc.).</p>
+<pre class="r"><code>comments_dfm &lt;- dfm(comments_corpus, remove_punct = TRUE, 
+                    remove = stopwords()) 
+comments_dfm</code></pre>
+<pre><code>## Document-feature matrix of: 848 documents, 7,812 features (99.4% sparse).</code></pre>
+<p>This leaves us with 7,812 words (features). The ten most frequently occurring words are…</p>
+<pre class="r"><code>topfeatures(comments_dfm, 10) </code></pre>
+<pre><code>##        uva   students  community university        can    faculty 
+##        829        801        589        511        440        300 
+##        one       make    student    grounds 
+##        203        201        198        193</code></pre>
+<p>And, for the wordcloud lovers out there (you know who you are), here’s a cloud of the 200 most frequent words in the comments.</p>
+<pre class="r"><code># wordcloud of most frequent words
+pal1 &lt;- brewer.pal(9, &quot;Blues&quot;)[4:9] # define a color palette
+set.seed(12) # for reproducibility
+textplot_wordcloud(comments_dfm, max_words = 200, color = pal1, rotation = 0.25) </code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/cloud-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>I have a hard time reading clouds (it’s a bunny! no, a rabid zombie bunny!), so here’s a frequency plot of the 50 most common words (less prone to wild and imaginative interpretations).</p>
+<pre class="r"><code># plot of most frequent words
+comments_freq &lt;- textstat_frequency(comments_dfm, n = 50)
+ggplot(comments_freq, aes(x = reorder(feature, frequency), y = frequency)) + 
+  geom_point() + 
+  labs(title = &quot;Most Frequent Words&quot;, 
+       subtitle = &quot;Ours to Shape Comments&quot;, 
+       x = NULL, y = &quot;Frequency&quot;) +
+  theme_minimal(base_size = 10) + coord_flip()</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/freqfig-1.png" width="288" style="display: block; margin: auto;" /></p>
+<p>UVA and students appear A LOT more frequently than anything else. But we also get plenty of mentions of research and service, Charlottesville and change, ice (we’ll come back to that), experience and support. Good stuff.</p>
+<p>Things begin to pop more clearly when we break this down by comment category. That starts to get at one of the questions I have about these contributions – what do folks mean by “community, discovery, service”?</p>
+<p>Here we see the relative frequency – how often does a word occur as a proportion of all occuring words – by the category of the comment:</p>
+<pre class="r"><code>comments_dfm_prop &lt;- comments_dfm %&gt;% 
+  dfm_group(groups = &quot;type&quot;) %&gt;% 
+  dfm_weight(scheme = &quot;prop&quot;) 
+comments_relfreq &lt;- textstat_frequency(comments_dfm_prop, n = 50, groups = &quot;type&quot;)
+
+ggplot(comments_relfreq, aes(x = nrow(comments_relfreq):1, y = frequency)) +
+  geom_point() + facet_wrap(~ group, scales = &quot;free_y&quot;) + coord_flip() +
+  scale_x_continuous(breaks = nrow(comments_relfreq):1,
+                     labels = comments_relfreq$feature) +
+  labs(x = NULL, y = &quot;Relative frequency&quot;, 
+       title = &quot;Most Frequent Words&quot;, subtitle = &quot;By Comment Type&quot;)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/relfreq-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>The most frequently appearing words in comments submitted about community are UVA, students, community, and university (and can); Charlottesville comes next, but with a notable drop off in frequency. Students and grounds follow closely behind (note the “student” and “students” – here’s an example of why we might want to stem the words later, that is, reduce them to their root form so that these are counted together). I admit I was disappointed about this; it implies that a lot of contributions about “community” are referencing the “university community” when I was hoping they were about the university’s engagement with its neighbors that make up the Charlottesville regional community. That broader meaning of community <em>is</em> represented in the comments, it’s just not obviously dominant.</p>
+<p>What about discovery? The top words here also begin with students and UVA, followed by faculty, research, and university (and can). This fits in with the element of research and knowledge production implied by discovery.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+<p>The comments contributed under the category of service most frequently use the words service, UVA, community, and university (and can), before moving to Commonwealth, serve, and faculty. We can start to get a feel for one of the challenges of comparing word frequencies by this point – there’s not a great deal of differentiation between the groups. Many of the most common words are common across categories.</p>
+<p>So let’s ask the question a different way: what words are distinct to each category?</p>
+</div>
+<div id="distinguishing-words" class="section level2">
+<h2>Distinguishing words</h2>
+<p>To detect words that distinguish between the comment categories, we’ll start with a comparison wordcloud.</p>
+<pre class="r"><code># grouping, comparison cloud
+set.seed(1006)
+dfm(comments_corpus, groups = &quot;type&quot;, remove_punct = TRUE, 
+    tolower = TRUE, remove = stopwords(&quot;english&quot;)) %&gt;% 
+  textplot_wordcloud(comparison = TRUE, max_words = 200,
+                     color = c(&quot;darkblue&quot;, &quot;darkorange&quot;, &quot;turquoise&quot;),
+                     min_size = .25, max_size = 4, rotation = 0.25,
+                     labelsize = 1, labeloffset = 0)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/compcloud-1.png" width="576" style="display: block; margin: auto;" /></p>
+<p>This plots the the 70 words most distinctively associated with each of the three comment types. More specifically, it compares the rate of occurrence of word <span class="math inline">\(i\)</span> in one category of comments (<span class="math inline">\(p_{ic}\)</span>) to the average rate of occurrence of word <span class="math inline">\(i\)</span> across all categories of comments (<span class="math inline">\(p_i\)</span>) and plots the words with the maximum positive difference (<span class="math inline">\(p_{ic} - p_i\)</span>).</p>
+<p>In the comparison cloud above, we can see that the word service appears WAY more frequently in the service comments than in the comments overall; research occurs more frequently in discovery comments than in comments overall; and community occurs more in community comments than in the comments overall. That’s not terribly interesting – the words defining the category (or a synonym, in the case of discovery) are the most distinguishing words for each group.</p>
+<p>But we can see a few other things as well. Commonwealth and students are more associated with service (given students was one of the most common words in every category, this is useful to see). Faculty and knowledge are more associated with discovery. Charlottesville and change are more associated with community – along with some issue-oriented words like climate, food, housing, energy. Perhaps we’re starting to see some of the larger community issues I was hoping to find earlier.</p>
+<p>I still find clouds hard to read, so let’s look at this another way, with a measure of the “keyness” of words in each group.</p>
+<pre class="r"><code># define the groups
+comments_dfm_groups &lt;- dfm_group(comments_dfm, groups = &quot;type&quot;)
+# specify a target value from the groups
+comments_key_comm &lt;- textstat_keyness(comments_dfm_groups, 
+                                        target = &quot;community&quot;)
+# plot
+textplot_keyness(comments_key_comm, n = 20, show_reference = FALSE,
+                 margin = 0.1, labelsize = 3, 
+                 color = &quot;darkblue&quot;) + ggtitle(&quot;Key Words in Community Comments&quot;)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/key1-1.png" width="384" style="display: block; margin: auto;" /></p>
+<p>Keyness, in a statistical sense, compares the differential associations of keywords in a target and reference group, identfiying words which appear significantly more frequently in a sample than would be expected given their overall frequency in the corpus. The measure here is a classic <span class="math inline">\(\chi^2\)</span> test based on a 2X2 table of frequencies – the frequency of the word in the target group, in the reference group (everything else), and the frequency of all other words in the target group and in the reference group.<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
+<p>In this first figure, the focus is on words that are associated with community comments. Again we see community, charlottesville, change, and words that evoke larger issues – food, climate, housing, emissions, warming, energy, and the like (I’m guessing dining is an internally-focused issue). These more distinctive words suggest a promising engagement with bigger social challenges.</p>
+<p>Let’s look at keyness for service:</p>
+<pre class="r"><code># specify a target value from the groups
+comments_key_serv &lt;- textstat_keyness(comments_dfm_groups, 
+                                        target = &quot;service&quot;)
+# plot
+textplot_keyness(comments_key_serv, n = 20, show_reference = FALSE,
+                 margin = 0.1, labelsize = 3,
+                 color = &quot;turquoise&quot;) + ggtitle(&quot;Key Words in Service Comments&quot;)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/key2-1.png" width="384" style="display: block; margin: auto;" /></p>
+<p>After service/serve, and Commonwealth, there are words that suggest an ethic of engagement – lifelong, others, career, education, integrity, volunteer. Taken as a whole, these comments may revolve around educating an informed and active citizenry.</p>
+<p>We might as well finish this out and look at discovery!</p>
+<pre class="r"><code># specify a target value from the groups
+comments_key_disc &lt;- textstat_keyness(comments_dfm_groups, 
+                                        target = &quot;discovery&quot;)
+# plot
+textplot_keyness(comments_key_disc, n = 20, show_reference = FALSE,
+                 margin = 0.1, labelsize = 3,
+                 color = &quot;darkorange&quot;) + ggtitle(&quot;Key Words in Discovery Comments&quot;)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/key3-1.png" width="384" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggsave(&quot;blog2_7.jpg&quot;, width = 4, height = 3)</code></pre>
+<p>These words strike me as “academic” language – research and knowledge, books, humanities and science (never the social sciences, sigh…), study, teach and learn.</p>
+<p>There are other ways of identifying distinguishing words – term frequency-inverse document frequency (tf-idf) being a popular choice.</p>
+<p><span class="math display">\[ tf idf = tf_{t,d} \times ln\frac{n_{docs}}{n_{docs,t}}\]</span></p>
+<p>In words, the term frequency (<span class="math inline">\(tf\)</span>, frequency of term <span class="math inline">\(t\)</span> in document <span class="math inline">\(d\)</span>) times the natural log of the number of documents over the number of documents that contain term <span class="math inline">\(t\)</span>. Values will be higher when the term appears frequently in a document (or group, in our case) but infrequently across the all documents (or groups). If a term appears in all documents, the final ratio will be 1/1, and the idf will be zero (the log of 1), generating a tf-idf score of 0 as well.</p>
+<p>We’ll use tf-idf to look at words associated with comments based on a contributor’s primary connection.</p>
+<pre class="r"><code>table(comments$primary)</code></pre>
+<pre><code>## 
+##    alumni community   faculty    parent     staff   student supporter 
+##       312        44       110        39       172       163         8</code></pre>
+<pre class="r"><code># tfidif
+comments_dfm_primary &lt;- dfm_group(comments_dfm, groups = &quot;primary&quot;)
+comments_tfidf_group &lt;- dfm_tfidf(comments_dfm_primary)
+# frequency
+comments_tfidf &lt;- textstat_frequency(comments_tfidf_group, n = 10, groups = &quot;primary&quot;, force = TRUE)
+# plot
+ggplot(comments_tfidf, aes(x = nrow(comments_tfidf):1, y = frequency)) +
+  geom_point() + facet_wrap(vars(group), scales = &quot;free&quot;, nrow = 4) + coord_flip() +
+  scale_x_continuous(breaks = nrow(comments_tfidf):1,
+                     labels = comments_tfidf$feature) +
+  labs(x = NULL, y = &quot;Term Frequency-Inverse Document Frequency&quot;)</code></pre>
+<p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/tfidf-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Keep in mind that in this corpus, contributors with a primary connection of supporter, or parent, or community are relatively small – I printed the table of primary connections out again to keep that at the forefront.</p>
+<p>With that caveat in mind, what stands out are the high tf-idf words among comments contributed by students – here’s where much of the environmental/sustainability language pops out. References to parental and workplace issues are more associated with comments by staff, while attention to Madison (I’m assuming Madison House) and fraternity are more specific to alumni.</p>
+<p>This needs more digging, but a few intriguing differences are suggested by this measure of keywords by contributor.</p>
+</div>
+<div id="up-next" class="section level2">
+<h2>Up Next</h2>
+<p>In the next post, I plan on looking at n-grams, feature co-occurrence, and document similarity (there are, it turns out, a number of repeated comments!). And then some sentiment analysis, document clustering, and topic modeling… phew.</p>
+<p>For questions or clarifications regarding this article, contact the UVa
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Michele Claibourn</em><br />
+<em>Director, Research Data Services</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] scales_1.0.0       RColorBrewer_1.1-2 forcats_0.4.0     
+##  [4] stringr_1.4.0      dplyr_0.8.1        purrr_0.3.2       
+##  [7] readr_1.3.1        tidyr_0.8.3        tibble_2.1.1      
+## [10] ggplot2_3.1.1      tidyverse_1.2.1    quanteda_1.4.3    
+## 
+## loaded via a namespace (and not attached):
+##  [1] tidyselect_0.2.5    xfun_0.7            haven_2.1.0        
+##  [4] lattice_0.20-38     colorspace_1.4-1    generics_0.0.2     
+##  [7] htmltools_0.3.6     yaml_2.2.0          rlang_0.3.4        
+## [10] pillar_1.4.0        withr_2.1.2         glue_1.3.1         
+## [13] modelr_0.1.4        readxl_1.3.1        plyr_1.8.4         
+## [16] cellranger_1.1.0    munsell_0.5.0       blogdown_0.12      
+## [19] gtable_0.3.0        rvest_0.3.3         evaluate_0.13      
+## [22] labeling_0.3        knitr_1.22          broom_0.5.2        
+## [25] Rcpp_1.0.1          spacyr_1.0          backports_1.1.4    
+## [28] RcppParallel_4.4.2  jsonlite_1.6        ISOcodes_2019.04.22
+## [31] fastmatch_1.1-0     stopwords_0.9.0     hms_0.4.2          
+## [34] digest_0.6.18       stringi_1.4.3       bookdown_0.10      
+## [37] grid_3.6.0          cli_1.1.0           tools_3.6.0        
+## [40] magrittr_1.5        lazyeval_0.2.2      crayon_1.3.4       
+## [43] pkgconfig_2.0.2     Matrix_1.2-17       xml2_1.2.0         
+## [46] data.table_1.12.2   lubridate_1.7.4     rstudioapi_0.10    
+## [49] assertthat_0.2.1    rmarkdown_1.12      httr_1.4.0         
+## [52] R6_2.4.0            nlme_3.1-139        compiler_3.6.0</code></pre>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>For the moment, ignore the two empty rows at the top and bottom of each panel – the non-plotted words at the top of the middle panel are the last two words in the top 50 for the first panel; the non-plotted words at the bottom of the middle panel are the first two words in the top 50 of the third panel. I need to look further at what quirky little bit caused them to wrap around like that, but am going to ignore them right now.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>Dunning’s likelidhood ratio test or pointwise mutual information could be used as well.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+</ol>
+</div>
