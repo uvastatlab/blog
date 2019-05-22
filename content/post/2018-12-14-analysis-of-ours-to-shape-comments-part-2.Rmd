@@ -193,10 +193,6 @@ This needs more digging, but a few intriguing differences are suggested by this 
 
 In the next post, I plan on looking at n-grams, feature co-occurrence, and document similarity (there are, it turns out, a number of repeated comments!). And then some sentiment analysis, document clustering, and topic modeling... phew.
 
-```{r save, echo = FALSE}
-rm(comment_read, comments_dfm_groups, comments_dfm_primary, comments_dfm_prop, comments_freq, comments_key_comm, comments_key_disc, comments_key_serv, comments_relfreq, comments_tfidf, comments_tfidf_group, pal1)
-save.image("ots_blog2.RData")
-```
 
 For questions or clarifications regarding this article, contact the UVa 
 Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 

@@ -1,0 +1,253 @@
+---
+title: Analysis of Ours to Shape Comments, Part 3
+author: Michele Claibourn
+date: '2018-12-18'
+slug: analysis-of-ours-to-shape-comments-part-3
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>To recap, we’re exploring the comments submitted to President Ryan’s Ours to Shape website (as of December 7, 2018).</p>
+<p>In the first post we looked at the distribution of comments across Ryan’s three categories – community, discovery, and service – and across the contributors’ primary connection to the university. We extracted features like length and readability of the comments, and compared these across groups. And we explored the context in which key words of interest (to me) were used.</p>
+<p>In the second post we examined word frequencies, relative word frequencies by groups, and began identifying key words that were differentially associated with comment categories or contributor connections via comparison clouds, keyness, and term frequency-inverse document frequency.</p>
+<p>In this third post, we’re going to step back and look for word collocations to uncover important multi-word phrases, or n-grams, that we might want to retain in our document-feature matrix. We’ll also look at feature co-occurrence within groups to better understand how words are used together. And we’ll look at document similarity, in part to find those comments that were submitted multiple times by coordinated efforts or by the same person (sneaky!).</p>
+<pre class="r"><code>library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+load(&quot;../../static/data/ots_blog1.RData&quot;)
+comments_dfm &lt;- dfm(comments_corpus, remove_punct = TRUE, 
+                    remove = stopwords()) </code></pre>
+</div>
+<div id="n-grams" class="section level2">
+<h2>N-Grams</h2>
+<p>We’ll start with the initial corpus we created and tokenize it – break it up into a bag of words. While we’re at it, we’ll remove punctuation, because I know I’m not interested in punctuation at the moment (though there are questions for which punctuation might be useful). Plus, I’ll remove stop words, but retain the space those words occupied so that words that aren’t originally adjacent don’t appear adjacent as a result. I make everything lower case (not always useful for bigrams when one is seeking proper names). Then we’ll create each bigram, every two-word sequence that exists in the corpus, and estimate the bigrams that occur more frequently than is probable given the frequency of each of the individual words in the corpus.</p>
+<pre class="r"><code># collocation analysis, finding multi-word expressions, ngrams/phrases
+comments_tokens &lt;- tokens(comments_corpus, remove_punct = TRUE) %&gt;% 
+  tokens_tolower() %&gt;% 
+  tokens_remove(stopwords(&quot;en&quot;), padding = TRUE)
+
+comments_col &lt;- comments_tokens %&gt;% 
+  textstat_collocations(min_count = 10)
+head(comments_col, 40)</code></pre>
+<pre><code>##               collocation count count_nested length    lambda        z
+## 1          climate change    97            0      2  8.015126 36.14265
+## 2              food waste    39            0      2  7.732616 26.93712
+## 3               ice arena    31            0      2  6.615513 24.63964
+## 4              first year    30            0      2  5.756249 24.57700
+## 5          global warming    24            0      2  6.853059 23.65997
+## 6        renewable energy    29            0      2  7.575701 22.03130
+## 7              ice sports    23            0      2  6.592688 21.38486
+## 8             health care    18            0      2  6.792752 21.30396
+## 9           new knowledge    21            0      2  5.684542 21.04459
+## 10            ice skating    21            0      2  5.875407 20.96693
+## 11           sports arena    17            0      2  7.104730 20.90567
+## 12            1.5 degrees    17            0      2  8.571515 20.49551
+## 13          hockey figure    19            0      2  7.568004 20.46244
+## 14         figure skating    26            0      2  9.039587 20.29049
+## 15       higher education    18            0      2  6.740706 20.15282
+## 16           dining halls    35            0      2  9.588680 19.73913
+## 17 residential experience    18            0      2  6.763730 19.68415
+## 18         president ryan    21            0      2  8.977934 19.51713
+## 19       alderman library    14            0      2  8.006928 19.48863
+## 20            dining hall    16            0      2  7.451877 19.43770
+## 21       movement whether    14            0      2  8.287771 19.41225
+## 22            high school    18            0      2  5.765402 19.15841
+## 23               ice rink    17            0      2  6.250821 18.91051
+## 24            new friends    16            0      2  6.314267 18.72425
+## 25         around grounds    19            0      2  5.029957 18.64582
+## 26        degrees celsius    22            0      2 10.341433 18.47773
+## 27           greek system    14            0      2  7.788735 18.46566
+## 28          true physical    12            0      2  7.458267 18.13065
+## 29         greenhouse gas    17            0      2 10.114189 17.98483
+## 30       energy efficient    14            0      2  6.065715 17.82780
+## 31             ice hockey    16            0      2  5.146350 17.75975
+## 32        people discover    15            0      2  6.416944 17.62044
+## 33              heat days    10            0      2  7.809398 17.44926
+## 34            free speech    11            0      2  7.488667 17.40429
+## 35                art ice    14            0      2  5.954859 17.38810
+## 36     physical education    13            0      2  6.764651 17.25215
+## 37              make sure    15            0      2  5.728284 17.08279
+## 38           solar panels    17            0      2  9.815354 16.99821
+## 39          faculty staff    21            0      2  4.126213 16.95253
+## 40          limit warming    11            0      2  6.269714 16.83547</code></pre>
+<p>These are the top 40 bigrams – you can see how frequently each occurs, along with an estimated rate of occurrence (<span class="math inline">\(\lambda\)</span>), and a Wald test Z-statistic for the significance of the rate parameter.</p>
+<p>Many of these should be recognizable to UVA aficianados – first year, President Ryan, Alderman Library – or even those vaguely attentive to the larger discourse – climate change, global warming, ice arena… wait, what!? Ice skating, ice sports, ice arena, ice rink, figure skating – the closure of the downtown ice skating rink last April has clearly been on some contributors’ minds.</p>
+<p>And no Thomas Jefferson? There are some regularities I’ve come to expect when folks are discussing UVA, but good on you for not making it all about TJ (no worries, he’s there, but is only the 69th most significant bigram, with only 13 occurrences).</p>
+<p>Let’s keep some of these multiword expressions together: climate change, global warming, health care, President Ryan, Alderman Library, and free speech to start. Here are the first 5 occurrences of “President Ryan” to give a sense of what we’ve changed:</p>
+<pre class="r"><code># retain selected multi-word expressions
+comments_comptokens &lt;- tokens_compound(comments_tokens, comments_col[c(1,5,8,18,19,34)])
+# kwic can be called on token objects as well
+head(kwic(comments_comptokens, c(&#39;president_ryan&#39;)), 5)</code></pre>
+<pre><code>##                                                        
+##   [4, 472]             sake humanity | president_ryan |
+##   [6, 560] drives uva&#39;s future thank | president_ryan |
+##  [23, 567]              change stand | president_ryan |
+##    [42, 4]                 inaugural | president_ryan |
+##    [48, 3]              good evening | president_ryan |
+##                       
+##   encourage listen    
+##   time read           
+##  thank time           
+##  mentioned development
+##   name ibby roberts</code></pre>
+<p>This shows the keyword in context, but since we’ve removed stop words and punctuation, we’re seeing only what remains – not sentence fragments, but strings of words, minus stop words, surrounding the selected bigram.</p>
+</div>
+<div id="feature-co-occurrence" class="section level2">
+<h2>Feature Co-Occurrence</h2>
+<p>Another way we might understand what contributors to Ours to Shape are saying is through feature co-occurrence. Feature (or term, or word) co-occurrence within documents (or some smaller unit) let’s us explore the relationsihp between the words used in the comments. Specifically, we can populate a square matrix, with rows and columns defined by the features, that counts the number of times any two words appear together in a document. This matrix can then be graphed as a network.</p>
+<p>For example, here I’ve trimmed the document feature matrix – removing words that occur fewer than five times throughout the corpus – to reduce the dimensionality further, created a feature co-occurrence matrix (fcm), and selected just the 20 most frequent words. The first six rows/columns of the resulting matrix are:</p>
+<pre class="r"><code># a. ours to shape comments
+comments_dfm_comptokens &lt;- dfm(comments_comptokens, remove = &quot;&quot;) # create dfm, remove padding from tokens object
+comments_dfm_trim &lt;- dfm_trim(comments_dfm_comptokens, min_termfreq=5) # reduce dfm, remove features occurring fewer than 5 times
+comments_fcm &lt;- fcm(comments_dfm_trim) # generate feature co-occurrence matrix
+comment_top &lt;- names(topfeatures(comments_dfm_trim, 20)) # list of 20 most frequently words in dfm
+comments_fcm &lt;- fcm_select(comments_fcm, comment_top) # select these 20 features from fcm
+head(comments_fcm)</code></pre>
+<pre><code>## Feature co-occurrence matrix of: 6 by 6 features.
+## 6 x 6 sparse Matrix of class &quot;fcm&quot;
+##             features
+## features     students make  uva grounds university community
+##   students        759  342 1511     309        702       832
+##   make              0  102  504     130        309       290
+##   uva               0    0 1087     339        732       980
+##   grounds           0    0    0      78        310       249
+##   university        0    0    0       0        617       641
+##   community         0    0    0       0          0       552</code></pre>
+<p>This tells us that the word “students” co-occurs with itself 759 times, and co-occurs with the term “UVA” 1511 times; and the words “community” and “grounds” co-occur 249 times. The zeroes below the diagonal don’t mean anything; the matrix is symmetric so removing those counts just makes it easier to read.</p>
+<p>Let’s visualize this in a network!</p>
+<pre class="r"><code># visualize semantic network
+size &lt;- log(colSums(dfm_select(comments_dfm_trim, comment_top))) # scale for vertices
+textplot_network(comments_fcm, min_freq = 0.5, omit_isolated = FALSE, 
+                 vertex_size = size / max(size) * 3)</code></pre>
+<pre><code>## Registered S3 method overwritten by &#39;network&#39;:
+##   method            from    
+##   summary.character quanteda</code></pre>
+<p><img src="/post/2018-12-18-analysis-of-ours-to-shape-comments-part-3_files/figure-html/fcm1fig-1.png" width="576" style="display: block; margin: auto;" /></p>
+<p>The figure shows the top 20 words; the nodes (the dots) are sized to reflect overall frequency (the log of the frequency in the dfm, to be precise), but as these are all highly-occuring words, the differences aren’t very noticeable.</p>
+<p>The edges, or the lines connecting the nodes, convey how frequently the connected terms appear together (in the same comment) – heavier lines denote more frequent co-occurrence.</p>
+<p>So while the word “university” co-occurs with almost everything, the word “service” co-occurs primarily with “community”, “uva”, and “students”, among the top 20 words (there are other words with which “service” will co-occur more frequently among words not listed here).</p>
+<p>Let’s focus this more substantively on words that co-occur with “Charlottesville”. I’ve extracted up to 10 words on either side of each appearance of “Charlottesville” (I used the key word in context function from the first blog post, but searched the tokenized object with stopwords removed) and constructed a feature co-occurrence matrix of these words, then selected the 50 most frequenty words from this truncted dfm.</p>
+<pre class="r"><code># focused on a keyword: charlottesville
+kwic_cville &lt;- kwic(comments_comptokens, &quot;charlottesville&quot;, 10) # 10 word window
+kwic_cville_dfm &lt;- dfm(paste(kwic_cville$pre, kwic_cville$keyword, kwic_cville$post, sep = &quot; &quot;))
+comments_fcm_cville &lt;- fcm(kwic_cville_dfm) # generate feature co-occurrence
+comment_top_cville &lt;- names(topfeatures(kwic_cville_dfm, 50)) # list of most frequent words
+comments_fcm_cville &lt;- fcm_select(comments_fcm_cville, comment_top_cville) # select these features from fcm
+head(comments_fcm_cville)</code></pre>
+<pre><code>## Feature co-occurrence matrix of: 6 by 6 features.
+## 6 x 6 sparse Matrix of class &quot;fcm&quot;
+##                  features
+## features          deadly heat days charlottesville also local
+##   deadly               2   13   17              11    0     0
+##   heat                 0    3   21              12    0     0
+##   days                 0    0    7              15    0     0
+##   charlottesville      0    0    0              10    6     6
+##   also                 0    0    0               0    0     2
+##   local                0    0    0               0    0     0</code></pre>
+<p>Here we see the first six rows/columns of the matrix (they aren’t in any meaningful order). And below we turn this into a network, where the size of the nodes reflects the overall frequency of the term in the dfm and the width of the line reflects how frequently the two connected words occur together in the extracted window of words around “Charlottesville”.</p>
+<pre class="r"><code># visualize semantic network
+size &lt;- log(colSums(dfm_select(kwic_cville_dfm, comment_top_cville))) # scale for vertices
+set.seed(11)
+textplot_network(comments_fcm_cville, min_freq = 0.5, 
+                 vertex_size = size / max(size) * 3)</code></pre>
+<p><img src="/post/2018-12-18-analysis-of-ours-to-shape-comments-part-3_files/figure-html/fcm2fig-1.png" width="576" style="display: block; margin: auto;" /></p>
+<p>In short, this shows the words that appear in close proximity to Charlottesville (within 10 words) and the strength of the relationship between the words as a function of their being used in the same window.</p>
+<p>Charlottesville occurs most frequently in this set – the set was selected to only include windows of words surrounding Charlottesville, so that’s what we’d expect. But the word “community” has stronger connections (co-occurrences) with a wider range of words. You can see a few clusters of connected words: deadline, heat, days, century, which looks like the comments around global warming perhaps; and Virginia, region, beyond, communities, which may be about getting off grounds and into the world.</p>
+</div>
+<div id="document-similarity" class="section level2">
+<h2>Document Similarity</h2>
+<p>In exploring the corpus, I came across what appeared to be duplicate comments. I want to dig into that a little bit, so we’ll turn to document similarity.</p>
+<p>We’ll use cosine similarity to measure the similarity between each pair of comments. This measures the cosine of the angle between two documents, or between the vectors of word counts that we’re using to represent the documents.</p>
+<p>The result will be an <span class="math inline">\(n \times n\)</span> matrix of similarity metrics. Here are the cosine similarities for the first five documents:</p>
+<pre class="r"><code># similarity across all comments, save as matrix
+comments_simil &lt;- textstat_simil(comments_dfm_comptokens,  # create similarity matrix
+                                 method = &quot;cosine&quot;, margin = &quot;documents&quot;,
+                                 upper = TRUE, diag = TRUE) %&gt;% 
+  as.matrix  # format as matrix
+comments_simil[1:5, 1:5]</code></pre>
+<pre><code>##            1          2         3         4          5
+## 1 1.00000000 0.07458534 0.1745405 0.0484370 0.18108634
+## 2 0.07458534 1.00000000 0.1537041 0.1475948 0.05780733
+## 3 0.17454052 0.15370411 1.0000000 0.1871589 0.19825157
+## 4 0.04843700 0.14759482 0.1871589 1.0000000 0.24103078
+## 5 0.18108634 0.05780733 0.1982516 0.2410308 1.00000000</code></pre>
+<pre class="r"><code>diag(comments_simil) &lt;- 0  # set diagonal to 0 (self-similarity)</code></pre>
+<p>Values of 1 represent identical documents – none of the first five comments in the corpus are especially similar. Filtering the matrix for rows with cosine similarities of 0.99 or greater produces 56 pairs, representing 12 distinct comments each repeated multiple times.</p>
+<pre class="r"><code>dups &lt;- as.data.frame(which(comments_simil &gt; 0.99, arr.ind = T, useNames = T)) # extract similar pairs
+head(dups, 5)</code></pre>
+<pre><code>##      row col
+## X200 200 153
+## X210 210 153
+## X538 538 153
+## X554 554 153
+## X731 731 153</code></pre>
+<pre class="r"><code>dups_remove &lt;- c(&quot;556&quot;, &quot;538&quot;, &quot;554&quot;, &quot;731&quot;, &quot;540&quot;, &quot;728&quot;)
+comments2 &lt;- comments %&gt;% filter(!(doc_id %in% dups_remove))</code></pre>
+<p>That is, comment 153 is a duplicate or near duplicate of comments 200, 210, 538, 554, and 731. I looked at the duplicate comments and it turns out most are submitted by different people – some organized commenting. Most of the coordinated comments note the need for a new ice skating rink – the following comments appeared 6 and 5 times, respectively.</p>
+<pre class="r"><code>comments$text[153] # 6</code></pre>
+<pre><code>## [1] &quot;What if the University of Virginia built a state of the art Ice Sports Arena? We would have a place of true physical education for all ages and abilities. An ice arena is a venue for participation. 500 athletes a day (with 1/3rd coming from the non-University community) would come to skate with family or to make new friends while discovering the joy of movement whether it be hockey, figure skating or just ice skating. The UVA ICE PARK would be a bridge between Town and Gown and a way for the school to be of service to the community while helping all people discover the joy of movement and exercise.&quot;</code></pre>
+<pre class="r"><code>comments$text[155] # 5</code></pre>
+<pre><code>## [1] &quot;What if the University of Virginia built a state of the art Ice Sports Arena?  We\nwould have a place of true physical education for all ages and abilities. An ice\narena is a venue for participation. 500 athletes a day (with 1/3rd coming from the\nnon-University community) would come to skate with family or to make new\nfriends while discovering the joy of movement whether it be hockey, figure\nskating or jjust ice skating. The UVA ICE PARK would be a bridge between\nTown and Gown and a way for the school to be of service to the community while\nhelping all people discover the joy of movement and exercise.&quot;</code></pre>
+<p>A few of these, though, represented multiple submissions by the same contributor, but under different comment categories – once under community and once under service, for example. I removed six such duplicates, so the next post will use this slightly reduced set.</p>
+<pre class="r"><code>rm(comments_col, comments_dfm_trim, comments_fcm, comments_fcm_cville, comments_simil, comments_comptokens, comments_dfm_comptokens, comments_tokens, dups, kwic_cville, kwic_cville_dfm, comment_top, comment_top_cville, dups_remove, size)
+save.image(&quot;../../static/data/ots_blog3.RData&quot;)</code></pre>
+</div>
+<div id="coming-up" class="section level2">
+<h2>Coming Up</h2>
+<p>This post has looked at three somewhat disconnected methods – collocation analysis for discovery of key phrases as a pre-analysis step, feature co-occurrence and representation of semantic networks, and document similarity for uncovering near duplicates. Most of this is set up for some additional methods yet to come. Similarity and distance between term vectors will come up again when we look at clustering; feature co-occurrence will be key in topic modeling.</p>
+<p>But first, we’ll take a short detour into sentiment analysis.</p>
+<p>For questions or clarifications regarding this article, contact the UVa
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Michele Claibourn</em><br />
+<em>Director, Research Data Services</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] scales_1.0.0       RColorBrewer_1.1-2 forcats_0.4.0     
+##  [4] stringr_1.4.0      dplyr_0.8.1        purrr_0.3.2       
+##  [7] readr_1.3.1        tidyr_0.8.3        tibble_2.1.1      
+## [10] ggplot2_3.1.1      tidyverse_1.2.1    quanteda_1.4.3    
+## 
+## loaded via a namespace (and not attached):
+##  [1] ggrepel_0.8.1        Rcpp_1.0.1           lubridate_1.7.4     
+##  [4] lattice_0.20-38      assertthat_0.2.1     digest_0.6.19       
+##  [7] R6_2.4.0             cellranger_1.1.0     plyr_1.8.4          
+## [10] backports_1.1.4      evaluate_0.13        coda_0.19-2         
+## [13] httr_1.4.0           blogdown_0.12        pillar_1.4.0        
+## [16] rlang_0.3.4          lazyeval_0.2.2       readxl_1.3.1        
+## [19] rstudioapi_0.10      data.table_1.12.2    Matrix_1.2-17       
+## [22] sna_2.4              rmarkdown_1.12       munsell_0.5.0       
+## [25] broom_0.5.2          compiler_3.6.0       spacyr_1.0          
+## [28] modelr_0.1.4         xfun_0.7             pkgconfig_2.0.2     
+## [31] htmltools_0.3.6      tidyselect_0.2.5     statnet.common_4.2.0
+## [34] bookdown_0.10        crayon_1.3.4         withr_2.1.2         
+## [37] grid_3.6.0           nlme_3.1-139         jsonlite_1.6        
+## [40] gtable_0.3.0         magrittr_1.5         RcppParallel_4.4.2  
+## [43] cli_1.1.0            stringi_1.4.3        xml2_1.2.0          
+## [46] stopwords_0.9.0      generics_0.0.2       fastmatch_1.1-0     
+## [49] tools_3.6.0          glue_1.3.1           hms_0.4.2           
+## [52] network_1.15         yaml_2.2.0           colorspace_1.4-1    
+## [55] rvest_0.3.3          knitr_1.22           haven_2.1.0</code></pre>
+</div>
