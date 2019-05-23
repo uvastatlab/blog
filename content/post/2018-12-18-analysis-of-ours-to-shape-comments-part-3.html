@@ -197,8 +197,7 @@ comments2 &lt;- comments %&gt;% filter(!(doc_id %in% dups_remove))</code></pre>
 <pre class="r"><code>comments$text[155] # 5</code></pre>
 <pre><code>## [1] &quot;What if the University of Virginia built a state of the art Ice Sports Arena?  We\nwould have a place of true physical education for all ages and abilities. An ice\narena is a venue for participation. 500 athletes a day (with 1/3rd coming from the\nnon-University community) would come to skate with family or to make new\nfriends while discovering the joy of movement whether it be hockey, figure\nskating or jjust ice skating. The UVA ICE PARK would be a bridge between\nTown and Gown and a way for the school to be of service to the community while\nhelping all people discover the joy of movement and exercise.&quot;</code></pre>
 <p>A few of these, though, represented multiple submissions by the same contributor, but under different comment categories – once under community and once under service, for example. I removed six such duplicates, so the next post will use this slightly reduced set.</p>
-<pre class="r"><code>rm(comments_col, comments_dfm_trim, comments_fcm, comments_fcm_cville, comments_simil, comments_comptokens, comments_dfm_comptokens, comments_tokens, dups, kwic_cville, kwic_cville_dfm, comment_top, comment_top_cville, dups_remove, size)
-save.image(&quot;../../static/data/ots_blog3.RData&quot;)</code></pre>
+<pre class="r"><code>saveRDS(comments2, file = &quot;../../static/data/ots_comments2.RDS&quot;)</code></pre>
 </div>
 <div id="coming-up" class="section level2">
 <h2>Coming Up</h2>

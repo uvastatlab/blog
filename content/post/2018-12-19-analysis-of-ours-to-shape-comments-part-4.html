@@ -1,0 +1,284 @@
+---
+title: Analysis of Ours to Shape Comments, Part 4
+author: Michele Claibourn
+date: '2018-12-19'
+slug: analysis-of-ours-to-shape-comments-part-4
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+
+
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>In the fourth installment of this series (we’re almost done, I promise), we’ll look at the sentiment – aka positive/negative tone, polarity, affect – of the comments to President Ryan’s Ours to Shape website.</p>
+<p>We don’t have a pre-labeled set of comments, with negative or positive sentiment already identified, so we can’t use a supervised classification method (and I’m not committed enough to hand code a sample of comments). Instead, we’ll use a lexicon-based approach, using a predefined dictionary of positive and negative words and counting up their presence in the corpus of coments.</p>
+<pre class="r"><code>library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+library(quanteda.dictionaries) # pre-defined dictionaries</code></pre>
+<p>In the last post, we removed a few duplicate comments by the same contributor, so we’ll be working with a corpus of 842 comments (as of December 7, 2018). Let’s quickly re-create the relevant objects (corpus, tokens, dfm) on this de-duplicated set.</p>
+<pre class="r"><code>comments2 &lt;- readRDS(&quot;../../static/data/ots_comments2.RDS&quot;)
+comments2_corpus &lt;- corpus(comments2) # generate corpus object
+comments2$words &lt;- ntoken(comments2_corpus) #  number of words/tokens 
+comments2$sentences &lt;- nsentence(comments2_corpus) #  number of sentences 
+# add readability
+comment2_read &lt;- textstat_readability(comments2_corpus, measure = &quot;Flesch.Kincaid&quot;) #  readability
+comments2$read &lt;- comment2_read$Flesch.Kincaid # add to de-duped data frame
+# collocation analysis, finding multi-word expressions, ngrams/phrases
+comments2_tokens &lt;- tokens(comments2_corpus, remove_punct = TRUE) %&gt;% 
+  tokens_tolower() %&gt;% 
+  tokens_remove(stopwords(&quot;en&quot;), padding = TRUE)
+comments2_col &lt;- comments2_tokens %&gt;% 
+  textstat_collocations(min_count = 10)
+# retain selected multi-word expressions
+comments2_comptokens &lt;- tokens_compound(comments2_tokens, 
+                                        comments2_col[c(1,4,7,14,16,29)]) # generate dfm
+comments2_dfm &lt;- dfm(comments2_comptokens, remove = &quot;&quot;) # create dfm</code></pre>
+<div id="sentiment-analysis" class="section level2">
+<h2>Sentiment Analysis</h2>
+<p>There are many, many, many packaged sentiment dictionaries available. They should always be chosen with care, with attention to how they were created – crowdsourcing, grounded theory, algorithmically based on a labelled corpus – and for what purpose or context – for tweets, novels, newspapers.</p>
+<p>I’ll use one with which I’m familiar – the <a href="http://lexicoder.com/index.html">Lexicoder Sentiment Dictionary</a>. The LSD dictionary was created from previous sentiment dictionaries, widely used in in political science and psychology, but cleaned of ambiguous and problematic words. It’s tailored to political texts – did I mention I’m a political scientist – but I’d suggest the feedback to UVA represented by the Ours to Shape comments are political.</p>
+<p>Here’s a sampling of the words categorized as positive and as negative:</p>
+<pre class="r"><code># quanteda comes with the Lexicoder Sentiment Dictionary built in
+#    http://lexicoder.com/
+lsd &lt;- data_dictionary_LSD2015
+set.seed(121)
+sample(lsd[[2]], 10)</code></pre>
+<pre><code>##  [1] &quot;trustful*&quot;       &quot;keep pace with*&quot; &quot;hearti*&quot;        
+##  [4] &quot;humourist&quot;       &quot;responsib*&quot;      &quot;loved*&quot;         
+##  [7] &quot;respectful*&quot;     &quot;redeem*&quot;         &quot;comely*&quot;        
+## [10] &quot;flush&quot;</code></pre>
+<pre class="r"><code>set.seed(823)
+sample(lsd[[1]], 10)</code></pre>
+<pre><code>##  [1] &quot;slop&quot;        &quot;judgmental*&quot; &quot;friendless&quot;  &quot;trembl*&quot;     &quot;lapse&quot;      
+##  [6] &quot;moodi*&quot;      &quot;strife&quot;      &quot;rats&quot;        &quot;engulf*&quot;     &quot;disorder*&quot;</code></pre>
+<p>There are 2,858 negative words and 1,709 positive words in all.</p>
+<p>I apply this dictionary to the dfm of the comments to generate a count of the number of times words in the positive dictionary appear in the comment and the number of times words in the negative dictionary appear in the comment.</p>
+<pre class="r"><code># apply dictionary, returns dfm for words in dictionary
+comments2_lsd &lt;- dfm(comments2_dfm, dictionary = lsd)
+comments2_lsd[1:5,1:2]</code></pre>
+<pre><code>## Document-feature matrix of: 5 documents, 2 features (10.0% sparse).
+## 5 x 2 sparse Matrix of class &quot;dfm&quot;
+##     features
+## docs negative positive
+##    1        0       10
+##    2        4        2
+##    3        2       16
+##    4       18       30
+##    5       19       19</code></pre>
+<p>Then I divide the positive and negative counts by the number of words in the comment, multiply by 100 to generate the percent of positive or negative words, and take the difference (% positive - % negative) to create a measure of tone.</p>
+<pre class="r"><code># turn this into a dataframe, add ntoken, create percent neg/pos words, take difference
+comments2_lsd &lt;- convert(comments2_lsd, to = &quot;data.frame&quot;)
+comments2_lsd &lt;- comments2_lsd %&gt;% 
+  mutate(words = ntoken(comments2_dfm),
+         pos = (positive/words)*100,
+         neg = (negative/words)*100,
+         tone = pos - neg) 
+summary(comments2_lsd[6:9])</code></pre>
+<pre><code>##      words             pos              neg              tone        
+##  Min.   :  2.00   Min.   : 0.000   Min.   : 0.000   Min.   :-66.667  
+##  1st Qu.: 29.00   1st Qu.: 8.333   1st Qu.: 0.000   1st Qu.:  3.925  
+##  Median : 41.00   Median :12.121   Median : 2.247   Median :  9.091  
+##  Mean   : 55.98   Mean   :13.445   Mean   : 3.582   Mean   :  9.863  
+##  3rd Qu.: 52.00   3rd Qu.:17.228   3rd Qu.: 5.263   3rd Qu.: 14.800  
+##  Max.   :738.00   Max.   :72.727   Max.   :66.667   Max.   : 72.727</code></pre>
+<p>On average, comments have 56 words, 13% of which are positively valenced and 3.5% of which are negatively valenced. The average tone is 10% net positive, though it ranges quite a bit. Let’s look at the distribution</p>
+<pre class="r"><code>ggplot(comments2_lsd, aes(x=tone)) + geom_histogram(bins = 50)</code></pre>
+<p><img src="/post/2018-12-19-analysis-of-ours-to-shape-comments-part-4_files/figure-html/lsddist-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>The comments definitely lean net positive, with quite a few extremely positive comments, and only one really uber negative comment. Here are the most extreme comments, and the categories to which they were submitted based on this metric:</p>
+<pre class="r"><code># add feature to initial data frame and plot
+comments2$tone &lt;- comments2_lsd$tone
+
+# most positive comment
+comments2 %&gt;% filter(tone == max(tone)) %&gt;% select(type, tone, text) </code></pre>
+<pre><code>##      type     tone
+## 1 service 72.72727
+##                                                                                                                 text
+## 1 By a strong renewed focus on character, including honesty, integrity, fairness, openness, and a spirit of service.</code></pre>
+<pre class="r"><code># most negative comment
+comments2 %&gt;% filter(tone == min(tone)) %&gt;% select(type, tone, text)</code></pre>
+<pre><code>##        type      tone                   text
+## 1 community -66.66667 Reject racism outright</code></pre>
+<p>The first comment gets a score of 55% – over half of the words here have positive connotations. The second comment has a score of -67% – two of the three words are negatively valenced. While I wouldn’t disagree with the scores here – reject and racism are negative words, honesty and integrity are positive – this highlights some of the challenges of measuring tone. It’s not clear to me that the first comment was intended as a compliment to UVA – renewed focus suggests a lapse. And though the short, pithy second comment rings as a critique, it’s probably not the most negative comment here; its brevity overemphasizes the negative words.</p>
+<p>Still, we persist!</p>
+</div>
+<div id="sentiment-by-categoryconnections" class="section level2">
+<h2>Sentiment by Category/Connections</h2>
+<p>Next we compare our measure of comment tone by comment category – are the comments about community or service or discovery more positive?</p>
+<pre class="r"><code># distribution by comment category
+ggplot(comments2, aes(x=type, y=tone, color=type)) + 
+  geom_violin() +
+  scale_color_manual(values=c(&quot;darkblue&quot;, &quot;darkorange&quot;, &quot;turquoise&quot;)) +
+  labs(y = &quot;Overall Tone (Negative to Positive)&quot;, x = &quot;Comment Category&quot;,
+       title = &quot;Sentiment of Ours to Shape Comments&quot;) +
+  theme(legend.position=&quot;none&quot;)</code></pre>
+<p><img src="/post/2018-12-19-analysis-of-ours-to-shape-comments-part-4_files/figure-html/lsdcat2-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Well, no. Comments in each category appear to have similarly net positive distributions. Except for the outlier (Reject racism outright), there isn’t much to distinguish the categories.</p>
+<p>Let’s try one more comparison – tone by the primary connection of the contributor.</p>
+<pre class="r"><code># distribution by primary connection
+ggplot(comments2, aes(x=primary, y=tone, color=primary)) + 
+  geom_violin() +
+  scale_color_manual(values = brewer.pal(9, &quot;Blues&quot;)[3:9]) +
+  labs(y = &quot;Overall Tone (Negative to Positive)&quot;, x = &quot;Primary Connection&quot;,
+       title = &quot;Sentiment of Ours to Shape Comments&quot;) +
+  theme(legend.position=&quot;none&quot;)</code></pre>
+<p><img src="/post/2018-12-19-analysis-of-ours-to-shape-comments-part-4_files/figure-html/lsdprim-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>There’s a little more going on here – while the center of the distribution for each connection type is similar, the tails are more variable. Comments by community members, for instance, don’t tend to get quite as positive as at least some comments by other contributors; and comments by supporters never veer into the net negative.</p>
+</div>
+</div>
+<div id="sentiment-adjacent-analysis" class="section level1">
+<h1>Sentiment-Adjacent Analysis</h1>
+<p>Of course, there are multiple ways to think about sentiment, and sentiment is only one dimension of text that might be extracted via dictionaries. There’s been some work on uncovering moral rhetoric, or the dimensions of morality emphasized in speech and text. This work in <a href="https://www.moralfoundations.org/">moral foundations</a> proposes five universal foundtions for ethical judgement, each arrayed from virtue to vice. The moral dimensions are summarized below (adapted from the link above) and a sampling of the words associated with each is provided.</p>
+<ul>
+<li>Care (virtue-care, vice-harm): underlies virtues of kindness, gentleness, and nurturance.</li>
+</ul>
+<pre><code>## Care-Virtue:, mommy, pities, empathised, childbirth, hug, empathizers, consoling, charitable, protective, mothers</code></pre>
+<pre><code>## Care-Vice:, fatalities, suffered, sorrowful, torturing, suffering, annihilated, injurious, brutalization, rapes, agonize</code></pre>
+<ul>
+<li>Fairness (virtue-fairness, vice-cheating): supports ideas of justice, rights, and autonomy.ch is endorsed by everyone, but is more strongly endorsed by conservatives]</li>
+</ul>
+<pre><code>## Fairness-Virtue:, objectiveness, level playing field, due processes, fairness, egalitarians, equities, justifying, avengers, pay back, equals</code></pre>
+<pre><code>## Fairness-Vice:, ripoff, sexism, robs, ripped off, crooks, deceivers, stole, unfair, suckered, connivers</code></pre>
+<ul>
+<li>Loyalty (virtue-loyalty, vice-betrayal): the basis of patriotism and self-sacrifice.</li>
+</ul>
+<pre><code>## Loyalty-Virtue:, congregate, belong, death do us part, factions, homelands, undivided, familiarities, cohorts, comradery, pledge</code></pre>
+<pre><code>## Loyalty-Vice:, betrayers, rebellion, treacherous, betraying, outsiders, cheated on, unfaithfulness, infidel, backstabbed, backstabs</code></pre>
+<ul>
+<li>Authority (virtue-authority, vice-subversion): underlies virtues of leadership and followership, deference to legitimate authority, respect for traditions.</li>
+</ul>
+<pre><code>## Authority-Virtue:, punishes, corporate ladders, by the book, allegiance, leader, father, empire, dictated, punishers, mentor</code></pre>
+<pre><code>## Authority-Vice:, anarchists, insurrectionist, uprising, insurrectional, unlawfulness, transgressing, heresies, dissenter, illegals, renegades</code></pre>
+<ul>
+<li>Sanctity (virtue-sanctity, vice-degradation): underlies the widespread idea that the body is a temple which can be desecrated by immoral activities and contaminants.</li>
+</ul>
+<pre><code>## Sanctity-Virtue:, eternally, monasteries, hallowing, organically, beatify, scriptures, righteous, cathedrals, marring, hallows</code></pre>
+<pre><code>## Sanctity-Vice:, trashiness, infects, fornicate, disgusted, fornicators, sluts, excrement, horror, contagiously, corrupted</code></pre>
+<p>I apply the moral foundations lexicon to the comments to see if we can uncover any dominant moral rhetoric in this conversation about the university. After getting the count of words for each dimension, I convert these to a percent of words in the comment to normalize across comment length.</p>
+<pre class="r"><code># dictionary can be applied to already processed dfm
+comments2_mf &lt;- dfm_lookup(comments2_dfm, dictionary = mf)
+
+# turn this into a dataframe, add ntoken, create proportions
+comments2_mf &lt;- convert(comments2_mf, to = &quot;data.frame&quot;)
+comments2_mf &lt;- comments2_mf %&gt;% 
+  mutate(words = ntoken(comments2_dfm),
+         carevirtue = (care.virtue/words)*100,
+         carevice = (care.vice/words)*100,
+         fairvirtue = (fairness.virtue/words)*100,
+         fairvice = (fairness.vice/words)*100,
+         loyalvirtue = (loyalty.virtue/words)*100,
+         loyalvice = (loyalty.vice/words)*100,
+         authorityvirtue = (authority.virtue/words)*100,
+         authorityvice = (authority.vice/words)*100,
+         sanctityvirtue = (sanctity.virtue/words)*100,
+         sanctityvice = (sanctity.vice/words)*100)
+
+comments2_mf_long &lt;- comments2_mf %&gt;% 
+  select(document, carevirtue:sanctityvice) %&gt;% 
+  gather(foundation, percent,  -document)
+ggplot(comments2_mf_long, aes(x=foundation, y=percent)) + 
+  geom_boxplot() + labs(x = &quot;Moral Foundation&quot;, y = &quot;Percent of Words Present&quot;, title = &quot;Moral Rhetoric in Ours to Shape Comments&quot;) + coord_flip()</code></pre>
+<p><img src="/post/2018-12-19-analysis-of-ours-to-shape-comments-part-4_files/figure-html/mfdist-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Some of these don’t arise in the contributed comments at all – sanctity or ideas of purity don’t seem especially prominent (or relevant), and the negative poles of authority (treachery), care (harm), and loyalty (betrayal) don’t appear with any frequency; more surprising (to me) is the relative absence of fairness.</p>
+<p>The moral dimensions that do come out are loyalty, care, and authority. Let’s see what that’s about (in that order).</p>
+<pre class="r"><code># add feature to initial data frame
+comments2[, ncol(comments2)+1:10] &lt;- comments2_mf[, 13:22]
+# extrema
+loyal &lt;- comments2 %&gt;% filter(loyalvirtue == max(loyalvirtue)) %&gt;% select(type, loyalvirtue, text) 
+loyal[1,]</code></pre>
+<pre><code>##        type loyalvirtue
+## 1 community          20
+##                                                                                                    text
+## 1 UVA focuses on understanding our broader community versus focusing on the community understanding UVA</code></pre>
+<pre class="r"><code>comments2 %&gt;% filter(carevirtue == max(carevirtue)) %&gt;% select(type, carevirtue, text) </code></pre>
+<pre><code>##        type carevirtue
+## 1 discovery   33.33333
+##                                                                                  text
+## 1 How about protecting our community from Nazis, and not hiring fascist sympathizers?</code></pre>
+<pre class="r"><code>auth &lt;- comments2 %&gt;% filter(authorityvirtue == max(authorityvirtue)) %&gt;% select(type, authorityvirtue, text) 
+auth[2,]</code></pre>
+<pre><code>##      type authorityvirtue
+## 2 service        16.66667
+##                                                      text
+## 2 Please maintain the honor code and the single sanction.</code></pre>
+<p>The first does get at the us/them element of loyalty; the second is clearly about protection from harm; and the third definitely references respect for tradition. All in all, not bad.</p>
+<p>Finally, let’s compare this across comment categories – perhaps ideas about community or discovery or service rest on distinct moral dimensions.</p>
+<pre class="r"><code># add feature to initial data frame
+comments2[, ncol(comments2)+1:10] &lt;- comments2_mf[, 13:22]
+# create &quot;long&quot; dataframe with average foundation by comment type and plot
+commenttype_mf &lt;- comments2 %&gt;% group_by(type) %&gt;% 
+  summarize(carevirtue = mean(carevirtue), carevice = mean(carevice), 
+            fairvirtue = mean(fairvirtue), fairvice = mean(fairvice), 
+            loyalvirtue = mean(loyalvirtue), loyalvice = mean(loyalvice), 
+            authorityvirtue = mean(authorityvirtue), authorityvice = mean(authorityvice), 
+            sanctityvirtue = mean(sanctityvirtue), sanctityvice = mean(sanctityvice)) 
+commenttype_mf_long &lt;- commenttype_mf %&gt;% 
+  gather(foundation, value, -type)
+ggplot(commenttype_mf_long, aes(x = foundation, y = value, fill = type)) + 
+  geom_bar(stat = &quot;identity&quot;, position = position_dodge()) + 
+  labs(title = &quot;Moral Rhetoric in Ours to Shape Comments&quot;, subtitle = &quot;By Comment Category&quot;,
+       x = &quot;Moral Foundation&quot;, y = &quot;Average Percent of Words Present&quot;) + 
+  scale_fill_manual(values = c(&quot;darkblue&quot;, &quot;darkorange&quot;, &quot;turquoise3&quot;), name = &quot;Type&quot;) +
+  coord_flip()</code></pre>
+<p><img src="/post/2018-12-19-analysis-of-ours-to-shape-comments-part-4_files/figure-html/mfgroups-1.png" width="576" style="display: block; margin: auto;" /></p>
+<p>In fact, there are some differences. While loyalty, care, and authority are the most frequent moral dimensions for all three comment categories, comments about community rest notably more on ideas of loyalty than on care or authority. Service comments, too, rely more on the loyalty dimension, but reference ideas of care and kindness more than the the comment categories. And feedback on discovery appeals more to authority than the other categories of comments.</p>
+<pre class="r"><code>rm(auth, comment2_read, comments2_col, comments2_comptokens, comments2_lsd, comments2_mf, comments2_mf_long, commenttype_mf, commenttype_mf_long, comments2_tokens, loyal, lsd, mf)
+save.image(&quot;../../static/data/ots_blog4.RData&quot;)</code></pre>
+<div id="still-to-come" class="section level2">
+<h2>Still to Come</h2>
+<p>After some additional unsupervised exploration – via cluster analysis and topic modeling – the goal is to model the relationship among these extracted features to see what we can learn. Stay tuned!</p>
+<p>For questions or clarifications regarding this article, contact the UVa
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Michele Claibourn</em><br />
+<em>Director, Research Data Services</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] quanteda.dictionaries_0.22 scales_1.0.0              
+##  [3] RColorBrewer_1.1-2         forcats_0.4.0             
+##  [5] stringr_1.4.0              dplyr_0.8.1               
+##  [7] purrr_0.3.2                readr_1.3.1               
+##  [9] tidyr_0.8.3                tibble_2.1.1              
+## [11] ggplot2_3.1.1              tidyverse_1.2.1           
+## [13] quanteda_1.4.3            
+## 
+## loaded via a namespace (and not attached):
+##  [1] tidyselect_0.2.5   xfun_0.7           haven_2.1.0       
+##  [4] lattice_0.20-38    colorspace_1.4-1   generics_0.0.2    
+##  [7] htmltools_0.3.6    yaml_2.2.0         rlang_0.3.4       
+## [10] pillar_1.4.0       withr_2.1.2        glue_1.3.1        
+## [13] modelr_0.1.4       readxl_1.3.1       plyr_1.8.4        
+## [16] cellranger_1.1.0   munsell_0.5.0      blogdown_0.12     
+## [19] gtable_0.3.0       rvest_0.3.3        evaluate_0.13     
+## [22] labeling_0.3       knitr_1.22         broom_0.5.2       
+## [25] Rcpp_1.0.1         spacyr_1.0         backports_1.1.4   
+## [28] RcppParallel_4.4.2 jsonlite_1.6       fastmatch_1.1-0   
+## [31] stopwords_0.9.0    hms_0.4.2          digest_0.6.19     
+## [34] stringi_1.4.3      bookdown_0.10      grid_3.6.0        
+## [37] cli_1.1.0          tools_3.6.0        magrittr_1.5      
+## [40] lazyeval_0.2.2     crayon_1.3.4       pkgconfig_2.0.2   
+## [43] Matrix_1.2-17      xml2_1.2.0         data.table_1.12.2 
+## [46] lubridate_1.7.4    rstudioapi_0.10    assertthat_0.2.1  
+## [49] rmarkdown_1.12     httr_1.4.0         R6_2.4.0          
+## [52] nlme_3.1-139       compiler_3.6.0</code></pre>
+</div>
+</div>
