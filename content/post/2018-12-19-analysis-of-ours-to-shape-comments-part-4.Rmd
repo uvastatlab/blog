@@ -1,0 +1,264 @@
+---
+title: Analysis of Ours to Shape Comments, Part 4
+author: Michele Claibourn
+date: '2018-12-19'
+slug: analysis-of-ours-to-shape-comments-part-4
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+# Introduction
+In the fourth installment of this series (we're almost done, I promise), we'll look at the sentiment -- aka positive/negative tone, polarity, affect -- of the comments to President Ryan's Ours to Shape website. 
+
+We don't have a pre-labeled set of comments, with negative or positive sentiment already identified, so we can't use a supervised classification method (and I'm not committed enough to hand code a sample of comments). Instead, we'll use a lexicon-based approach, using a predefined dictionary of positive and negative words and counting up their presence in the corpus of coments.
+
+```{r setup, warning = FALSE, message = FALSE}
+library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+library(quanteda.dictionaries) # pre-defined dictionaries
+```
+
+In the last post, we removed a few duplicate comments by the same contributor, so we'll be working with a corpus of 842 comments (as of December 7, 2018). Let's quickly re-create the relevant objects (corpus, tokens, dfm) on this de-duplicated set.
+
+```{r recreate}
+comments2 <- readRDS("../../static/data/ots_comments2.RDS")
+comments2_corpus <- corpus(comments2) # generate corpus object
+comments2$words <- ntoken(comments2_corpus) #  number of words/tokens 
+comments2$sentences <- nsentence(comments2_corpus) #  number of sentences 
+# add readability
+comment2_read <- textstat_readability(comments2_corpus, measure = "Flesch.Kincaid") #  readability
+comments2$read <- comment2_read$Flesch.Kincaid # add to de-duped data frame
+# collocation analysis, finding multi-word expressions, ngrams/phrases
+comments2_tokens <- tokens(comments2_corpus, remove_punct = TRUE) %>% 
+  tokens_tolower() %>% 
+  tokens_remove(stopwords("en"), padding = TRUE)
+comments2_col <- comments2_tokens %>% 
+  textstat_collocations(min_count = 10)
+# retain selected multi-word expressions
+comments2_comptokens <- tokens_compound(comments2_tokens, 
+                                        comments2_col[c(1,4,7,14,16,29)]) # generate dfm
+comments2_dfm <- dfm(comments2_comptokens, remove = "") # create dfm
+```
+
+## Sentiment Analysis
+There are many, many, many packaged sentiment dictionaries available. They should always be chosen with care, with attention to how they were created -- crowdsourcing, grounded theory, algorithmically based on a labelled corpus -- and for what purpose or context -- for tweets, novels, newspapers.
+
+I'll use one with which I'm familiar -- the [Lexicoder Sentiment Dictionary](http://lexicoder.com/index.html). The LSD dictionary was created from	previous	sentiment	dictionaries, widely used in in political science and psychology,	but	cleaned	of	ambiguous	and	problematic	words. It's tailored to political texts -- did I mention I'm a political scientist -- but I'd suggest the feedback to UVA represented by the Ours to Shape comments are political.
+
+Here's a sampling of the words categorized as positive and as negative:
+
+```{r lsd}
+# quanteda comes with the Lexicoder Sentiment Dictionary built in
+#    http://lexicoder.com/
+lsd <- data_dictionary_LSD2015
+set.seed(121)
+sample(lsd[[2]], 10)
+set.seed(823)
+sample(lsd[[1]], 10)
+```
+
+There are 2,858 negative words and 1,709 positive words in all.
+
+I apply this dictionary to the dfm of the comments to generate a count of the number of times words in the positive dictionary appear in the comment and the number of times words in the negative dictionary appear in the comment.
+
+```{r lsdlist}
+# apply dictionary, returns dfm for words in dictionary
+comments2_lsd <- dfm(comments2_dfm, dictionary = lsd)
+comments2_lsd[1:5,1:2]
+```
+
+Then I divide the positive and negative counts by the number of words in the comment, multiply by 100 to generate the percent of positive or negative words, and take the difference (% positive - % negative) to create a measure of tone.
+
+```{r lsdsumm}
+# turn this into a dataframe, add ntoken, create percent neg/pos words, take difference
+comments2_lsd <- convert(comments2_lsd, to = "data.frame")
+comments2_lsd <- comments2_lsd %>% 
+  mutate(words = ntoken(comments2_dfm),
+         pos = (positive/words)*100,
+         neg = (negative/words)*100,
+         tone = pos - neg) 
+summary(comments2_lsd[6:9])
+```
+
+On average, comments have 56 words, 13% of which are positively valenced and 3.5% of which are negatively valenced. The average tone is 10% net positive, though it ranges quite a bit. Let's look at the distribution
+
+```{r lsddist, fig.height = 3, fig.width = 5, fig.align = "center"}
+ggplot(comments2_lsd, aes(x=tone)) + geom_histogram(bins = 50)
+```
+
+The comments definitely lean net positive, with quite a few extremely positive comments, and only one really uber negative comment. Here are the most extreme comments, and the categories to which they were submitted based on this metric:
+
+```{r lsdextreme}
+# add feature to initial data frame and plot
+comments2$tone <- comments2_lsd$tone
+
+# most positive comment
+comments2 %>% filter(tone == max(tone)) %>% select(type, tone, text) 
+# most negative comment
+comments2 %>% filter(tone == min(tone)) %>% select(type, tone, text)
+```
+
+The first comment gets a score of 55% -- over half of the words here have positive connotations. The second comment has a score of -67% -- two of the three words are negatively valenced. While I wouldn't disagree with the scores here -- reject and racism are negative words, honesty and integrity are positive -- this highlights some of the challenges of measuring tone. It's not clear to me that the first comment was intended as a compliment to UVA -- renewed focus suggests a lapse. And though the short, pithy second comment rings as a critique, it's probably not the most negative comment here; its brevity overemphasizes the negative words.
+
+Still, we persist!
+
+## Sentiment by Category/Connections
+Next we compare our measure of comment tone by comment category -- are the comments about community or service or discovery more positive?
+
+```{r lsdcat2, fig.height = 3, fig.width = 5, fig.align = "center"}
+# distribution by comment category
+ggplot(comments2, aes(x=type, y=tone, color=type)) + 
+  geom_violin() +
+  scale_color_manual(values=c("darkblue", "darkorange", "turquoise")) +
+  labs(y = "Overall Tone (Negative to Positive)", x = "Comment Category",
+       title = "Sentiment of Ours to Shape Comments") +
+  theme(legend.position="none")
+```
+
+Well, no. Comments in each category appear to have similarly net positive distributions. Except for the outlier (Reject racism outright), there isn't much to distinguish the categories.
+
+Let's try one more comparison -- tone by the primary connection of the contributor.
+
+```{r lsdprim, fig.height = 3, fig.width = 5, fig.align = "center"}
+# distribution by primary connection
+ggplot(comments2, aes(x=primary, y=tone, color=primary)) + 
+  geom_violin() +
+  scale_color_manual(values = brewer.pal(9, "Blues")[3:9]) +
+  labs(y = "Overall Tone (Negative to Positive)", x = "Primary Connection",
+       title = "Sentiment of Ours to Shape Comments") +
+  theme(legend.position="none")
+```
+
+There's a little more going on here -- while the center of the distribution for each connection type is similar, the tails are more variable. Comments by community members, for instance, don't tend to get quite as positive as at least some comments by other contributors; and comments by supporters never veer into the net negative.
+
+# Sentiment-Adjacent Analysis
+
+Of course, there are multiple ways to think about sentiment, and sentiment is only one dimension of text that might be extracted via dictionaries. There's been some work on uncovering moral rhetoric, or the dimensions of morality emphasized in speech and text. This work in [moral foundations](https://www.moralfoundations.org/) proposes five universal foundtions for ethical judgement, each arrayed from virtue to vice. The moral dimensions are summarized below (adapted from the link above) and a sampling of the words associated with each is provided.
+
+* Care (virtue-care, vice-harm): underlies virtues of kindness, gentleness, and nurturance.
+```{r mf1, echo=FALSE}
+# Ken Benoit (quanteda's author) has made a variety of other
+#    dictionaries available, including the NRC Word-Emotion Association Lexicon
+#    http://saifmohammad.com/WebPages/AccessResource.htm
+mf <- data_dictionary_MFD
+cat("Care-Virtue:", sample(mf[[1]], 10), sep = ", ")
+cat("Care-Vice:", sample(mf[[2]], 10), sep = ", ")
+```
+
+* Fairness (virtue-fairness, vice-cheating): supports ideas of justice, rights, and autonomy.ch is endorsed by everyone, but is more strongly endorsed by conservatives]
+```{r mf2, echo=FALSE}
+cat("Fairness-Virtue:", sample(mf[[3]], 10), sep = ", ")
+cat("Fairness-Vice:", sample(mf[[4]], 10), sep = ", ")
+```
+
+* Loyalty (virtue-loyalty, vice-betrayal): the basis of patriotism and self-sacrifice. 
+```{r mf3, echo=FALSE}
+cat("Loyalty-Virtue:", sample(mf[[5]], 10), sep = ", ")
+cat("Loyalty-Vice:", sample(mf[[6]], 10), sep = ", ")
+```
+
+* Authority (virtue-authority, vice-subversion): underlies virtues of leadership and followership, deference to legitimate authority, respect for traditions.
+```{r mf4, echo=FALSE}
+cat("Authority-Virtue:", sample(mf[[7]], 10), sep = ", ")
+cat("Authority-Vice:", sample(mf[[8]], 10), sep = ", ")
+```
+
+* Sanctity (virtue-sanctity, vice-degradation): underlies the widespread idea that the body is a temple which can be desecrated by immoral activities and contaminants.  
+```{r mf5, echo=FALSE}
+cat("Sanctity-Virtue:", sample(mf[[9]], 10), sep = ", ")
+cat("Sanctity-Vice:", sample(mf[[10]], 10), sep = ", ")
+```
+
+I apply the moral foundations lexicon to the comments to see if we can uncover any dominant moral rhetoric in this conversation about the university. After getting the count of words for each dimension, I convert these to a percent of words in the comment to normalize across comment length.
+
+```{r mfdist, fig.height = 6, fig.width = 5, fig.align = "center"}
+# dictionary can be applied to already processed dfm
+comments2_mf <- dfm_lookup(comments2_dfm, dictionary = mf)
+
+# turn this into a dataframe, add ntoken, create proportions
+comments2_mf <- convert(comments2_mf, to = "data.frame")
+comments2_mf <- comments2_mf %>% 
+  mutate(words = ntoken(comments2_dfm),
+         carevirtue = (care.virtue/words)*100,
+         carevice = (care.vice/words)*100,
+         fairvirtue = (fairness.virtue/words)*100,
+         fairvice = (fairness.vice/words)*100,
+         loyalvirtue = (loyalty.virtue/words)*100,
+         loyalvice = (loyalty.vice/words)*100,
+         authorityvirtue = (authority.virtue/words)*100,
+         authorityvice = (authority.vice/words)*100,
+         sanctityvirtue = (sanctity.virtue/words)*100,
+         sanctityvice = (sanctity.vice/words)*100)
+
+comments2_mf_long <- comments2_mf %>% 
+  select(document, carevirtue:sanctityvice) %>% 
+  gather(foundation, percent,  -document)
+ggplot(comments2_mf_long, aes(x=foundation, y=percent)) + 
+  geom_boxplot() + labs(x = "Moral Foundation", y = "Percent of Words Present", title = "Moral Rhetoric in Ours to Shape Comments") + coord_flip()
+```
+
+Some of these don't arise in the contributed comments at all -- sanctity or ideas of purity don't seem especially prominent (or relevant), and the negative poles of authority (treachery), care (harm), and loyalty (betrayal) don't appear with any frequency; more surprising (to me) is the relative absence of fairness.
+
+The moral dimensions that do come out are loyalty, care, and authority. Let's see what that's about (in that order).
+
+```{r mfloyal}
+# add feature to initial data frame
+comments2[, ncol(comments2)+1:10] <- comments2_mf[, 13:22]
+# extrema
+loyal <- comments2 %>% filter(loyalvirtue == max(loyalvirtue)) %>% select(type, loyalvirtue, text) 
+loyal[1,]
+comments2 %>% filter(carevirtue == max(carevirtue)) %>% select(type, carevirtue, text) 
+auth <- comments2 %>% filter(authorityvirtue == max(authorityvirtue)) %>% select(type, authorityvirtue, text) 
+auth[2,]
+```
+
+The first does get at the us/them element of loyalty; the second is clearly about protection from harm; and the third definitely references respect for tradition. All in all, not bad.
+
+Finally, let's compare this across comment categories -- perhaps ideas about community or discovery or service rest on distinct moral dimensions.
+
+```{r mfgroups, fig.height = 6, fig.width = 6, fig.align = "center"}
+# add feature to initial data frame
+comments2[, ncol(comments2)+1:10] <- comments2_mf[, 13:22]
+# create "long" dataframe with average foundation by comment type and plot
+commenttype_mf <- comments2 %>% group_by(type) %>% 
+  summarize(carevirtue = mean(carevirtue), carevice = mean(carevice), 
+            fairvirtue = mean(fairvirtue), fairvice = mean(fairvice), 
+            loyalvirtue = mean(loyalvirtue), loyalvice = mean(loyalvice), 
+            authorityvirtue = mean(authorityvirtue), authorityvice = mean(authorityvice), 
+            sanctityvirtue = mean(sanctityvirtue), sanctityvice = mean(sanctityvice)) 
+commenttype_mf_long <- commenttype_mf %>% 
+  gather(foundation, value, -type)
+ggplot(commenttype_mf_long, aes(x = foundation, y = value, fill = type)) + 
+  geom_bar(stat = "identity", position = position_dodge()) + 
+  labs(title = "Moral Rhetoric in Ours to Shape Comments", subtitle = "By Comment Category",
+       x = "Moral Foundation", y = "Average Percent of Words Present") + 
+  scale_fill_manual(values = c("darkblue", "darkorange", "turquoise3"), name = "Type") +
+  coord_flip()
+```
+
+In fact, there are some differences. While loyalty, care, and authority are the most frequent moral dimensions for all three comment categories, comments about community rest notably more on ideas of loyalty than on care or authority. Service comments, too, rely more on the loyalty dimension, but reference ideas of care and kindness more than the the comment categories. And feedback on discovery appeals more to authority than the other categories of comments. 
+
+```{r save}
+rm(auth, comment2_read, comments2_col, comments2_comptokens, comments2_lsd, comments2_mf, comments2_mf_long, commenttype_mf, commenttype_mf_long, comments2_tokens, loyal, lsd, mf)
+save.image("../../static/data/ots_blog4.RData")
+```
+
+## Still to Come
+
+After some additional unsupervised exploration -- via cluster analysis and topic modeling -- the goal is to model the relationship among these extracted features to see what we can learn. Stay tuned!
+
+For questions or clarifications regarding this article, contact the UVa 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Michele Claibourn_   
+_Director, Research Data Services_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
