@@ -1,0 +1,176 @@
+---
+title: Using and Interpreting Cronbach’s Alpha
+author: Chelsea Goforth
+date: '2015-11-16'
+slug: using-and-interpreting-cronbach-s-alpha
+categories:
+  - R
+tags:
+  - cronbach's alpha
+  - scale reliability
+---
+
+### I. What is Cronbach's alpha?
+
+Cronbach's alpha is a measure used to assess the reliability, or internal consistency, of a set of scale or test items. In other words, the reliability of any given measurement refers to the extent to which it is a consistent measure of a concept, and Cronbach’s alpha is one way of measuring the strength of that consistency.
+
+Cronbach's alpha is computed by correlating the score for each scale item with the total score for each observation (usually individual survey respondents or test takers), and then comparing that to the variance for all individual item scores:
+
+$$ \alpha = (\frac{k}{k - 1})(1 - \frac{\sum_{i=1}^{k} \sigma_{y_{i}}^{2}}{\sigma_{x}^{2}}) $$
+
+<table class="tg" style="margin: 0px auto">
+  <tr>
+    <td class="tg-031e">where:</td>
+    <td class="tg-031e">\( k \) refers to the number of scale items</td>
+  </tr>
+  <tr>
+    <td class="tg-031e"></td>
+    <td class="tg-031e">\( \sigma_{y_{i}}^{2} \) refers to the variance associated with item i</td>
+  </tr>
+  <tr>
+    <td class="tg-031e"></td>
+    <td class="tg-031e">\( \sigma_{x}^{2} \) refers to the variance associated with the observed total scores
+
+</td>
+  </tr>
+</table>
+
+Alternatively, Cronbach's alpha can also be defined as:
+
+$$ \alpha = \frac{k \times \bar{c}}{\bar{v} + (k - 1)\bar{c}} $$
+
+<table class="tg" style="margin: 0px auto">
+  <tr>
+    <td class="tg-031e">where:</td>
+    <td class="tg-031e">\( k \) refers to the number of scale items</td>
+  </tr>
+  <tr>
+    <td class="tg-031e"></td>
+    <td class="tg-031e">\( \bar{c} \) refers to the average of all covariances between items</td>
+  </tr>
+  <tr>
+    <td class="tg-031e"></td>
+    <td class="tg-031e">\( \bar{v} \) refers to the average variance of each item
+
+</td>
+  </tr>
+</table>
+
+Cronbach’s alpha is thus a function of the number of items in a test, the average covariance between pairs of items, and the variance of the total score.
+
+### II. How do I interpret Cronbach's alpha?
+
+The resulting \( \alpha \) coefficient of reliability ranges from 0 to 1 in providing this overall assessment of a measure's reliability. If all of the scale items are entirely independent from one another (i.e., are not correlated or share no covariance), then \( \alpha \) = 0; and, if all of the items have high covariances, then \( \alpha \) will approach 1 as the number of items in the scale approaches infinity. In other words, the higher the \( \alpha \) coefficient, the more the items have shared covariance and probably measure the same underlying concept.
+
+Although the standards for what makes a "good" \( \alpha \) coefficient are entirely arbitrary and depend on your theoretical knowledge of the scale in question, many methodologists recommend a minimum \( \alpha \) coefficient between 0.65 and 0.8 (or higher in many cases); \( \alpha \) coefficients that are less than 0.5 are usually unacceptable, especially for scales purporting to be unidimensional (but see Section III for more on dimensionality).
+
+For example, let's consider the six scale items from the American National Election Study (ANES) that purport to measure "equalitarianism"---or an individual's predisposition toward egalitarianism---all of which were measured using a five-point scale ranging from 'agree strongly' to 'disagree strongly':
+<ul>
+	<li>Our society should do whatever is necessary to make sure that everyone has an equal opportunity to succeed.</li>
+	<li>We have gone too far in pushing equal rights in this country. (reverse worded)</li>
+	<li>One of the big problems in this country is that we don't give everyone an equal chance.</li>
+	<li>This country would be better off if we worried less about how equal people are. (reverse worded)</li>
+	<li>It is not really that big a problem if some people have more of a chance in life than others. (reverse worded)</li>
+	<li>If people were treated more equally in this country we would have many fewer problems.</li>
+</ul>
+
+After accounting for the reversely-worded items, this scale has a reasonably strong \( \alpha \) coefficient of 0.67 based on responses during the 2008 wave of the ANES data collection. In part because of this \( \alpha \) coefficient, and in part because these items exhibit strong face validity and construct validity (see Section III), I feel comfortable saying that these items do indeed tap into an underlying construct of egalitarianism among respondents.
+
+In interpreting a scale's \( \alpha \) coefficient, remember that a high \( \alpha \) is both a function of the covariances among items and the number of items in the analysis, so a high \( \alpha \) coefficient isn't in and of itself the mark of a "good" or reliable set of items; you can often increase the \( \alpha \) coefficient simply by increasing the number of items in the analysis. In fact, because highly correlated items will also produce a high \( \alpha \) coefficient, if it's very high (i.e., &gt; 0.95), you may be risking redundancy in your scale items.
+
+### III. What ISN'T Cronbach's alpha?
+
+Cronbach's alpha is not a measure of dimensionality, nor a test of unidimensionality. In fact, it's possible to produce a high \( \alpha \) coefficient for scales of similar length and variance, even if there are multiple underlying dimensions. To check for dimensionality, you'll perhaps want to conduct an exploratory factor analysis.
+
+Cronbach's alpha is also not a measure of validity, or the extent to which a scale records the "true" value or score of the concept you're trying to measure without capturing any unintended characteristics. For example, word problems in an algebra class may indeed capture a student's math ability, but they may also capture verbal abilities or even test anxiety, which, when factored into a test score, may not provide the best measure of her true math ability.
+
+A reliable measure is one that contains zero or very little random measurement error---i.e., anything that might introduce arbitrary or haphazard distortion into the measurement process, resulting in inconsistent measurements. However, it need not be free of systematic error---anything that might introduce consistent and chronic distortion in measuring the underlying concept of interest---in order to be reliable; it only needs to be consistent. For example, if we try to measure egalitarianism through a precise recording of a(n adult) person's height, the measure may be highly reliable, but also wildly invalid as a measure of the underlying concept.
+
+In short, you'll need more than a simple test of reliability to fully assess how "good" a scale is at measuring a concept. You will want to assess the scale's face validity by using your theoretical and substantive knowledge and asking whether or not there are good reasons to think that a particular measure is or is not an accurate gauge of the intended underlying concept. And, in addition, you can address construct validity by examining whether or not there exist empirical relationships between your measure of the underlying concept of interest and other concepts to which it should be theoretically related.
+
+
+### IV. How can I compute Cronbach's alpha?
+
+In the event that you do not want to calculate \( \alpha \) by hand (!), it is thankfully very easy using statistical software. Let's assume that the six scale items in question are named Q1, Q2, Q3, Q4, Q5, and Q6, and see below for examples in SPSS, Stata, and R.
+
+
+#### In SPSS:
+
+```
+RELIABILITY
+  /VARIABLES=Q1 Q2 Q3 Q4 Q5 Q6
+  /SCALE('ALL VARIABLES') ALL
+  /MODEL=ALPHA.
+```
+
+Note that in specifying <code>/MODEL=ALPHA</code>, we're specifically requesting the Cronbach's alpha coefficient, but there are other options for assessing reliability, including split-half, Guttman, and parallel analyses, among others.
+
+The above syntax will produce only some very basic summary output; in addition to the \( \alpha \) coefficient, SPSS will also provide the number of valid observations used in the analysis and the number of scale items you specified. You may, however, want some more detailed information about the items and the overall scale. Consider the following syntax:
+
+```
+RELIABILITY
+  /VARIABLES=Q1 Q2 Q3 Q4 Q5 Q6
+  /SCALE('ALL VARIABLES') ALL
+  /MODEL=ALPHA
+  /STATISTICS=DESCRIPTIVE SCALE CORR COV
+  /SUMMARY=MEANS VARIANCE COV CORR.
+```
+
+With the <code>/SUMMARY</code> line, you can specify which descriptive statistics you want for all items in the aggregate; this will produce the Summary Item Statistics table, which provide the overall item means and variances in addition to the inter-item covariances and correlations.
+
+The <code>/STATISTICS</code> line provides several additional options as well: <code>DESCRIPTIVE</code> produces statistics for each item (in contrast to the overall statistics captured through <code>/SUMMARY</code> described above), <code>SCALE</code> produces statistics related to the scale resulting from combining all of the individual items, <code>CORR</code> produces the full inter-item correlation matrix, and <code>COV</code> produces the full inter-item covariance matrix.
+
+#### In Stata:
+
+```
+alpha Q1 Q2 Q3 Q4 Q5 Q6
+```
+
+The above syntax will provide the average inter-item covariance, the number of items in the scale, and the \( \alpha \) coefficient; however, as with the SPSS syntax above, if we want some more detailed information about the items and the overall scale, we can request this by adding "options" to the above command (in Stata, anything that follows the first comma is considered an option). For example:
+
+```
+alpha Q1 Q2 Q3 Q4 Q5 Q6, asis std item detail gen(SCALE)
+
+```
+
+The <code>asis</code> option takes the sign of each item as it is; if you have reversely-worded items in your scale, whether or not you want to use this option depends on if you've already reversed scored those items in the Q1-Q6 variables as entered. Alternatively, you might want to use the option <code>reverse(ITEMS)</code> to reverse the signs of any items/variables you list in between the parentheses.
+
+The <code>std</code> option standardizes items in the scale to have a mean of 0 and a variance of 1 (again, whether or not you use this option might depend on whether or not you've already standardized the variables Q1-Q6), the <code>detail</code> option will list individual inter-item correlations and covariances, and <code>gen(SCALE)</code> will use these six items to generate a scale and save it into a new variable called SCALE (or whatever else you specify in between the parentheses).
+
+Finally, the <code>item</code> option will produce a table displaying the number of non-missing observations for each item, the correlation of each item with the summed index ("item-test" correlations), the correlation of each item with the summed index with that item excluded ("item-rest" correlations), the covariance between items and the summed index, and what the \( \alpha \) coefficient for the scale would be were each item to be excluded. Type <code>help alpha</code> in Stata's command line for more options.
+
+#### In R:
+
+There are many ways of calculating Cronbach's alpha in R using a variety of different packages. One option utilizes the psy package, which, if not already on your computer, can be installed by issuing the following command:
+
+```{r eval=FALSE}
+install.packages("psy")
+```
+
+You then load this package by specifying:
+
+```{r eval=FALSE}
+library(psy)
+```
+
+The variables Q1, Q2, Q3, Q4, Q5, and Q6 should be defined as a matrix or data frame called X (or any name you decide to give it); then issue the following command:
+
+```{r eval=FALSE}
+cronbach(X)
+```
+
+
+This will output the number of observations, the number of items in your scale, and the resulting \( \alpha \) coefficient. Additional documentation for the psy package can be found <a href="https://cran.r-project.org/web/packages/psy/psy.pdf" target="_blank">here</a>.
+
+Alternatively, the psych package offers a way of calculating Cronbach's alpha with a wider variety of arguments; see further documentation and examples <a href="https://cran.r-project.org/web/packages/psych/psych.pdf" target="_blank">here</a>, <a href="http://personality-project.org/r/html/alpha.html" target="_blank">here</a>, and <a href="http://personality-project.org/r/r.guide.html#alpha" target="_blank">here</a>.
+
+#### V. Can I compute Cronbach's alpha with binary variables?
+
+Yes! If all of the scale items you want to analyze are binary and you compute Cronbach's alpha, you're actually running an analysis called the Kuder-Richardson 20. The formula for Cronbach's alpha builds on the KR-20 formula to make it suitable for items with scaled responses (e.g., Likert scaled items) and continuous variables, so the underlying math is, if anything, simpler for items with dichotomous response options. After running this test, you'll get the same \( \alpha \) coefficient and other similar output, and you can interpret this output in the same ways described above.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Chelsea Goforth_   
+_Statistical Consulting Associatet_  
+_University of Virginia Library_  
+
