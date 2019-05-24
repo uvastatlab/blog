@@ -1,0 +1,215 @@
+---
+title: Hierarchical Linear Regression
+author: Bommae Kim
+date: '2016-05-20'
+slug: hierarchical-linear-regression
+categories:
+  - R
+tags:
+  - linear regression
+  - hierarchical regression
+  - model comparison
+---
+
+
+
+<p><em>This post is NOT about Hierarchical Linear Modeling (HLM; multilevel modeling). The hierarchical regression is model comparison of nested regression models.</em></p>
+<div id="when-do-i-want-to-perform-hierarchical-regression-analysis" class="section level3">
+<h3>When do I want to perform hierarchical regression analysis?</h3>
+<p>Hierarchical regression is a way to show if variables of your interest explain a statistically significant amount of variance in your Dependent Variable (DV) after accounting for all other variables. This is a framework for model comparison rather than a statistical method. In this framework, you build several regression models by adding variables to a previous model at each step; later models always include smaller models in previous steps. In many cases, our interest is to determine whether newly added variables show a significant improvement in <span class="math inline">\(R^2\)</span> (the proportion of explained variance in DV by the model).</p>
+<p>Let’s say we’re interested in the relationships of social interaction and happiness. In this line of research, the number of friends has been a known predictor in addition to demographic characteristics. However, we’d like to investigate if the number of pets could be an important predictor for happiness.</p>
+<p>The first model (Model 1) typically includes demographic information such as age, gender, ethnicity, and education. In the next step (Model 2), we could add known important variables in this line of research. Here we would replicate previous research in this subject matter. In the following step (Model 3), we could add the variables that we’re interested in.</p>
+<p>Model 1:<br />
+Happiness = Intercept + Age + Gender<br />
+(<span class="math inline">\(R^2\)</span> = .029)</p>
+<p>Model 2:<br />
+Happiness = Intercept + Age + Gender + # of friends<br />
+(<span class="math inline">\(R^2\)</span> = .131)</p>
+<p>Model 3:<br />
+Happiness = Intercept + Age + Gender + # of friends + # of pets<br />
+(<span class="math inline">\(R^2\)</span> = .197, <span class="math inline">\(\Delta R^2\)</span> = .066)</p>
+<p>Our interest is whether Model 3 explains the DV better than Model 2. If the difference of <span class="math inline">\(R^2\)</span> between Model 2 and 3 is statistically significant, we can say the added variables in Model 3 explain the DV above and beyond the variables in Model 2. In this example, we’d like to know if the increased <span class="math inline">\(R^2\)</span> .066 (.197 - .131 = .066) is statistically significant. If so, we can say that the number of pets explains an additional 6% of the variance in happiness and it is statistically significant.</p>
+<p>There are many different ways to examine research questions using hierarchical regression. We can add multiple variables at each step. We can have only two models or more than three models depending on research questions. We can run regressions on multiple different DVs and compare the results for each DV.</p>
+</div>
+<div id="conceptual-steps" class="section level3">
+<h3>Conceptual Steps</h3>
+Depending on statistical software, we can run hierarchical regression with one click (SPSS) or do it manually step-by-step (R). Regardless, it’s good to understand how this works conceptually.
+<ul>
+<li>
+Build sequential (nested) regression models by adding variables at each step.
+</li>
+<li>
+Run ANOVAs (to compute <span class="math inline">\(R^2\)</span>) and regressions (to obtain coefficients).
+</li>
+<li>
+Compare sum of squares between models from ANOVA results.
+<ul>
+<li>
+Compute a difference in sum of squares (<span class="math inline">\(SS\)</span>) at each step.
+</li>
+<li>
+Find corresponding F-statistics and p-values for the <span class="math inline">\(SS\)</span> differences.
+</li>
+</ul>
+</li>
+<li>
+Compute increased <span class="math inline">\(R^2\)</span>s from the <span class="math inline">\(SS\)</span> differences.
+<ul>
+<li>
+<span class="math inline">\(R^2 = \frac{SS_{Explained}}{SS_{Total}}\)</span>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<div id="examples-in-r" class="section level3">
+<h3>Examples in R</h3>
+<p>In R, we can find sum of squares and corresponding F-statistics and p-values using <code>anova()</code>. When we use <code>anova()</code> with a single model, it shows analysis of variance for each variable. However, when we use <code>anova()</code> with multiple models, it does model comparisons. Either way, to use <code>anova()</code>, we need to run linear regressions first.</p>
+<pre class="r"><code># Import data (simulated data for this example)
+myData &lt;- read.csv(&#39;http://static.lib.virginia.edu/statlab/materials/data/hierarchicalRegressionData.csv&#39;)
+
+# Build models
+# to obtain Total SS
+m0 &lt;- lm(happiness ~ 1, 
+         data = myData)
+
+# Model 1
+m1 &lt;- lm(happiness ~ age + gender, 
+         data = myData)  
+
+# Model 2
+m2 &lt;- lm(happiness ~ age + gender + friends, 
+         data = myData)  
+
+# Model 3
+m3 &lt;- lm(happiness ~ age + gender + friends + pets, 
+         data = myData)  </code></pre>
+<p>After regressions are run (obtaining <code>lm</code> objects), <code>anova()</code> is run with the <code>lm</code> objects. When we regress the DV on an intercept without predictors (<code>m0</code> in this example), <code>anova()</code> results show Total <span class="math inline">\(SS\)</span>.</p>
+<pre class="r"><code>anova(m0)</code></pre>
+<pre><code>## Analysis of Variance Table
+## 
+## Response: happiness
+##           Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Residuals 99 240.84  2.4327</code></pre>
+<p>Total <span class="math inline">\(SS\)</span> is 240.84. We will use this value to compute <span class="math inline">\(R^2\)</span>s later. Next, compare <span class="math inline">\(SS\)</span> of the three models that we have built.</p>
+<pre class="r"><code>anova(m1, m2, m3)  # model comparison</code></pre>
+<pre><code>## Analysis of Variance Table
+## 
+## Model 1: happiness ~ age + gender
+## Model 2: happiness ~ age + gender + friends
+## Model 3: happiness ~ age + gender + friends + pets
+##   Res.Df    RSS Df Sum of Sq       F    Pr(&gt;F)    
+## 1     97 233.97                                   
+## 2     96 209.27  1    24.696 12.1293 0.0007521 ***
+## 3     95 193.42  1    15.846  7.7828 0.0063739 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<p>Model 0:<br />
+<span class="math inline">\(SS_{Total}\)</span> = 240.84 (no predictors)</p>
+<p>Model 1:<br />
+<span class="math inline">\(SS_{Residual}\)</span> = 233.97 (after adding age and gender)</p>
+<p>Model 2:<br />
+<span class="math inline">\(SS_{Residual}\)</span> = 209.27, <span class="math inline">\(SS_{Difference}\)</span> = 24.696, <span class="math inline">\(F\)</span>(1,96) = 12.1293, <span class="math inline">\(p\)</span> = 0.0007521 (after adding friends)</p>
+<p>Model 3:<br />
+<span class="math inline">\(SS_{Residual}\)</span> = 193.42, <span class="math inline">\(SS_{Difference}\)</span> = 15.846, <span class="math inline">\(F\)</span>(1,95) = 7.7828, <span class="math inline">\(p\)</span> = 0.0063739 (after adding pets)</p>
+<p>By adding friends, the model accounts for additional <span class="math inline">\(SS\)</span> 24.696 and it was a statistically significant change according to the corresponding F-statistic and p-value. The <span class="math inline">\(R^2\)</span> increased by .103 (24.6957 / 240.84 = 0.1025399) in Model 2. By adding pets, the model accounts for additional <span class="math inline">\(SS\)</span> 15.846 and it was statistically significant again. The <span class="math inline">\(R^2\)</span> increased by .066 (15.8461 / 240.84 = 0.06579513) in Model 3.</p>
+<p><code>summary()</code> of an lm object shows coefficients of variables:</p>
+<pre class="r"><code>summary(m1)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = happiness ~ age + gender, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -3.6688 -1.0094 -0.1472  0.8273  4.2973 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  7.66778    2.01364   3.808 0.000246 ***
+## age         -0.13039    0.07936  -1.643 0.103611    
+## genderMale   0.16430    0.31938   0.514 0.608106    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.553 on 97 degrees of freedom
+## Multiple R-squared:  0.02855,    Adjusted R-squared:  0.008515 
+## F-statistic: 1.425 on 2 and 97 DF,  p-value: 0.2455</code></pre>
+<pre class="r"><code>summary(m2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = happiness ~ age + gender + friends, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -3.5758 -1.0204  0.0156  0.8087  3.7299 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)   
+## (Intercept)  6.21730    1.96220   3.169  0.00206 **
+## age         -0.12479    0.07546  -1.654  0.10146   
+## genderMale   0.14931    0.30365   0.492  0.62405   
+## friends      0.18985    0.05640   3.366  0.00110 **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.476 on 96 degrees of freedom
+## Multiple R-squared:  0.1311, Adjusted R-squared:  0.1039 
+## F-statistic: 4.828 on 3 and 96 DF,  p-value: 0.003573</code></pre>
+<pre class="r"><code>summary(m3)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = happiness ~ age + gender + friends + pets, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -3.0556 -1.0183 -0.1109  0.8832  3.5911 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)   
+## (Intercept)  5.78540    1.90266   3.041  0.00305 **
+## age         -0.11146    0.07309  -1.525  0.13057   
+## genderMale  -0.14267    0.31157  -0.458  0.64806   
+## friends      0.17134    0.05491   3.120  0.00239 **
+## pets         0.36391    0.13044   2.790  0.00637 **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.427 on 95 degrees of freedom
+## Multiple R-squared:  0.1969, Adjusted R-squared:  0.1631 
+## F-statistic: 5.822 on 4 and 95 DF,  p-value: 0.0003105</code></pre>
+<p>Aside from the coefficients of variables, let’s take a look at <span class="math inline">\(R^2\)</span>s of Model 1, 2, and 3, which are 0.02855, 0.1311, and 0.1969 respectively. The <span class="math inline">\(R^2\)</span> changes computed using <code>anova()</code> results correspond to differences in <span class="math inline">\(R^2\)</span>s in <code>lm()</code> results for each model: 0.1311 - 0.02855 = 0.10255 for Model 2 and 0.1969 - 0.1311 = 0.0658 for Model 3 (with rounding errors). Although we can compute <span class="math inline">\(R^2\)</span> differences between models using <code>lm()</code> results, <code>lm()</code> results don’t provide corresponding F-statistics and p-values to an increased <span class="math inline">\(R^2\)</span>. And it’s important to remember that adding variables always increases <span class="math inline">\(R^2\)</span>, whether or not it actually explains additional variation in the DV. That’s why it’s crucial to perform F-tests and not just rely on the difference in <span class="math inline">\(R^2\)</span> between models.</p>
+</div>
+<div id="what-to-report-as-the-results" class="section level3">
+<h3>What to report as the results?</h3>
+<p>It is common to report coefficients of all variables in each model and differences in <span class="math inline">\(R^2\)</span> between models. In research articles, the results are typically presented in tables as below. Note that the second example (Lankau &amp; Scandura, 2002) had multiple DVs and ran hierarchical regressions for each DV.</p>
+<p><img src="/img/Park.jpg" /></p>
+<p><em>Source</em>: Park, N., Kee, K. F., &amp; Valenzuela, S. (2009). Being immersed in social networking environment: Facebook groups, uses and gratifications, and social outcomes. <i>CyberPsychology &amp; Behavior, 12,</i> 729-733.</p>
+<p><img src="/img/Lankau.png" /></p>
+<p><em>Source</em>: Lankau, M. J., &amp; Scandura, T. A. (2002). An investigation of personal learning in mentoring relationships: Content, antecedents, and consequences. <i>Academy of Management Journal, 45,</i> 779-790.</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Bommae Kim</em><br />
+<em>Statistical Consulting Associate</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.6.0  magrittr_1.5    bookdown_0.9    tools_3.6.0    
+##  [5] htmltools_0.3.6 yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3  
+##  [9] rmarkdown_1.12  blogdown_0.11   knitr_1.22      stringr_1.4.0  
+## [13] digest_0.6.18   xfun_0.6        evaluate_0.13</code></pre>
+</div>

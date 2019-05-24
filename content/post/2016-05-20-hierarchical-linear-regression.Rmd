@@ -1,0 +1,143 @@
+---
+title: Hierarchical Linear Regression
+author: Bommae Kim
+date: '2016-05-20'
+slug: hierarchical-linear-regression
+categories:
+  - R
+tags:
+  - linear regression
+  - hierarchical regression
+  - model comparison
+---
+
+_This post is NOT about Hierarchical Linear Modeling (HLM; multilevel modeling). The hierarchical regression is model comparison of nested regression models._
+
+### When do I want to perform hierarchical regression analysis?
+
+Hierarchical regression is a way to show if variables of your interest explain a statistically significant amount of variance in your Dependent Variable (DV) after accounting for all other variables. This is a framework for model comparison rather than a statistical method. In this framework, you build several regression models by adding variables to a previous model at each step; later models always include smaller models in previous steps. In many cases, our interest is to determine whether newly added variables show a significant improvement in \(R^2\) (the proportion of explained variance in DV by the model).
+
+Let’s say we’re interested in the relationships of social interaction and happiness. In this line of research, the number of friends has been a known predictor in addition to demographic characteristics. However, we’d like to investigate if the number of pets could be an important predictor for happiness.
+
+The first model (Model 1) typically includes demographic information such as age, gender, ethnicity, and education. In the next step (Model 2), we could add known important variables in this line of research. Here we would replicate previous research in this subject matter. In the following step (Model 3), we could add the variables that we’re interested in.
+
+Model 1:   
+Happiness = Intercept + Age + Gender   
+(\(R^2\) = .029)   
+
+Model 2:   
+Happiness = Intercept + Age + Gender + # of friends     
+(\(R^2\) = .131)    
+
+Model 3:    
+Happiness = Intercept + Age + Gender + # of friends + # of pets    
+(\(R^2\) = .197, \(\Delta R^2\) = .066)   
+
+Our interest is whether Model 3 explains the DV better than Model 2. If the difference of \(R^2\) between Model 2 and 3 is statistically significant, we can say the added variables in Model 3 explain the DV above and beyond the variables in Model 2. In this example, we’d like to know if the increased \(R^2\) .066 (.197 - .131 = .066) is statistically significant. If so, we can say that the number of pets explains an additional 6% of the variance in happiness and it is statistically significant.
+
+There are many different ways to examine research questions using hierarchical regression. We can add multiple variables at each step. We can have only two models or more than three models depending on research questions. We can run regressions on multiple different DVs and compare the results for each DV.
+
+### Conceptual Steps
+
+Depending on statistical software, we can run hierarchical regression with one click (SPSS) or do it manually step-by-step (R). Regardless, it’s good to understand how this works conceptually.
+<ul>
+	<li>Build sequential (nested) regression models by adding variables at each step.</li>
+	<li>Run ANOVAs (to compute \(R^2\)) and regressions (to obtain coefficients).</li>
+	<li>Compare sum of squares between models from ANOVA results.
+<ul>
+	<li>Compute a difference in sum of squares (\(SS\)) at each step.</li>
+	<li>Find corresponding F-statistics and p-values for the \(SS\) differences.</li>
+</ul>
+</li>
+	<li>Compute increased \(R^2\)s from the \(SS\) differences.
+<ul>
+	<li>\(R^2 = \frac{SS_{Explained}}{SS_{Total}}\)</li>
+</ul>
+</li>
+</ul>
+
+### Examples in R
+
+In R, we can find sum of squares and corresponding F-statistics and p-values using <code>anova()</code>. When we use `anova()` with a single model, it shows analysis of variance for each variable. However, when we use <code>anova()</code> with multiple models, it does model comparisons. Either way, to use <code>anova()</code>, we need to run linear regressions first.
+
+```{r cache=TRUE}
+# Import data (simulated data for this example)
+myData <- read.csv('http://static.lib.virginia.edu/statlab/materials/data/hierarchicalRegressionData.csv')
+
+# Build models
+# to obtain Total SS
+m0 <- lm(happiness ~ 1, 
+         data = myData)
+
+# Model 1
+m1 <- lm(happiness ~ age + gender, 
+         data = myData)  
+
+# Model 2
+m2 <- lm(happiness ~ age + gender + friends, 
+         data = myData)  
+
+# Model 3
+m3 <- lm(happiness ~ age + gender + friends + pets, 
+         data = myData)  
+
+```
+
+After regressions are run (obtaining <code>lm</code> objects), <code>anova()</code> is run with the <code>lm</code> objects. When we regress the DV on an intercept without predictors (<code>m0</code> in this example), <code>anova()</code> results show Total \(SS\).
+
+```{r}
+anova(m0)
+```
+
+Total \(SS\) is 240.84. We will use this value to compute \(R^2\)s later. Next, compare \(SS\) of the three models that we have built.
+
+```{r}
+anova(m1, m2, m3)  # model comparison
+```
+
+Model 0:  
+\(SS_{Total}\) = 240.84 (no predictors)   
+
+Model 1:   
+\(SS_{Residual}\) = 233.97 (after adding age and gender)    
+
+Model 2:    
+\(SS_{Residual}\) = 209.27, \(SS_{Difference}\) = 24.696, \(F\)(1,96) = 12.1293, \(p\) = 0.0007521 (after adding friends)   
+
+Model 3:    
+\(SS_{Residual}\) = 193.42, \(SS_{Difference}\) = 15.846, \(F\)(1,95) = 7.7828, \(p\) = 0.0063739 (after adding pets)   
+
+By adding friends, the model accounts for additional \(SS\) 24.696 and it was a statistically significant change according to the corresponding F-statistic and p-value. The \(R^2\) increased by .103 (24.6957 / 240.84 = 0.1025399) in Model 2. By adding pets, the model accounts for additional \(SS\) 15.846 and it was statistically significant again. The \(R^2\) increased by .066 (15.8461 / 240.84 = 0.06579513) in Model 3.
+
+<code>summary()</code> of an lm object shows coefficients of variables:
+
+```{r}
+summary(m1)
+summary(m2)
+summary(m3)
+
+```
+
+Aside from the coefficients of variables, let’s take a look at \(R^2\)s of Model 1, 2, and 3, which are 0.02855, 0.1311, and 0.1969 respectively. The \(R^2\) changes computed using <code>anova()</code> results correspond to differences in \(R^2\)s in <code>lm()</code> results for each model: 0.1311 - 0.02855 = 0.10255 for Model 2 and 0.1969 - 0.1311 = 0.0658 for Model 3 (with rounding errors). Although we can compute \(R^2\) differences between models using <code>lm()</code> results, <code>lm()</code> results don’t provide corresponding F-statistics and p-values to an increased \(R^2\). And it’s important to remember that adding variables always increases \(R^2\), whether or not it actually explains additional variation in the DV. That’s why it’s crucial to perform F-tests and not just rely on the difference in \(R^2\) between models.
+
+### What to report as the results?
+
+It is common to report coefficients of all variables in each model and differences in \(R^2\) between models. In research articles, the results are typically presented in tables as below. Note that the second example (Lankau &amp; Scandura, 2002) had multiple DVs and ran hierarchical regressions for each DV.
+
+![](/img/Park.jpg)
+
+_Source_: Park, N., Kee, K. F., &amp; Valenzuela, S. (2009). Being immersed in social networking environment: Facebook groups, uses and gratifications, and social outcomes. <i>CyberPsychology &amp; Behavior, 12,</i> 729-733.
+
+![](/img/Lankau.png)
+
+_Source_: Lankau, M. J., &amp; Scandura, T. A. (2002). An investigation of personal learning in mentoring relationships: Content, antecedents, and consequences. <i>Academy of Management Journal, 45,</i> 779-790.
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Bommae Kim_   
+_Statistical Consulting Associate_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
