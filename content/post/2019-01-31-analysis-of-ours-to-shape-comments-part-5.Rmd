@@ -1,0 +1,309 @@
+---
+title: Analysis of Ours to Shape Comments, Part 5
+author: Michele Claibourn
+date: '2019-01-31'
+slug: analysis-of-ours-to-shape-comments-part-5
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+## Introduction
+
+In the penultimate post of this series, we'll use some unsupervised learning approaches to uncover comment clusters and latent themes among the comments to President Ryan's Ours to Shape website.
+
+```{r setup, warning = FALSE, message = FALSE}
+library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+library(stm) # structural topic models
+```
+
+Let's start with the document-feature matrix we created from the de-duplicated comments.
+
+```{r data0, echo=FALSE}
+load("../../static/data/ots_blog5.RData")
+```
+
+```{r data, eval=FALSE}
+load("../../static/data/ots_blog4.RData")
+```
+
+
+## Cluster Analysis
+
+Cluster analysis is about discovering groups in data, such that the observations within each group share an internal cohesiveness - they look more like one another than like members of other clusters. This is exploratory data analysis, we don’t know the groups ahead of time.
+
+Let's start with some preliminary visualization. First, I stem the words to reduce the dimensionality a bit further, turn it into a tf-idf weighted matrix -- we're looking for the words that help distinguish documents -- and normalize it for document length, and then extract the principal components. The figure plots each comment along the first two principal components.
+
+```{r pca1, eval=FALSE}
+comments_stem_dfm <- dfm(comments2_dfm, stem=TRUE) # stem and group
+comments_mat <- as.matrix(dfm_tfidf(comments_stem_dfm))  # convert tf-idf weighted dfm to a matrix 
+comments_mat <- comments_mat / apply(comments_mat, MARGIN=1, FUN=function(x) sum(x^2)^0.5)  # scale it
+comments_pca <- prcomp(comments_mat) # principal components
+comments_pca12 <- as.data.frame(comments_pca$x[,1:2]) # first two components
+comments_pca12$doc_id = rownames(comments_pca12)
+```
+
+```{r pcafig, fig.height = 3, fig.width = 5, fig.align = "center"}
+ggplot(comments_pca12, aes(x=PC1, y=PC2, label=doc_id)) +  # graph
+  geom_text() + ggtitle("Ours to Shape Comments on Principal Components 1,2")
+```
+
+To be clear, we haven't implemented a cluster analysis yet, we're just looking at the data a little differently. The first two principal components only account for a small amount of variation in the overall text data, so won't be able to visually distinguish differences along many dimensions. But in these first two dimensions, we do see some clumps. 
+
+Let's look at that clump to the far right, above 0.75 on PC1:
+
+```{r pca2}
+comments_pc_group1 <- comments_pca12 %>% filter(PC1 > 0.75)
+comments2$text[comments2$doc_id == comments_pc_group1$doc_id[1]]
+```
+
+Here's our ice arena lobby! There are 10 comments here, mostly versions of the example comment above. What about the other comments spread along the first dimension, between 0.15 and 0.75? Two of the 31 comments in this range are printed below:
+
+```{r pca3}
+comments_pc_group2 <- comments_pca12 %>% filter(PC1 > 0.15 & PC1 < 0.7)
+comments2$text[comments2$doc_id %in% comments_pc_group2$doc_id[2:3]]
+```
+
+Ah, more ice arena advocacy, but without the duplication. Let's see what's distinguishing comments high on the second principal component, say, above 0.15. Here are a few of the 48 comments occupying this space on the graph:
+
+```{r pca4}
+comments_pc_group3 <- comments_pca12 %>% filter(PC2 > 0.15)
+str_sub(comments2$text[comments2$doc_id %in% comments_pc_group3$doc_id[c(8,16,24)]], 1,200)
+```
+
+I'm only showing the first part of these comments -- they are all really, really long -- but we seem to have found a climate and sustainability cluster! Let's formalize this in a cluster analysis!
+
+### Hierarchical
+
+There are a lot of choices in clustering -- multiple clustering algorithms, distance metrics and weights, optimization methods, and tuning parametes within given algorithms. And, of course, the choice of $k$ or the number of clusters you want the model to define (choice of $k$ is a tricky thing and I'm going to gloss over it here). I'm going to stick with some common choices here, starting with hiearchical, or connectivity-based, methods.
+
+In particular, I use the tf-idf weighted dfm, calculate the Euclidean distance, and create links through agglomeration (beginning with $n$ partitions and successively fusing the clusters that are closest) using Ward's method to determine which clusters are closest. I chose $k=20$ clusters to start.
+
+```{r hc1, eval=FALSE}
+# hierarchical ----
+# clustering: calculate distance, generate dendrogram, and label clusters
+comments_dist <- textstat_dist(dfm_tfidf(comments_stem_dfm),  # create distance matrix
+                               method = "euclidean")
+set.seed(082317)
+comments_ward <- hclust(comments_dist, method = "ward.D2")  # implement linkage method
+comments_hc_20 <- cutree(comments_ward, k=20) # make cluster assignments for 20 groups
+```
+
+```{r}
+table(comments_hc_20)
+```
+
+This produced 20 clusters, because I asked it to, but most of the clusters are singles, and the bulk of observations are thrown into that first massive clusters. Not very satisfying. Still, let's see what those handful of more distinct groups (groups 2 and 8) contain. 
+
+To do that, I pull out the 10 highest weighted words (features are weighted by term frequency-inverse document frequency) among the comments within each cluster. 
+
+```{r hc2}
+# examination: find most highly weighted words in each cluster
+comment_stem_df <- convert(dfm_tfidf(comments_stem_dfm), to = "data.frame") # coerce to dataframe
+comment_stem_df_hc <- data.frame(comment_stem_df, comments_hc_20) # append cluster labels
+comment_cluster_list <- split(comment_stem_df_hc[,-1], comment_stem_df_hc$comments_hc_20) # split into lists by cluster
+# apply function to each list: sum columns/weights, sort, save top 10
+topwords <- lapply(comment_cluster_list, function(x) { 
+  sort(apply(x[,-ncol(x)], 2, sum), decreasing=TRUE)[1:10]
+})
+topwords[2]
+topwords[8]
+```
+
+Cluster 2 seems to contain at least some of the climate change sustainability comments, though from the exploratory analysis above, I know there are more than 18 of these. Cluster 8 is the by now familiar ice arena group. The 41 comments in this cluster matches the 41 comments I saw in the exploratory graph above, so that's nice, at least.
+
+But this hasn't pulled out the kind of internal cohesion that might help me summarize the comments or generate insight. Let's try one more clustering algorithm.
+
+### Kmeans
+
+Centroid-based clustering offers another approach, where observations are divvied up into groups by minimizing some numerical criterion -- k-means is the most common partitioning approach.
+
+K-means starts with $k$-centroids (the points that will be the center of the clusters), assigns each data point to the nearest centroid, updates each centroid to be the average of the data points assigned to it, and re-assigns each data point to the nearest centroid (and then repeats this until there is minimal change). Because the initial randomly-chosen centroids can affect the outcome, we generally try a lot of starting points and let the algorithm select the solution that minimizes the within sum of squares (so maximizes within cluster homogeneity).
+
+I'm going to use $k=20$ again. 
+
+```{r km1, eval=FALSE}
+# kmeans  ---- 
+set.seed(101706)
+clusterk20 <- kmeans(dfm_tfidf(comments_stem_dfm), 20, iter.max = 25, nstart = 5)
+```
+```{r}
+table(clusterk20$cluster)
+```
+
+Again, we have lots of groups of one, and only a handful of potentially distinctive clusters. Let's look at the key distinctive words for clusters 9, 10, 11, and 16.
+
+```{r km2}
+# examination: find most highly weighted words in each cluster
+comment_stem_df_km <- data.frame(comment_stem_df, clusterk20$cluster) # append cluster labels
+comment_cluster_list <- split(comment_stem_df_km[,-1], comment_stem_df_km$clusterk20.cluster) # split into lists by cluster
+# apply same function to each list: sum columns/weights, sort, save top 10
+topwords <- lapply(comment_cluster_list, function(x) { 
+  sort(apply(x[,-ncol(x)], 2, sum), decreasing=TRUE)[1:10]
+})
+topwords[9]
+topwords[10]
+topwords[11]
+topwords[16]
+```
+
+Cluster 9 contains our hocky/ice skating enthusiasts; clusters 10, 11, and 16 are all variations on energy use and climate change -- so potentially some subgroups within a larger sustainability theme. But that's about it.
+
+Overall, this is kind of disappointing, what with that undifferentiated mass of comments. It's possible we haven't tried a big enough $k$, but given all of the singles we're already getting, that's doubtful. It's also possible that there really aren't many common themes, nothing that holds a subset together. But more likely is that many of these comments are long and involved and possibily not single-themed. So let's try something different.
+
+## Topic Models
+
+Another approach to uncover the main themes (or topics) in an unstructured corpus is topic modeling.
+
+Topic models require no prior information, no training set, no special annotation of the texts beforehand; only, as in cluster analysis, a decision about the number of topics, $k$. Unlike in cluster analysis, documents are not required to belong to a single topic or cluster (i.e., single membership), but may simultaneously belong to several topics. 
+
+I'm going to use an R package called `stm` -- for [structural topic models](https://www.structuraltopicmodel.com/) -- which implements a correlated topic model and allows for the inclusion of covariates as predictors of topic prevalance. I reduce the dimensionality of my document feature matrix a bit and convert this into the form the `stm` package expects before estimating a topic model with $K=20$ topics (it takes about a minute on my machine).
+
+```{r eval=FALSE}
+comments_trim_dfm <- dfm_trim(comments_stem_dfm,   # reduce dimensionality by
+                              min_termfrea = 10,  # trim low freqeuncy words
+                              min_docfreq = 3,   # trim words that occur across few docs
+                              max_docfreq = 839)  # trim words that appear in almost all docs
+
+comments_trim_dfm <- comments_trim_dfm[which(rowSums(comments_trim_dfm) > 0),] # remove empty rows
+comments_trim_stm <- convert(comments_trim_dfm, to="stm") # convert to a stm corpus
+
+# initial structural topic model
+seed2=121 # for reproducibility
+comments_stm1 <- stm(comments_trim_stm$documents, comments_trim_stm$vocab, K = 20, 
+                     max.em.its = 75, init.type = "Spectral", seed = seed2)
+```
+
+Let's see the top words for each estimated topic.
+
+```{r}
+# examine
+labelTopics(comments_stm1, n = 7) # associated words (prob, frex)
+```
+
+The "Highest Prob" words are what folks are often accustomed to seeing in topic model output -- the words with the higest probability of being in that topic (based on frequency). The problem is, many of the high probability words appear across multiple topics because they appear frequently throughout the corpus. I like the "FREX" descriptors -- balancing the frequency with which words appear in a topic and the exclusivity with with they appear in that topic -- as it better reflects distinctive but important words. (Lift and Score also try to account for word frequency throughout the corpus by weighting the probabilities by the overall word distributions).
+
+There's a lot to unpack here. Topic 2 appears to reflect comments addressing racial diversity, the events of August 11-12, the [President's Commision on Slavery and the University](http://slavery.virginia.edu/), and related ideas. Topic 3 pulls out references to the Miller Center's controversial hiring of [Marc Short](https://millercenter.org/experts/marc-short). Topic 11 captures the comments of the ice arena lobby. Topic 12 is picking up mentions of Alderman Library and renovation plans. And Topics 5, 15, and 18 address dimensions of sustaintability and environmental change.
+
+Let's visualize the overall prevalance of each of these topics in our collection of comments:
+
+```{r, eval=FALSE}
+# terms to topics 
+stm_probterms <- as.data.frame(t(as.data.frame(comments_stm1$beta))) # extract term-topic probs (logged) and transpose
+names(stm_probterms) <- c("Topic1", "Topic2", "Topic3", "Topic4", "Topic5",
+                                  "Topic6", "Topic7", "Topic8", "Topic9", "Topic10",
+                                  "Topic11", "Topic12", "Topic13", "Topic14", "Topic15",
+                                  "Topic16", "Topic17", "Topic18", "Topic19", "Topic20") # assign names
+stm_probterms <- stm_probterms %>%  # exponentiate (get probs)
+  mutate_all(funs(exp(.)))
+rownames(stm_probterms) <- comments_stm1$vocab # assign terms to rownames
+
+# topics to docs
+stm_probtopic <- as.data.frame(comments_stm1$theta)
+
+# topic prevalence in corpus
+stm_topiclab <- as.data.frame(labelTopics(comments_stm1, n = 5)[[2]])
+stm_topicsum <- stm_probtopic %>% summarize_all(funs(sum))
+stm_topicsum <- as.data.frame(t(stm_topicsum))
+stm_topicsum$topic <- as.integer(str_extract(row.names(stm_topicsum), "\\d+"))
+stm_topicsum$terms <- paste0("Topic", stm_topicsum$topic, ":", stm_topiclab$V1, "-", stm_topiclab$V2, "-", stm_topiclab$V3, "-", stm_topiclab$V4, "-", stm_topiclab$V5)
+```
+
+```{r prev, fig.height = 5, fig.width = 7, fig.align = "center"}
+ggplot(stm_topicsum, aes(x=reorder(terms, V1), y=V1)) + 
+  geom_bar(stat="identity") + 
+  labs(title="Topic Prevalence", y = "Prevalance", x = "") + 
+  coord_flip()
+```
+
+Topics 17, 6, and 8 are the most frequent. On the surface, these topics aren't quite as clear (to me) as some of the ones I referenced earlier. Tere are the top words for these top topics.
+
+```{r}
+# examine
+labelTopics(comments_stm1, n = 7, topics = c(17,6,8))
+```
+
+Looking at comments that score high on Topic 17 confirms that this one is a bit of a hodgepodge, combining attention to affordable housing and to research support. 
+
+```{r}
+max_topic <- which(stm_probtopic$V17 > 0.90) # index of comments with high prob of topic x
+comments2$text[comments2$doc_id %in% max_topic] # pull out comments with high prob of topic x
+```
+
+The comments that exemplify Topic 6 suggest a little more coherence, primarily around town-gown relations.
+
+```{r}
+max_topic <- which(stm_probtopic$V6 > 0.90) 
+comments2$text[comments2$doc_id %in% max_topic] 
+```
+
+But Topic 8 appears a bit muddled, with comments centering on the computer science department, innovation, the A-School, Nazis, centralization, and a sports arena. 
+
+```{r}
+max_topic <- which(stm_probtopic$V8 > 0.90) 
+comments2$text[comments2$doc_id %in% max_topic] 
+```
+
+Topic modeling is always an iterative process -- estimate, evaluate, and reiterate. These results represent only the first iteration. Ideally, we'd try some different values of K, as I suspect from the somewhat unclear categories above that $K=20$ isn't sufficient for this corpus. And then we'd estimate a bunch of models with that validated $K$ and examine what topics are consistent across estimations.
+
+But since this is largely an exploratory exercise, let's jump to a final visualiation: how does attention to these topics, as defined by our sense of the distinctive words, vary across comment category?
+
+```{r, eval=FALSE}
+### visualization: topic prevalence by comment type
+stm_probtopic <- cbind(stm_probtopic, 
+                       doc_id = as.integer(comments2$doc_id),  # add doc_id
+                       type = comments2$type)                  # add comment type
+
+stm_topictype <- stm_probtopic %>% 
+  select(c(1:20,22)) %>%   # remove doc_id
+  group_by(type) %>%       # group by type
+  summarize_all(funs(sum)) # sum topic probabilities
+
+# plot all topics (gather comes from tidyr)
+stm_typelong <- gather(stm_topictype, topic, prevalence, -type)
+# add terms to data frame for facet labelling
+stm_typelong <- stm_typelong %>%
+  mutate(topic = as.integer(str_extract(topic, "\\d+"))) %>% 
+  left_join(stm_topicsum, by = "topic")
+```
+
+```{r prev2, fig.height = 9, fig.width = 9, fig.align = "center"}
+# and plot
+ggplot(stm_typelong, aes(x=type, y=prevalence)) + 
+  geom_bar(stat = "identity") + 
+  labs(title="Topic Prevalence by Comment Category", y = "Prevalance", x = "Comment Category") + 
+  facet_wrap(~ fct_reorder(terms, V1, .desc = TRUE), ncol=5)
+```
+
+I've sequenced the panels by the topic's overall prevalence in the corpus. We can see
+
+* Among comments submitted under "community", Topic 6 appears most common
+* Among comments submitted under "discovery", Topic 12 is most common
+* Among comments submitted under "service", Topic 16 is most common
+
+But overall, the comment categories contain a lot of overlap, suggesting that contributors aren't operating with the same definitions of these categories (and that these categories, therefore, may not be especially meaningful).
+
+```{r, eval=FALSE}
+save.image("../../static/data/ots_blog5.RData")
+```
+
+## One more post
+
+Having explored the corpus and extracted a vareity of features (complexity, sentiment, moral rhetoric, topics, and the like -- the final goal is to model the relationship among these extracted features to see what we can learn. 
+
+For questions or clarifications regarding this article, contact the UVa 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Michele Claibourn_   
+_Director, Research Data Services_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+
