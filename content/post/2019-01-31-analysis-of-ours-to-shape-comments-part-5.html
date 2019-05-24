@@ -1,0 +1,429 @@
+---
+title: Analysis of Ours to Shape Comments, Part 5
+author: Michele Claibourn
+date: '2019-01-31'
+slug: analysis-of-ours-to-shape-comments-part-5
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>In the penultimate post of this series, we’ll use some unsupervised learning approaches to uncover comment clusters and latent themes among the comments to President Ryan’s Ours to Shape website.</p>
+<pre class="r"><code>library(quanteda) # main text package
+library(tidyverse) # for dplyr, stringr, piping, etc.
+library(RColorBrewer) # better colors in graphs
+library(scales) # better breaks and labels in graphs
+library(stm) # structural topic models</code></pre>
+<p>Let’s start with the document-feature matrix we created from the de-duplicated comments.</p>
+<pre class="r"><code>load(&quot;../../static/data/ots_blog4.RData&quot;)</code></pre>
+</div>
+<div id="cluster-analysis" class="section level2">
+<h2>Cluster Analysis</h2>
+<p>Cluster analysis is about discovering groups in data, such that the observations within each group share an internal cohesiveness - they look more like one another than like members of other clusters. This is exploratory data analysis, we don’t know the groups ahead of time.</p>
+<p>Let’s start with some preliminary visualization. First, I stem the words to reduce the dimensionality a bit further, turn it into a tf-idf weighted matrix – we’re looking for the words that help distinguish documents – and normalize it for document length, and then extract the principal components. The figure plots each comment along the first two principal components.</p>
+<pre class="r"><code>comments_stem_dfm &lt;- dfm(comments2_dfm, stem=TRUE) # stem and group
+comments_mat &lt;- as.matrix(dfm_tfidf(comments_stem_dfm))  # convert tf-idf weighted dfm to a matrix 
+comments_mat &lt;- comments_mat / apply(comments_mat, MARGIN=1, FUN=function(x) sum(x^2)^0.5)  # scale it
+comments_pca &lt;- prcomp(comments_mat) # principal components
+comments_pca12 &lt;- as.data.frame(comments_pca$x[,1:2]) # first two components
+comments_pca12$doc_id = rownames(comments_pca12)</code></pre>
+<pre class="r"><code>ggplot(comments_pca12, aes(x=PC1, y=PC2, label=doc_id)) +  # graph
+  geom_text() + ggtitle(&quot;Ours to Shape Comments on Principal Components 1,2&quot;)</code></pre>
+<p><img src="/post/2019-01-31-analysis-of-ours-to-shape-comments-part-5_files/figure-html/pcafig-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>To be clear, we haven’t implemented a cluster analysis yet, we’re just looking at the data a little differently. The first two principal components only account for a small amount of variation in the overall text data, so won’t be able to visually distinguish differences along many dimensions. But in these first two dimensions, we do see some clumps.</p>
+<p>Let’s look at that clump to the far right, above 0.75 on PC1:</p>
+<pre class="r"><code>comments_pc_group1 &lt;- comments_pca12 %&gt;% filter(PC1 &gt; 0.75)
+comments2$text[comments2$doc_id == comments_pc_group1$doc_id[1]]</code></pre>
+<pre><code>## [1] &quot;What if the University of Virginia built a state of the art Ice Sports Arena? We would have a place of true physical education for all ages and abilities. An ice arena is a venue for participation. 500 athletes a day (with 1/3rd coming from the non-University community) would come to skate with family or to make new friends while discovering the joy of movement whether it be hockey, figure skating or just ice skating. The UVA ICE PARK would be a bridge between Town and Gown and a way for the school to be of service to the community while helping all people discover the joy of movement and exercise.&quot;</code></pre>
+<p>Here’s our ice arena lobby! There are 10 comments here, mostly versions of the example comment above. What about the other comments spread along the first dimension, between 0.15 and 0.75? Two of the 31 comments in this range are printed below:</p>
+<pre class="r"><code>comments_pc_group2 &lt;- comments_pca12 %&gt;% filter(PC1 &gt; 0.15 &amp; PC1 &lt; 0.7)
+comments2$text[comments2$doc_id %in% comments_pc_group2$doc_id[2:3]]</code></pre>
+<pre><code>## [1] &quot;I&#39;ve recently learned that there might be an opportunity for the University to add an arena for ice sports. It has always seemed strange that UVA did not already have a facility for its varsity hockey teams as well as all of the other purposes an arena would serve for the UVA stduents, faculty, staff, and broader community. Thanks for supporting that. I think it would be worthwhile.&quot;                                                                                                                                                                                                                                                                                         
+## [2] &quot;In the past year, Charlottesville has seen the loss of its downtown ice arena which has left a significant hole in our community. Over the past two years, I have witnessed our students come together to watch our men&#39;s and women&#39;s hockey teams and the figure-skating program, as well as bond by participating in other activities such as public skating, floor hockey, and broomball. It was truly a focal point, not just for student life but also for bringing UVA and C’ville together. Building a new ice arena on Grounds would finally provide students, faculty, alumni and local residents with a permanent fix so we can all enjoy the true spirit of a shared community.&quot;</code></pre>
+<p>Ah, more ice arena advocacy, but without the duplication. Let’s see what’s distinguishing comments high on the second principal component, say, above 0.15. Here are a few of the 48 comments occupying this space on the graph:</p>
+<pre class="r"><code>comments_pc_group3 &lt;- comments_pca12 %&gt;% filter(PC2 &gt; 0.15)
+str_sub(comments2$text[comments2$doc_id %in% comments_pc_group3$doc_id[c(8,16,24)]], 1,200)</code></pre>
+<pre><code>## [1] &quot;Global warming is becoming a bigger problem with every new day that passes, and we are now reaching rates of global warming we have never experienced before. Temperature changes that were previously p&quot;
+## [2] &quot;I am writing a letter this afternoon to discuss the concrete steps that the University of Virginia must take in order to limit global warming and reduce fossil fuel emissions in Charlottesville. In th&quot;
+## [3] &quot;I wanted to reach out to you as a student of the University of Virginia concerned with our university’s attempts to mitigate climate change. The topic has become thoroughly debated in recent politics,&quot;</code></pre>
+<p>I’m only showing the first part of these comments – they are all really, really long – but we seem to have found a climate and sustainability cluster! Let’s formalize this in a cluster analysis!</p>
+<div id="hierarchical" class="section level3">
+<h3>Hierarchical</h3>
+<p>There are a lot of choices in clustering – multiple clustering algorithms, distance metrics and weights, optimization methods, and tuning parametes within given algorithms. And, of course, the choice of <span class="math inline">\(k\)</span> or the number of clusters you want the model to define (choice of <span class="math inline">\(k\)</span> is a tricky thing and I’m going to gloss over it here). I’m going to stick with some common choices here, starting with hiearchical, or connectivity-based, methods.</p>
+<p>In particular, I use the tf-idf weighted dfm, calculate the Euclidean distance, and create links through agglomeration (beginning with <span class="math inline">\(n\)</span> partitions and successively fusing the clusters that are closest) using Ward’s method to determine which clusters are closest. I chose <span class="math inline">\(k=20\)</span> clusters to start.</p>
+<pre class="r"><code># hierarchical ----
+# clustering: calculate distance, generate dendrogram, and label clusters
+comments_dist &lt;- textstat_dist(dfm_tfidf(comments_stem_dfm),  # create distance matrix
+                               method = &quot;euclidean&quot;)
+set.seed(082317)
+comments_ward &lt;- hclust(comments_dist, method = &quot;ward.D2&quot;)  # implement linkage method
+comments_hc_20 &lt;- cutree(comments_ward, k=20) # make cluster assignments for 20 groups</code></pre>
+<pre class="r"><code>table(comments_hc_20)</code></pre>
+<pre><code>## comments_hc_20
+##   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 
+## 757  18   8   1   1   2   1  41   1   1   1   1   1   1   1   1   1   1 
+##  19  20 
+##   1   2</code></pre>
+<p>This produced 20 clusters, because I asked it to, but most of the clusters are singles, and the bulk of observations are thrown into that first massive clusters. Not very satisfying. Still, let’s see what those handful of more distinct groups (groups 2 and 8) contain.</p>
+<p>To do that, I pull out the 10 highest weighted words (features are weighted by term frequency-inverse document frequency) among the comments within each cluster.</p>
+<pre class="r"><code># examination: find most highly weighted words in each cluster
+comment_stem_df &lt;- convert(dfm_tfidf(comments_stem_dfm), to = &quot;data.frame&quot;) # coerce to dataframe
+comment_stem_df_hc &lt;- data.frame(comment_stem_df, comments_hc_20) # append cluster labels
+comment_cluster_list &lt;- split(comment_stem_df_hc[,-1], comment_stem_df_hc$comments_hc_20) # split into lists by cluster
+# apply function to each list: sum columns/weights, sort, save top 10
+topwords &lt;- lapply(comment_cluster_list, function(x) { 
+  sort(apply(x[,-ncol(x)], 2, sum), decreasing=TRUE)[1:10]
+})
+topwords[2]</code></pre>
+<pre><code>## $`2`
+##        energi         reduc climate_chang         emiss          warm 
+##      78.19342      76.57719      74.56030      73.20347      71.92488 
+##         chang          wast          X1.5          food           can 
+##      53.86263      53.45833      49.39675      45.57220      44.22610</code></pre>
+<pre class="r"><code>topwords[8]</code></pre>
+<pre><code>## $`8`
+##       ice     skate    hockey     arena      rink     sport  movement 
+## 147.27017  92.31054  91.49594  72.40954  57.62955  49.36716  37.67839 
+##       joy      team     figur 
+##  36.14503  34.41481  33.64702</code></pre>
+<p>Cluster 2 seems to contain at least some of the climate change sustainability comments, though from the exploratory analysis above, I know there are more than 18 of these. Cluster 8 is the by now familiar ice arena group. The 41 comments in this cluster matches the 41 comments I saw in the exploratory graph above, so that’s nice, at least.</p>
+<p>But this hasn’t pulled out the kind of internal cohesion that might help me summarize the comments or generate insight. Let’s try one more clustering algorithm.</p>
+</div>
+<div id="kmeans" class="section level3">
+<h3>Kmeans</h3>
+<p>Centroid-based clustering offers another approach, where observations are divvied up into groups by minimizing some numerical criterion – k-means is the most common partitioning approach.</p>
+<p>K-means starts with <span class="math inline">\(k\)</span>-centroids (the points that will be the center of the clusters), assigns each data point to the nearest centroid, updates each centroid to be the average of the data points assigned to it, and re-assigns each data point to the nearest centroid (and then repeats this until there is minimal change). Because the initial randomly-chosen centroids can affect the outcome, we generally try a lot of starting points and let the algorithm select the solution that minimizes the within sum of squares (so maximizes within cluster homogeneity).</p>
+<p>I’m going to use <span class="math inline">\(k=20\)</span> again.</p>
+<pre class="r"><code># kmeans  ---- 
+set.seed(101706)
+clusterk20 &lt;- kmeans(dfm_tfidf(comments_stem_dfm), 20, iter.max = 25, nstart = 5)</code></pre>
+<pre class="r"><code>table(clusterk20$cluster)</code></pre>
+<pre><code>## 
+##   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 
+##   1   1   1 768   1   1   1   1  30   7   9   1   1   3   1   9   1   1 
+##  19  20 
+##   1   3</code></pre>
+<p>Again, we have lots of groups of one, and only a handful of potentially distinctive clusters. Let’s look at the key distinctive words for clusters 9, 10, 11, and 16.</p>
+<pre class="r"><code># examination: find most highly weighted words in each cluster
+comment_stem_df_km &lt;- data.frame(comment_stem_df, clusterk20$cluster) # append cluster labels
+comment_cluster_list &lt;- split(comment_stem_df_km[,-1], comment_stem_df_km$clusterk20.cluster) # split into lists by cluster
+# apply same function to each list: sum columns/weights, sort, save top 10
+topwords &lt;- lapply(comment_cluster_list, function(x) { 
+  sort(apply(x[,-ncol(x)], 2, sum), decreasing=TRUE)[1:10]
+})
+topwords[9]</code></pre>
+<pre><code>## $`9`
+##       ice     skate    hockey     arena      rink  movement       joy 
+## 130.47621  85.20973  82.07724  62.27221  47.75020  37.67839  36.14503 
+##     sport     figur    discov 
+##  33.35619  32.18411  29.25828</code></pre>
+<pre class="r"><code>topwords[10]</code></pre>
+<pre><code>## $`10`
+##    energi      dine       use       can transport       car      hall 
+##  32.04649  30.11296  25.28746  25.19208  24.69838  23.54779  21.90415 
+##     reduc      food       bus 
+##  20.99697  20.83300  20.72311</code></pre>
+<pre class="r"><code>topwords[11]</code></pre>
+<pre><code>## $`11`
+## climate_chang         reduc         emiss        energi          warm 
+##      54.86513      43.22906      40.33660      32.04649      31.27169 
+##             c        climat         chang          X1.5        carbon 
+##      28.25879      25.64948      23.08398      19.75870      18.32846</code></pre>
+<pre class="r"><code>topwords[16]</code></pre>
+<pre><code>## $`16`
+##   energi     heat     warm     wast    emiss  celsius     food    degre 
+## 42.30136 40.23208 39.08961 35.16995 34.36081 33.23036 32.55157 31.24357 
+##    chang    reduc 
+## 30.77864 29.64278</code></pre>
+<p>Cluster 9 contains our hocky/ice skating enthusiasts; clusters 10, 11, and 16 are all variations on energy use and climate change – so potentially some subgroups within a larger sustainability theme. But that’s about it.</p>
+<p>Overall, this is kind of disappointing, what with that undifferentiated mass of comments. It’s possible we haven’t tried a big enough <span class="math inline">\(k\)</span>, but given all of the singles we’re already getting, that’s doubtful. It’s also possible that there really aren’t many common themes, nothing that holds a subset together. But more likely is that many of these comments are long and involved and possibily not single-themed. So let’s try something different.</p>
+</div>
+</div>
+<div id="topic-models" class="section level2">
+<h2>Topic Models</h2>
+<p>Another approach to uncover the main themes (or topics) in an unstructured corpus is topic modeling.</p>
+<p>Topic models require no prior information, no training set, no special annotation of the texts beforehand; only, as in cluster analysis, a decision about the number of topics, <span class="math inline">\(k\)</span>. Unlike in cluster analysis, documents are not required to belong to a single topic or cluster (i.e., single membership), but may simultaneously belong to several topics.</p>
+<p>I’m going to use an R package called <code>stm</code> – for <a href="https://www.structuraltopicmodel.com/">structural topic models</a> – which implements a correlated topic model and allows for the inclusion of covariates as predictors of topic prevalance. I reduce the dimensionality of my document feature matrix a bit and convert this into the form the <code>stm</code> package expects before estimating a topic model with <span class="math inline">\(K=20\)</span> topics (it takes about a minute on my machine).</p>
+<pre class="r"><code>comments_trim_dfm &lt;- dfm_trim(comments_stem_dfm,   # reduce dimensionality by
+                              min_termfrea = 10,  # trim low freqeuncy words
+                              min_docfreq = 3,   # trim words that occur across few docs
+                              max_docfreq = 839)  # trim words that appear in almost all docs
+
+comments_trim_dfm &lt;- comments_trim_dfm[which(rowSums(comments_trim_dfm) &gt; 0),] # remove empty rows
+comments_trim_stm &lt;- convert(comments_trim_dfm, to=&quot;stm&quot;) # convert to a stm corpus
+
+# initial structural topic model
+seed2=121 # for reproducibility
+comments_stm1 &lt;- stm(comments_trim_stm$documents, comments_trim_stm$vocab, K = 20, 
+                     max.em.its = 75, init.type = &quot;Spectral&quot;, seed = seed2)</code></pre>
+<p>Let’s see the top words for each estimated topic.</p>
+<pre class="r"><code># examine
+labelTopics(comments_stm1, n = 7) # associated words (prob, frex)</code></pre>
+<pre><code>## Topic 1 Top Words:
+##       Highest Prob: univers, uva, polici, can, work, communiti, parent 
+##       FREX: polici, leav, parent, adopt, paid, execut, governor 
+##       Lift: mead, northam, succumb, adopt, execut, chicago, governor 
+##       Score: mead, adopt, governor, parent, northam, execut, leav 
+## Topic 2 Top Words:
+##       Highest Prob: uva, univers, presid, divers, communiti, group, ask 
+##       FREX: presid, slaveri, august, equiti, stop, respect, ask 
+##       Lift: apologist, horribl, mayor, reject, supremaci, sullivan, august 
+##       Score: reject, slaveri, august, racial, war, equiti, divers 
+## Topic 3 Top Words:
+##       Highest Prob: center, short, uva, marc, miller, invit, hire 
+##       FREX: marc, miller, short, invit, center, speaker, racism 
+##       Lift: hate, racist, racism, miller, marc, speaker, free_speech 
+##       Score: racism, marc, short, miller, center, free_speech, invit 
+## Topic 4 Top Words:
+##       Highest Prob: uva, follow, futur, learn, way, past, student 
+##       FREX: follow, uniqu, futur, past, monticello, relationship, method 
+##       Lift: follow, intertwin, monticello, method, labor, uniqu, cap 
+##       Score: follow, monticello, uniqu, futur, cap, method, intertwin 
+## Topic 5 Top Words:
+##       Highest Prob: energi, reduc, uva, can, univers, emiss, wast 
+##       FREX: initi, emiss, heat, wast, energi, reduc, planet 
+##       Lift: 39, emit, lawrenc, potent, 2020, initi, oil 
+##       Score: initi, emiss, heat, energi, climate_chang, wast, 1.5 
+## Topic 6 Top Words:
+##       Highest Prob: communiti, uva, staff, univers, charlottesvill, student, peopl 
+##       FREX: sens, staff, cvill, communiti, region, welcom, greater 
+##       Lift: nazi, inn, strength, treasur, gay, towni, cavali 
+##       Score: nazi, cvill, violenc, sens, inn, staff, welcom 
+## Topic 7 Top Words:
+##       Highest Prob: year, uva, student, school, communiti, first, charlottesvill 
+##       FREX: music, dorm, concert, youth, kid, year, free 
+##       Lift: mess, pick, 4th, roommat, concert, garden, music 
+##       Score: concert, 4th, music, kid, dorm, youth, market 
+## Topic 8 Top Words:
+##       Highest Prob: student, faculti, learn, school, can, uva, studi 
+##       FREX: innov, studi, explor, abroad, intern, busi, perspect 
+##       Lift: vs, entrepreneurship, fee, silo, abroad, extern, alongsid 
+##       Score: fee, innov, studi, abroad, explor, admiss, histori 
+## Topic 9 Top Words:
+##       Highest Prob: divers, univers, encourag, faculti, polit, educ, thought 
+##       FREX: thought, opinion, divers, polit, correct, belief, liber 
+##       Lift: experiment, coddl, liberti, virtu, constitut, decision-mak, bias 
+##       Score: experiment, divers, opinion, liber, thought, polit, teamwork 
+## Topic 10 Top Words:
+##       Highest Prob: can, uva, student, food, univers, dine, make 
+##       FREX: transport, bus, food, dine, car, electr, meat 
+##       Lift: substitut, turkey, percent, tomorrow, chicken, dioxid, pork 
+##       Score: dine, emiss, meat, food, transport, electr, beef 
+## Topic 11 Top Words:
+##       Highest Prob: ice, uva, hockey, skate, communiti, arena, sport 
+##       FREX: hockey, skate, arena, rink, ice, sport, figur 
+##       Lift: 2001, acchl, figure-sk, floor, focal, gown, jpj 
+##       Score: rink, ice, hockey, skate, arena, movement, sport 
+## Topic 12 Top Words:
+##       Highest Prob: research, faculti, uva, teach, book, univers, time 
+##       FREX: research, librari, book, alderman, collabor, medic, renov 
+##       Lift: evidence-bas, alderman, bureaucraci, pre, stack, chemistri, alderman_librari 
+##       Score: research, librari, book, pre, alderman, stack, alderman_librari 
+## Topic 13 Top Words:
+##       Highest Prob: univers, uva, system, fratern, greek, student, scienc 
+##       FREX: fratern, greek, footbal, neighborhood, system, sexual, behavior 
+##       Lift: duke, repeat, yale, footbal, softbal, basebal, poorest 
+##       Score: fratern, greek, yale, footbal, neighborhood, system, brain 
+## Topic 14 Top Words:
+##       Highest Prob: experi, student, uva, univers, residenti, knowledg, way 
+##       FREX: residenti, experi, art, space, museum, classroom, knowledg 
+##       Lift: hands-on, maxim, raw, visibl, confid, residenti, museum 
+##       Score: residenti, maxim, museum, experi, fralin, minor, space 
+## Topic 15 Top Words:
+##       Highest Prob: climate_chang, chang, make, communiti, need, world, uva 
+##       FREX: climate_chang, climat, negat, warm, technolog, chang, action 
+##       Lift: hit, negat, drastic, 1450, evsc, conflict, press 
+##       Score: negat, climate_chang, climat, emiss, warm, 1.5, 1450 
+## Topic 16 Top Words:
+##       Highest Prob: servic, student, communiti, need, work, help, provid 
+##       FREX: servic, special, children, commonwealth, volunt, requir, hour 
+##       Lift: caregiv, jail, selfless, paycheck, sort, compass, empathi 
+##       Score: servic, sort, famili, commonwealth, volunt, caregiv, special 
+## Topic 17 Top Words:
+##       Highest Prob: student, hous, connect, uva, alumni, faculti, opportun 
+##       FREX: connect, hous, outsid, career, alumni, opportun, write 
+##       Lift: rental, spread, dental, thesi, harrison, midst, northern 
+##       Score: hous, spread, connect, alumni, career, advis, mentor 
+## Topic 18 Top Words:
+##       Highest Prob: sustain, univers, ground, like, improv, can, communiti 
+##       FREX: sustain, improv, aggress, neutral, environment, green, although 
+##       Lift: sustain, aggress, wise, urban, incentiv, distanc, neutral 
+##       Score: sustain, aggress, neutral, carbon, recycl, dine, climate_chang 
+## Topic 19 Top Words:
+##       Highest Prob: student, staff, live, uva, better, univers, make 
+##       FREX: wage, lot, staff, pay, month, citi, better 
+##       Lift: contract, mile, rent, pres, north, ticket, decent 
+##       Score: mile, wage, park, month, employe, rent, basketbal 
+## Topic 20 Top Words:
+##       Highest Prob: must, mani, valu, univers, focus, one, feel 
+##       FREX: valu, must, truth, focus, honor, mani, tradit 
+##       Lift: code, erod, honesti, valu, diminish, truth, honor 
+##       Score: code, truth, must, valu, honor, tradit, alumni</code></pre>
+<p>The “Highest Prob” words are what folks are often accustomed to seeing in topic model output – the words with the higest probability of being in that topic (based on frequency). The problem is, many of the high probability words appear across multiple topics because they appear frequently throughout the corpus. I like the “FREX” descriptors – balancing the frequency with which words appear in a topic and the exclusivity with with they appear in that topic – as it better reflects distinctive but important words. (Lift and Score also try to account for word frequency throughout the corpus by weighting the probabilities by the overall word distributions).</p>
+<p>There’s a lot to unpack here. Topic 2 appears to reflect comments addressing racial diversity, the events of August 11-12, the <a href="http://slavery.virginia.edu/">President’s Commision on Slavery and the University</a>, and related ideas. Topic 3 pulls out references to the Miller Center’s controversial hiring of <a href="https://millercenter.org/experts/marc-short">Marc Short</a>. Topic 11 captures the comments of the ice arena lobby. Topic 12 is picking up mentions of Alderman Library and renovation plans. And Topics 5, 15, and 18 address dimensions of sustaintability and environmental change.</p>
+<p>Let’s visualize the overall prevalance of each of these topics in our collection of comments:</p>
+<pre class="r"><code># terms to topics 
+stm_probterms &lt;- as.data.frame(t(as.data.frame(comments_stm1$beta))) # extract term-topic probs (logged) and transpose
+names(stm_probterms) &lt;- c(&quot;Topic1&quot;, &quot;Topic2&quot;, &quot;Topic3&quot;, &quot;Topic4&quot;, &quot;Topic5&quot;,
+                                  &quot;Topic6&quot;, &quot;Topic7&quot;, &quot;Topic8&quot;, &quot;Topic9&quot;, &quot;Topic10&quot;,
+                                  &quot;Topic11&quot;, &quot;Topic12&quot;, &quot;Topic13&quot;, &quot;Topic14&quot;, &quot;Topic15&quot;,
+                                  &quot;Topic16&quot;, &quot;Topic17&quot;, &quot;Topic18&quot;, &quot;Topic19&quot;, &quot;Topic20&quot;) # assign names
+stm_probterms &lt;- stm_probterms %&gt;%  # exponentiate (get probs)
+  mutate_all(funs(exp(.)))
+rownames(stm_probterms) &lt;- comments_stm1$vocab # assign terms to rownames
+
+# topics to docs
+stm_probtopic &lt;- as.data.frame(comments_stm1$theta)
+
+# topic prevalence in corpus
+stm_topiclab &lt;- as.data.frame(labelTopics(comments_stm1, n = 5)[[2]])
+stm_topicsum &lt;- stm_probtopic %&gt;% summarize_all(funs(sum))
+stm_topicsum &lt;- as.data.frame(t(stm_topicsum))
+stm_topicsum$topic &lt;- as.integer(str_extract(row.names(stm_topicsum), &quot;\\d+&quot;))
+stm_topicsum$terms &lt;- paste0(&quot;Topic&quot;, stm_topicsum$topic, &quot;:&quot;, stm_topiclab$V1, &quot;-&quot;, stm_topiclab$V2, &quot;-&quot;, stm_topiclab$V3, &quot;-&quot;, stm_topiclab$V4, &quot;-&quot;, stm_topiclab$V5)</code></pre>
+<pre class="r"><code>ggplot(stm_topicsum, aes(x=reorder(terms, V1), y=V1)) + 
+  geom_bar(stat=&quot;identity&quot;) + 
+  labs(title=&quot;Topic Prevalence&quot;, y = &quot;Prevalance&quot;, x = &quot;&quot;) + 
+  coord_flip()</code></pre>
+<p><img src="/post/2019-01-31-analysis-of-ours-to-shape-comments-part-5_files/figure-html/prev-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Topics 17, 6, and 8 are the most frequent. On the surface, these topics aren’t quite as clear (to me) as some of the ones I referenced earlier. Tere are the top words for these top topics.</p>
+<pre class="r"><code># examine
+labelTopics(comments_stm1, n = 7, topics = c(17,6,8))</code></pre>
+<pre><code>## Topic 17 Top Words:
+##       Highest Prob: student, hous, connect, uva, alumni, faculti, opportun 
+##       FREX: connect, hous, outsid, career, alumni, opportun, write 
+##       Lift: rental, spread, dental, thesi, harrison, midst, northern 
+##       Score: hous, spread, connect, alumni, career, advis, mentor 
+## Topic 6 Top Words:
+##       Highest Prob: communiti, uva, staff, univers, charlottesvill, student, peopl 
+##       FREX: sens, staff, cvill, communiti, region, welcom, greater 
+##       Lift: nazi, inn, strength, treasur, gay, towni, cavali 
+##       Score: nazi, cvill, violenc, sens, inn, staff, welcom 
+## Topic 8 Top Words:
+##       Highest Prob: student, faculti, learn, school, can, uva, studi 
+##       FREX: innov, studi, explor, abroad, intern, busi, perspect 
+##       Lift: vs, entrepreneurship, fee, silo, abroad, extern, alongsid 
+##       Score: fee, innov, studi, abroad, explor, admiss, histori</code></pre>
+<p>Looking at comments that score high on Topic 17 confirms that this one is a bit of a hodgepodge, combining attention to affordable housing and to research support.</p>
+<pre class="r"><code>max_topic &lt;- which(stm_probtopic$V17 &gt; 0.90) # index of comments with high prob of topic x
+comments2$text[comments2$doc_id %in% max_topic] # pull out comments with high prob of topic x</code></pre>
+<pre><code>## [1] &quot;UVa needs to take a broader view of community to include the City of Charlottesville. UVa student demand is an obstacle to affordable housing in the city. Today students are paying $1000 for one room in direct competition with underprivileged city residents. A significant investment in on campus student housing away from the city and requiring more students to live on campus would reduce housing demand in the area. This would allow the city to promote affordable housing growth.&quot;                 
+## [2] &quot;There is an affordable housing crisis in Charlottesville for limited income residents. The university has a desire to offer more on-grounds housing options for upperclassmen students. \n\nThis problem presents an opportunity for a public-private partnership of mixed UVA student &amp; Charlottesville community member housing. Alumnae Micaela Connery, CLAS &#39;09 is researching current efforts similar to this. This demonstrates our commitment to the city and presents learning opportunities for students.&quot;
+## [3] &quot;We need to create a centralize, focused effort on research.  In addition, we need to lower the overhead rate and apply what is collected to supporting the infrastructure.&quot;                                                                                                                                                                                                                                                                                                                                         
+## [4] &quot;It is critical to foster an environment where diverse ideas, views, and perspectives are fostered and explored. Too often on campuses across the U.S. these days, certain points of view are attacked or shut down entirely to the great detriment of the academic community there. The University of Chicago has set a great example recently in this area and I hope that UVA follows suit and continues to be a place where the ideals of free speech and debate are celebrated.&quot;                                
+## [5] &quot;Hire faculty who are tops in their field but who also have a commitment to engaging undergraduate in their research, not just their classrooms. Provide more opportunities for students, even undergrads, to work with our superstars --- provide more students with experiences like the Harrison Undergraduate Research Awards.&quot;</code></pre>
+<p>The comments that exemplify Topic 6 suggest a little more coherence, primarily around town-gown relations.</p>
+<pre class="r"><code>max_topic &lt;- which(stm_probtopic$V6 &gt; 0.90) 
+comments2$text[comments2$doc_id %in% max_topic] </code></pre>
+<pre><code>## [1] &quot;“The community” comes into UVA every day--as faculty, staff, students, and patients. The community staffs and maintains the University. UVA is the product of the local community. The community IS here.  But more of the community should be here. The enormous holdings of the UVA libraries are available to any citizen of the Commonwealth, exhibitions drawn from the rich collections of the Small Library and the Fralin should be go-to opportunities for community members, as should the wealth of o...n-grounds music, dance, and drama events. Community news outlets like the Daily Progress, Cville, and WVIR could be more energetically and creatively used to publicize UVA offerings and events. But UVA’s lack of short-term parking for access to these resources is a deterrent to members of the community coming to UVA with their family and friends for an event—or from coming here at all.  That is especially true for retirees (a rapidly growing proportion of the local population) and for people with children.   \n\nThe UVA community itself would benefit from (and probably appreciate) seeing “ordinary” UVA faculty and staff members featured on the front end of the UVA website in addition to the award winners, innovators, and news pieces that at present populate that high profile space.\nRead More&quot;                                                                                                                                                                                                                                     
+## [2] &quot;I think we need to walk the walk with supporting people, whether it be students, staff, or faculty. There is distrust within the University community and between UVA and the larger community. But there is an opportunity there--to do better, to be better. We can earn trust among ourselves, which will enable us to be better equipped to build trust in the Charlottesville and Albemarle County community. Let&#39;s be true to our word. Let&#39;s be clear and transparent in our communication. Let&#39;s be kind. Let&#39;s be steadfast in our integrity and willing to acknowledge mistakes and challenges and then all roll up our sleeves to do better because of them.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+## [3] &quot;Model it. We need to start modeling a sense of strength as a community among faculty and staff, so that we have something to stand on when we expect it of our students or the city. We should come to collaborative meetings ready to works together, rather than dig our heals in. We need leadership that is willing to listen and make the tough decisions about our priorities so that everyone isn&#39;t fighting over resources. We need to make sure that we are not abdicating our responsibilities. We are an extremely competitive university, even and maybe especially among units and divisions of the university. We need to move away from turf guarding and instead toward our strengths as teammates.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+## [4] &quot;Community is ultimately spiritual, because community requires sacrifice, including prestige, career, and power, to help those in need, to the glory of God; and the community has to be worthy of that sacrifice. Violence is the antithesis of sacrifice, and results in destruction and isolation. So, the university needs to separate itself as much as possible from organizations that rely on violence for any reason, such as survival, power, and prestige. Unfortunately most of UVa&#39;s grants come from su...ch organizations, and those grants undermine the community partly because they require resources that prevent the sacrifice needed to build community, and partly because they direct the results of research toward further violence. Until those who lead UVa place higher priority on community than those grants, UVa will not have a sense of community. UVa at least needs to avoid punishing those who witness againts violence, no matter the justification for the violence, whether it be for security, research, education, health care, poverty assistance, or anti-hate. As long as UVa is under heavy influence of organizations that rely on violence, UVa needs to cooperate with the leadership provided by the churches, houses of worship, and civic organizations that maintain a core principle of nonviolence, and hope that they have the spiritual guidance to inspire the sacrifice that creates community. Without compulsion, the leadership of UVa would do well to set individual examples of supporting such organizations.\nRead More&quot;
+## [5] &quot;Engage in the broader community with humility, as community members, as partners. Ensure that community agencies that support experiential learning opportunities for students get a useful product and get thanked. Engage in regional planning with the county and city in earnest, committing to improved communication and joint problem-solving. Consider steps to mitigate the impact UVA students have on the affordable housing landscape of greater Charlottesville.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+## [6] &quot;Community is ultimately spiritual, because it requires sacrifice, including prestige, career, and power; and the community has to be worthy of that sacrifice. So, UVa needs to cooperate with the leadership by churches, houses of worship, and civic organizations that maintain a core principle of nonviolence. Without compulsion, the leadership of UVa would do well to set individual examples of supporting such organizations. Nothing justifies violence, whether security, education, or health care.&quot;</code></pre>
+<p>But Topic 8 appears a bit muddled, with comments centering on the computer science department, innovation, the A-School, Nazis, centralization, and a sports arena.</p>
+<pre class="r"><code>max_topic &lt;- which(stm_probtopic$V8 &gt; 0.90) 
+comments2$text[comments2$doc_id %in% max_topic] </code></pre>
+<pre><code>## [1] &quot;As a Computer Engineering student, I was very excited to hear about the hiring of ten new Computer Science faculty this semester. I was then immediately let down when I realized that all ten of these professors are men. The gender distribution of faculty within the CS department is far from representative of the student body, and creates a discouraging environment for female students. While I have had overwhelmingly positive experience with my professors, I wish that there were more female role-models and perspectives in the CS and CPE departments.&quot;                                                                                                                                                  
+## [2] &quot;Design a new type of shared learning space for faculty, students and business. Enable business teams to interact with students and faculty. Be selective in which students participate. To insure multi-disciplinary student and faculty teams, ask each college to nominate Innovation Fellows: students and faculty. Solicit businesses to submit complex innovation challenges, supported by a 3-4 member business team. Payoffs: Business gets access to best UVA minds+ solutions, faculty get opportunities for research; students get powerful learning + networks. UVA gets national reputation in the emerging field of innovation science. THink national sponsorship for the innovation space: McKinsey, Deloitte&quot;
+## [3] &quot;How is it that in the Computer Science department, where the strong majority of PhD students are international students, and outperform their local peers strongly, every single US-born PhD whom graduates immediately gets a job either as an assistant professor, a lecturer or a researcher?\nIs that \&quot;\&quot;supporting diversity\&quot;\&quot; which is shoved into our faces everywhere we go throughout the department? Or are those banners just there to make it easier to push international students around?&quot;                                                                                                                                                                                                                  
+## [4] &quot;My daughter just graduated from the A school and I am a big fan.  Her education was forward thinking and multi-disciplinary; she leaned about the past, the arts, current culture and international issues. She wrote, presented, collaborated, learned to problem solve and think critically.  She did all this while learning skills for a very specific vocation.  Can the college of A &amp; S learn from the A-school Design Thinking format?&quot;                                                                                                                                                                                                                                                                              
+## [5] &quot;One way to support discovery is to attract the best candidates and retain high quality faculty and staff. This can be achieved in many ways, including offering excellent benefits. Research has shown that supporting paid parental leave is a net benefit to an institution, yet we are unevenly participating in Governor Northam&#39;s executive order granting parents 8 weeks of paid leave. We need to extend the leave to all members of the university workforce. UVA should not be leading from behind.&quot;                                                                                                                                                                                                               
+## [6] &quot;How about protecting our community from Nazis, and not hiring fascist sympathizers?&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+## [7] &quot;I resigned my tenured faculty position because UVA had morphed from a Jeffersonian institution into a top-down command and control organization, with the president compelling priorities upon everyone. This is a cultural phenomenon of centralization of power that I had hoped UVA would avoid.  Please help it return to being Jeffersonian. Let&#39;s focus on individuals instead of group identities, content of character instead of skin color, and above all, an ETHICS of peace instead of compulsion.&quot;                                                                                                                                                                                                              
+## [8] &quot;A multi-faceted sports building for use by \&quot;\&quot;town and gown \&quot;\&quot; is a great addition to inclusive uses , not limited to Ice Hockey . Figure skating , informal exercise , speed skating and  possibly (you heard it from here first )   ICE HOCKEY FRISBEE FOR MALE AND FEMALE PLAYERS . Why not ?. Somewhere, someone can start a new sport combination why not UVA. Am proud to support Wahoo sports.&quot;</code></pre>
+<p>Topic modeling is always an iterative process – estimate, evaluate, and reiterate. These results represent only the first iteration. Ideally, we’d try some different values of K, as I suspect from the somewhat unclear categories above that <span class="math inline">\(K=20\)</span> isn’t sufficient for this corpus. And then we’d estimate a bunch of models with that validated <span class="math inline">\(K\)</span> and examine what topics are consistent across estimations.</p>
+<p>But since this is largely an exploratory exercise, let’s jump to a final visualiation: how does attention to these topics, as defined by our sense of the distinctive words, vary across comment category?</p>
+<pre class="r"><code>### visualization: topic prevalence by comment type
+stm_probtopic &lt;- cbind(stm_probtopic, 
+                       doc_id = as.integer(comments2$doc_id),  # add doc_id
+                       type = comments2$type)                  # add comment type
+
+stm_topictype &lt;- stm_probtopic %&gt;% 
+  select(c(1:20,22)) %&gt;%   # remove doc_id
+  group_by(type) %&gt;%       # group by type
+  summarize_all(funs(sum)) # sum topic probabilities
+
+# plot all topics (gather comes from tidyr)
+stm_typelong &lt;- gather(stm_topictype, topic, prevalence, -type)
+# add terms to data frame for facet labelling
+stm_typelong &lt;- stm_typelong %&gt;%
+  mutate(topic = as.integer(str_extract(topic, &quot;\\d+&quot;))) %&gt;% 
+  left_join(stm_topicsum, by = &quot;topic&quot;)</code></pre>
+<pre class="r"><code># and plot
+ggplot(stm_typelong, aes(x=type, y=prevalence)) + 
+  geom_bar(stat = &quot;identity&quot;) + 
+  labs(title=&quot;Topic Prevalence by Comment Category&quot;, y = &quot;Prevalance&quot;, x = &quot;Comment Category&quot;) + 
+  facet_wrap(~ fct_reorder(terms, V1, .desc = TRUE), ncol=5)</code></pre>
+<p><img src="/post/2019-01-31-analysis-of-ours-to-shape-comments-part-5_files/figure-html/prev2-1.png" width="864" style="display: block; margin: auto;" /></p>
+<p>I’ve sequenced the panels by the topic’s overall prevalence in the corpus. We can see</p>
+<ul>
+<li>Among comments submitted under “community”, Topic 6 appears most common</li>
+<li>Among comments submitted under “discovery”, Topic 12 is most common</li>
+<li>Among comments submitted under “service”, Topic 16 is most common</li>
+</ul>
+<p>But overall, the comment categories contain a lot of overlap, suggesting that contributors aren’t operating with the same definitions of these categories (and that these categories, therefore, may not be especially meaningful).</p>
+<pre class="r"><code>save.image(&quot;../../static/data/ots_blog5.RData&quot;)</code></pre>
+</div>
+<div id="one-more-post" class="section level2">
+<h2>One more post</h2>
+<p>Having explored the corpus and extracted a vareity of features (complexity, sentiment, moral rhetoric, topics, and the like – the final goal is to model the relationship among these extracted features to see what we can learn.</p>
+<p>For questions or clarifications regarding this article, contact the UVa
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Michele Claibourn</em><br />
+<em>Director, Research Data Services</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+## 
+## Random number generation:
+##  RNG:     Mersenne-Twister 
+##  Normal:  Inversion 
+##  Sample:  Rounding 
+##  
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] stm_1.3.3          scales_1.0.0       RColorBrewer_1.1-2
+##  [4] forcats_0.4.0      stringr_1.4.0      dplyr_0.8.1       
+##  [7] purrr_0.3.2        readr_1.3.1        tidyr_0.8.3       
+## [10] tibble_2.1.1       ggplot2_3.1.1      tidyverse_1.2.1   
+## [13] quanteda_1.4.3    
+## 
+## loaded via a namespace (and not attached):
+##  [1] tidyselect_0.2.5   xfun_0.7           haven_2.1.0       
+##  [4] lattice_0.20-38    colorspace_1.4-1   generics_0.0.2    
+##  [7] htmltools_0.3.6    yaml_2.2.0         rlang_0.3.4       
+## [10] pillar_1.4.0       withr_2.1.2        glue_1.3.1        
+## [13] modelr_0.1.4       readxl_1.3.1       matrixStats_0.54.0
+## [16] plyr_1.8.4         cellranger_1.1.0   munsell_0.5.0     
+## [19] blogdown_0.12      gtable_0.3.0       rvest_0.3.3       
+## [22] evaluate_0.13      labeling_0.3       knitr_1.22        
+## [25] broom_0.5.2        Rcpp_1.0.1         spacyr_1.0        
+## [28] backports_1.1.4    RcppParallel_4.4.2 jsonlite_1.6      
+## [31] fastmatch_1.1-0    stopwords_0.9.0    hms_0.4.2         
+## [34] digest_0.6.19      stringi_1.4.3      bookdown_0.10     
+## [37] grid_3.6.0         cli_1.1.0          tools_3.6.0       
+## [40] magrittr_1.5       lazyeval_0.2.2     crayon_1.3.4      
+## [43] pkgconfig_2.0.2    ellipsis_0.1.0     Matrix_1.2-17     
+## [46] xml2_1.2.0         data.table_1.12.2  lubridate_1.7.4   
+## [49] rstudioapi_0.10    assertthat_0.2.1   rmarkdown_1.12    
+## [52] httr_1.4.0         R6_2.4.0           nlme_3.1-139      
+## [55] compiler_3.6.0</code></pre>
+</div>

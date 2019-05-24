@@ -79,7 +79,6 @@ Alumni are the most frequent contributors, with 47% indicating that status, foll
 ggplot(comments, aes(x = numroles)) + geom_bar() + 
   labs(title = "Number of Contributor-Identified Roles",
        x = "Number of Roles Selected", y = "Number of Contributors")
-ggsave("blog1_1.jpg", width = 5, height = 3)
 # collapse number of roles: 4 or more
 comments <- comments %>% 
   mutate(numroles4 = ifelse(numroles >3, 4, numroles))

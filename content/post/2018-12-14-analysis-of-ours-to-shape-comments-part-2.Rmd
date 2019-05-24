@@ -155,7 +155,6 @@ comments_key_disc <- textstat_keyness(comments_dfm_groups,
 textplot_keyness(comments_key_disc, n = 20, show_reference = FALSE,
                  margin = 0.1, labelsize = 3,
                  color = "darkorange") + ggtitle("Key Words in Discovery Comments")
-ggsave("blog2_7.jpg", width = 4, height = 3)
 ```
 
 These words strike me as "academic" language -- research and knowledge, books, humanities and science (never the social sciences, sigh...), study, teach and learn.

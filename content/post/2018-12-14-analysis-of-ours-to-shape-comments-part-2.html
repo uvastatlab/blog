@@ -119,7 +119,6 @@ textplot_keyness(comments_key_disc, n = 20, show_reference = FALSE,
                  margin = 0.1, labelsize = 3,
                  color = &quot;darkorange&quot;) + ggtitle(&quot;Key Words in Discovery Comments&quot;)</code></pre>
 <p><img src="/post/2018-12-14-analysis-of-ours-to-shape-comments-part-2_files/figure-html/key3-1.png" width="384" style="display: block; margin: auto;" /></p>
-<pre class="r"><code>ggsave(&quot;blog2_7.jpg&quot;, width = 4, height = 3)</code></pre>
 <p>These words strike me as “academic” language – research and knowledge, books, humanities and science (never the social sciences, sigh…), study, teach and learn.</p>
 <p>There are other ways of identifying distinguishing words – term frequency-inverse document frequency (tf-idf) being a popular choice.</p>
 <p><span class="math display">\[ tf idf = tf_{t,d} \times ln\frac{n_{docs}}{n_{docs,t}}\]</span></p>
