@@ -1,0 +1,212 @@
+---
+title: Introduction to Mediation Analysis
+author: Bommae Kim
+date: '2016-04-18'
+slug: introduction-to-mediation-analysis
+categories:
+  - R
+tags:
+  - mediation
+  - linear regression
+---
+
+
+
+<div id="what-is-mediation" class="section level3">
+<h3>What is mediation?</h3>
+<p>Let’s say previous studies have suggested that higher grades predict higher happiness: X (grades) <span class="math inline">\(\rightarrow\)</span> Y (happiness). (This research example is made up for illustration purposes. Please don’t consider it a scientific statement.)</p>
+<p><img src="/img/mediation_ex1.png" /></p>
+<p>I think, however, grades are not the real reason that happiness increases. I hypothesize that good grades boost one’s self-esteem and then high self-esteem boosts one’s happiness: X (grades) <span class="math inline">\(\rightarrow\)</span> M (self-esteem) <span class="math inline">\(\rightarrow\)</span> Y (happiness).</p>
+<p><img src="/img/mediation_ex2.png" /></p>
+<p>This is a typical case of mediation analysis. Self-esteem is a mediator that explains the underlying mechanism of the relationship between grades (IV) and happiness (DV).</p>
+</div>
+<div id="how-to-analyze-mediation-effects" class="section level3">
+<h3>How to analyze mediation effects</h3>
+<p>Before we start, please keep in mind that, as any other regression analysis, mediation analysis does not imply causal relationships unless it is based on experimental design.</p>
+<p>To analyze mediation:</p>
+<ol style="list-style-type: decimal">
+<li>Follow Baron &amp; Kenny’s steps</li>
+<li>Use either the Sobel test or bootstrapping for significance testing.</li>
+</ol>
+<p>The following shows the basic steps for mediation analysis suggested by Baron &amp; Kenny (1986). A mediation analysis is comprised of three sets of regression: X <span class="math inline">\(\rightarrow\)</span> Y, X <span class="math inline">\(\rightarrow\)</span> M, and X + M <span class="math inline">\(\rightarrow\)</span> Y. This post will show examples using R, but you can use any statistical software. They are just three regression analyses!</p>
+<pre class="r"><code># Download data online. 
+# This is a simulated dataset for this post.
+myData &lt;- read.csv(&#39;http://static.lib.virginia.edu/statlab/materials/data/mediationData.csv&#39;)</code></pre>
+</div>
+<div id="step-1" class="section level3">
+<h3>Step 1</h3>
+<p><img src="/img/mediation_step1.png" /></p>
+<p><span class="math display">\[Y = b_{0} + b_{1}X + e\]</span></p>
+<p>Is <span class="math inline">\(b_{1}\)</span> significant? We want X to affect Y. If there is no relationship between X and Y, there is nothing to mediate.</p>
+<p>Although this is what Baron and Kenny originally suggested, this step is controversial. Even if we don’t find a significant association between X and Y, we could move forward to the next step if we have a good theoretical background about their relationship. See Shrout &amp; Bolger (2002) for details.</p>
+<pre class="r"><code>model.0 &lt;- lm(Y ~ X, myData)
+summary(model.0)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = Y ~ X, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -5.0262 -1.2340 -0.3282  1.5583  5.1622 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)   2.8572     0.6932   4.122 7.88e-05 ***
+## X             0.3961     0.1112   3.564 0.000567 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.929 on 98 degrees of freedom
+## Multiple R-squared:  0.1147, Adjusted R-squared:  0.1057 
+## F-statistic:  12.7 on 1 and 98 DF,  p-value: 0.0005671</code></pre>
+<pre class="r"><code># b1 = 0.3961, p &lt; .001, which is significant</code></pre>
+</div>
+<div id="step-2" class="section level3">
+<h3>Step 2</h3>
+<p><img src="/img/mediation_step2.png" /></p>
+<p><span class="math display">\[M = b_{0} + b_{2}X + e\]</span></p>
+<p>Is <span class="math inline">\(b_{2}\)</span> significant? We want X to affect M. If X and M have no relationship, M is just a third variable that may or may not be associated with Y. A mediation makes sense only if X affects M.</p>
+<pre class="r"><code>model.M &lt;- lm(M ~ X, myData)
+summary(model.M)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = M ~ X, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -4.3046 -0.8656  0.1344  1.1344  4.6954 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.49952    0.58920   2.545   0.0125 *  
+## X            0.56102    0.09448   5.938 4.39e-08 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.639 on 98 degrees of freedom
+## Multiple R-squared:  0.2646, Adjusted R-squared:  0.2571 
+## F-statistic: 35.26 on 1 and 98 DF,  p-value: 4.391e-08</code></pre>
+<pre class="r"><code># b2 = 0.5610, p &lt; .001, , which is significant</code></pre>
+</div>
+<div id="step-3" class="section level3">
+<h3>Step 3</h3>
+<p><img src="/img/mediation_step3.png" /></p>
+<p><span class="math display">\[Y = b_{0} + b_{4}X + b_{3}M + e\]</span></p>
+<p>Is <span class="math inline">\(b_{4}\)</span> non-significant or smaller than before? We want M to affect Y, but X to no longer affect Y (or X to still affect Y but in a smaller magnitude). If a mediation effect exists, the effect of X on Y will disappear (or at least weaken) when M is included in the regression. The effect of X on Y goes through M.</p>
+<pre class="r"><code>model.Y &lt;- lm(Y ~ X + M, myData)
+summary(model.Y)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = Y ~ X + M, data = myData)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -3.7631 -1.2393  0.0308  1.0832  4.0055 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)   1.9043     0.6055   3.145   0.0022 ** 
+## X             0.0396     0.1096   0.361   0.7187    
+## M             0.6355     0.1005   6.321 7.92e-09 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.631 on 97 degrees of freedom
+## Multiple R-squared:  0.373,  Adjusted R-squared:  0.3601 
+## F-statistic: 28.85 on 2 and 97 DF,  p-value: 1.471e-10</code></pre>
+<pre class="r"><code># b4 = 0.0396, p = 0.719, the effect of X on Y disappears
+# b3 = 0.6355, p &lt; 0.001</code></pre>
+<p>If the effect of X on Y completely disappears, M fully mediates between X and Y (<i>full mediation</i>). If the effect of X on Y still exists, but in a smaller magnitude, M partially mediates between X and Y (<i>partial mediation</i>). The example shows a full mediation, yet a full mediation rarely happens in practice.</p>
+<p>Once we find these relationships, we want to see if this mediation effect is statistically significant (different from zero or not). To do so, there are two main approaches: the Sobel test (Sobel, 1982) and bootstrapping (Preacher &amp; Hayes, 2004). In R, you can use <code>sobel()</code> in <code>‘multilevel’</code> package for the Sobel test and <code>mediate()</code> in <code>‘mediation’</code> package for bootstrapping. Because bootstrapping is strongly recommended in recent years (although Sobel test was widely used before), I’ll show only the bootstrapping method in this example.</p>
+<p><code>mediate()</code> takes two model objects as input (X <span class="math inline">\(\rightarrow\)</span> M and X + M <span class="math inline">\(\rightarrow\)</span> Y) and we need to specify which variable is an IV (treatment) and a mediator (mediator). For bootstrapping, set <code>boot = TRUE</code> and <code>sims</code> to at least <code>500</code>. After running it, look for ACME (Average Causal Mediation Effects) in the results and see if it’s different from zero. For details of <code>mediate()</code>, please refer to Tingley, Yamamoto, Hirose, Keele, &amp; Imai (2014).</p>
+<pre class="r"><code>library(mediation)
+results &lt;- mediate(model.M, model.Y, 
+                   treat=&#39;X&#39;, 
+                   mediator=&#39;M&#39;,
+                   boot=TRUE, sims=500)
+summary(results)</code></pre>
+<pre><code>## 
+## Causal Mediation Analysis 
+## 
+## Nonparametric Bootstrap Confidence Intervals with the Percentile Method
+## 
+##                Estimate 95% CI Lower 95% CI Upper p-value    
+## ACME             0.3565       0.2205         0.53  &lt;2e-16 ***
+## ADE              0.0396      -0.1994         0.28    0.75    
+## Total Effect     0.3961       0.1617         0.64  &lt;2e-16 ***
+## Prop. Mediated   0.9000       0.5018         2.03  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Sample Size Used: 100 
+## 
+## 
+## Simulations: 500</code></pre>
+<p>Note that the Total Effect in the summary (<code>0.3961</code>) is <span class="math inline">\(b_{1}\)</span> in the first step: a total effect of X on Y (without M). The direct effect (ADE, <code>0.0396</code>) is <span class="math inline">\(b_{4}\)</span> in the third step: a direct effect of X on Y after taking into account a mediation (indirect) effect of M. Finally, the mediation effect (ACME) is the total effect minus the direct effect (<span class="math inline">\(b_{1} - b_{4}\)</span>, or <code>0.3961 - 0.0396 = 0.3565</code>), which equals to a product of a coefficient of X in the second step and a coefficient of M in the last step (<span class="math inline">\(b_{2} \times b_{3}\)</span>, or <code>0.56102 * 0.6355 = 0.3565</code>). The goal of mediation analysis is to obtain this indirect effect and see if it’s statistically significant.</p>
+<p>By the way, we don’t have to follow all three steps as Baron and Kenny suggested. We could simply run two regressions (X <span class="math inline">\(\rightarrow\)</span> M and X + M <span class="math inline">\(\rightarrow\)</span> Y) and test its significance using the two models. However, the suggested steps help you understand how it works!</p>
+<pre class="r"><code>model.M &lt;- lm(M ~ X, myData)
+model.Y &lt;- lm(Y ~ X + M, myData)
+results &lt;- mediate(model.M, model.Y, 
+                   treat=&#39;X&#39;, 
+                   mediator=&#39;M&#39;,
+                   boot=TRUE, sims=100)
+summary(results)</code></pre>
+<p>Mediation analysis is not limited to linear regression; we can use logistic regression or polynomial regression and more. Also, we can add more variables and relationships, for example, moderated mediation or mediated moderation. However, if your model is very complex and cannot be expressed as a small set of regressions, you might want to consider structural equation modeling instead.</p>
+<p>To sum up, here’s a flowchart for mediation analysis!</p>
+<p><img src="/img/mediation_flowchart-1.png" /></p>
+</div>
+<div id="references" class="section level3">
+<h3>References:</h3>
+<ul>
+<li>Baron, R. M., &amp; Kenny, D. A. (1986). The moderator–mediator variable distinction in social psychological research: Conceptual, strategic, and statistical considerations. <i>Journal of Personality and Social Psychology, 5,</i> 1173-1182.</li>
+<li>Shrout, P. E., &amp; Bolger, N. (2002). Mediation in experimental and nonexperimental studies: new procedures and recommendations. <i>Psychological Methods, 7,</i> 422-445.</li>
+<li>Tingley, D., Yamamoto, T., Hirose, K., Keele, L., &amp; Imai, K. (2014). Mediation: R package for causal mediation analysis</li>
+</ul>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Bommae Kim</em><br />
+<em>Statistical Consulting Associate</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] mediation_4.4.7 sandwich_2.5-1  mvtnorm_1.0-10  Matrix_1.2-17  
+## [5] MASS_7.3-51.4  
+## 
+## loaded via a namespace (and not attached):
+##  [1] zoo_1.8-5           tidyselect_0.2.5    xfun_0.6           
+##  [4] lpSolve_5.6.13      purrr_0.3.2         splines_3.6.0      
+##  [7] lattice_0.20-38     colorspace_1.4-1    htmltools_0.3.6    
+## [10] yaml_2.2.0          base64enc_0.1-3     survival_2.44-1.1  
+## [13] rlang_0.3.4         nloptr_1.2.1        pillar_1.3.1       
+## [16] foreign_0.8-71      glue_1.3.1          RColorBrewer_1.1-2 
+## [19] plyr_1.8.4          stringr_1.4.0       munsell_0.5.0      
+## [22] blogdown_0.11       gtable_0.3.0        htmlwidgets_1.3    
+## [25] evaluate_0.13       latticeExtra_0.6-28 knitr_1.22         
+## [28] htmlTable_1.13.1    Rcpp_1.0.1          acepack_1.4.1      
+## [31] backports_1.1.4     checkmate_1.9.1     scales_1.0.0       
+## [34] Hmisc_4.2-0         lme4_1.1-21         gridExtra_2.3      
+## [37] ggplot2_3.1.1       digest_0.6.18       stringi_1.4.3      
+## [40] bookdown_0.9        dplyr_0.8.0.1       grid_3.6.0         
+## [43] tools_3.6.0         magrittr_1.5        lazyeval_0.2.2     
+## [46] tibble_2.1.1        Formula_1.2-3       cluster_2.0.8      
+## [49] crayon_1.3.4        pkgconfig_2.0.2     data.table_1.12.2  
+## [52] minqa_1.2.4         rstudioapi_0.10     assertthat_0.2.1   
+## [55] rmarkdown_1.12      boot_1.3-22         R6_2.4.0           
+## [58] rpart_4.1-15        nlme_3.1-139        nnet_7.3-12        
+## [61] compiler_3.6.0</code></pre>
+</div>

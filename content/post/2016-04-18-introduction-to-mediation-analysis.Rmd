@@ -1,0 +1,147 @@
+---
+title: Introduction to Mediation Analysis
+author: Bommae Kim
+date: '2016-04-18'
+slug: introduction-to-mediation-analysis
+categories:
+  - R
+tags:
+  - mediation
+  - linear regression
+---
+
+### What is mediation?
+
+Let’s say previous studies have suggested that higher grades predict higher happiness: X (grades) $\rightarrow$ Y (happiness). (This research example is made up for illustration purposes. Please don’t consider it a scientific statement.)
+
+![](/img/mediation_ex1.png)
+
+I think, however, grades are not the real reason that happiness increases. I hypothesize that good grades boost one’s self-esteem and then high self-esteem boosts one’s happiness: X (grades) $\rightarrow$ M (self-esteem) $\rightarrow$ Y (happiness).
+
+![](/img/mediation_ex2.png)
+
+This is a typical case of mediation analysis. Self-esteem is a mediator that explains the underlying mechanism of the relationship between grades (IV) and happiness (DV).
+
+### How to analyze mediation effects
+
+Before we start, please keep in mind that, as any other regression analysis, mediation analysis does not imply causal relationships unless it is based on experimental design.
+
+To analyze mediation:
+
+1. Follow Baron & Kenny’s steps
+2. Use either the Sobel test or bootstrapping for significance testing.
+
+The following shows the basic steps for mediation analysis suggested by Baron & Kenny (1986). A mediation analysis is comprised of three sets of regression: X $\rightarrow$ Y, X $\rightarrow$ M, and X + M $\rightarrow$ Y. This post will show examples using R, but you can use any statistical software. They are just three regression analyses!
+
+
+```{r}
+# Download data online. 
+# This is a simulated dataset for this post.
+myData <- read.csv('http://static.lib.virginia.edu/statlab/materials/data/mediationData.csv')
+
+```
+
+### Step 1
+
+
+![](/img/mediation_step1.png)
+
+$$Y = b_{0} + b_{1}X + e$$
+
+Is \(b_{1}\) significant? We want X to affect Y. If there is no relationship between X and Y, there is nothing to mediate.
+
+Although this is what Baron and Kenny originally suggested, this step is controversial. Even if we don’t find a significant association between X and Y, we could move forward to the next step if we have a good theoretical background about their relationship. See Shrout & Bolger (2002) for details.
+
+```{r}
+model.0 <- lm(Y ~ X, myData)
+summary(model.0)
+
+# b1 = 0.3961, p < .001, which is significant
+
+```
+
+### Step 2
+
+![](/img/mediation_step2.png)
+
+$$M = b_{0} + b_{2}X + e$$
+
+Is \(b_{2}\) significant? We want X to affect M. If X and M have no relationship, M is just a third variable that may or may not be associated with Y. A mediation makes sense only if X affects M.
+
+```{r}
+model.M <- lm(M ~ X, myData)
+summary(model.M)
+
+# b2 = 0.5610, p < .001, , which is significant
+```
+
+### Step 3
+
+![](/img/mediation_step3.png)
+
+$$Y = b_{0} + b_{4}X + b_{3}M + e$$
+
+Is \(b_{4}\) non-significant or smaller than before? We want M to affect Y, but X to no longer affect Y (or X to still affect Y but in a smaller magnitude). If a mediation effect exists, the effect of X on Y will disappear (or at least weaken) when M is included in the regression. The effect of X on Y goes through M.
+
+```{r}
+model.Y <- lm(Y ~ X + M, myData)
+summary(model.Y)
+
+# b4 = 0.0396, p = 0.719, the effect of X on Y disappears
+# b3 = 0.6355, p < 0.001
+
+```
+
+
+If the effect of X on Y completely disappears, M fully mediates between X and Y (<i>full mediation</i>). If the effect of X on Y still exists, but in a smaller magnitude, M partially mediates between X and Y (<i>partial mediation</i>). The example shows a full mediation, yet a full mediation rarely happens in practice.
+
+Once we find these relationships, we want to see if this mediation effect is statistically significant (different from zero or not). To do so, there are two main approaches: the Sobel test (Sobel, 1982) and bootstrapping (Preacher &amp; Hayes, 2004). In R, you can use <code>sobel()</code> in <code>‘multilevel’</code> package for the Sobel test and <code>mediate()</code> in <code>‘mediation’</code> package for bootstrapping. Because bootstrapping is strongly recommended in recent years (although Sobel test was widely used before), I’ll show only the bootstrapping method in this example.
+
+<code>mediate()</code> takes two model objects as input (X $\rightarrow$ M and X + M $\rightarrow$ Y) and we need to specify which variable is an IV (treatment) and a mediator (mediator). For bootstrapping, set <code>boot = TRUE</code> and <code>sims</code> to at least <code>500</code>. After running it, look for ACME (Average Causal Mediation Effects) in the results and see if it’s different from zero. For details of <code>mediate()</code>, please refer to Tingley, Yamamoto, Hirose, Keele, &amp; Imai (2014).
+
+```{r message=FALSE, warning=FALSE}
+library(mediation)
+results <- mediate(model.M, model.Y, 
+                   treat='X', 
+                   mediator='M',
+                   boot=TRUE, sims=500)
+summary(results)
+```
+
+
+Note that the Total Effect in the summary (<code>0.3961</code>) is \(b_{1}\) in the first step: a total effect of X on Y (without M). The direct effect (ADE, <code>0.0396</code>) is \(b_{4}\) in the third step: a direct effect of X on Y after taking into account a mediation (indirect) effect of M. Finally, the mediation effect (ACME) is the total effect minus the direct effect (\(b_{1} - b_{4}\), or <code>0.3961 - 0.0396 = 0.3565</code>), which equals to a product of a coefficient of X in the second step and a coefficient of M in the last step (\(b_{2} \times b_{3}\), or <code>0.56102 * 0.6355 = 0.3565</code>). The goal of mediation analysis is to obtain this indirect effect and see if it’s statistically significant.
+
+By the way, we don’t have to follow all three steps as Baron and Kenny suggested. We could simply run two regressions (X $\rightarrow$ M and X + M $\rightarrow$ Y) and test its significance using the two models. However, the suggested steps help you understand how it works!
+
+```{r eval=FALSE}
+model.M <- lm(M ~ X, myData)
+model.Y <- lm(Y ~ X + M, myData)
+results <- mediate(model.M, model.Y, 
+                   treat='X', 
+                   mediator='M',
+                   boot=TRUE, sims=100)
+summary(results)
+```
+
+
+Mediation analysis is not limited to linear regression; we can use logistic regression or polynomial regression and more. Also, we can add more variables and relationships, for example, moderated mediation or mediated moderation. However, if your model is very complex and cannot be expressed as a small set of regressions, you might want to consider structural equation modeling instead.
+
+To sum up, here’s a flowchart for mediation analysis!
+
+![](/img/mediation_flowchart-1.png)
+
+### References:
+- Baron, R. M., &amp; Kenny, D. A. (1986). The moderator–mediator variable distinction in social psychological research: Conceptual, strategic, and statistical considerations. <i>Journal of Personality and Social Psychology, 5,</i> 1173-1182.
+- Shrout, P. E., &amp; Bolger, N. (2002). Mediation in experimental and nonexperimental studies: new procedures and recommendations. <i>Psychological Methods, 7,</i> 422-445.
+- Tingley, D., Yamamoto, T., Hirose, K., Keele, L., &amp; Imai, K. (2014). Mediation: R package for causal mediation analysis
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Bommae Kim_   
+_Statistical Consulting Associate_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+
