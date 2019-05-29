@@ -1,0 +1,116 @@
+---
+title: Should I always transform my variables to make them normal?
+author: Bommae Kim
+date: '2015-09-14'
+slug: should-i-always-transform-my-variables-to-make-them-normal
+categories:
+  - R
+tags:
+  - linear regression
+  - normality assumption
+---
+
+
+
+<p>When I first learned data analysis, I always checked normality for each variable and made sure they were normally distributed before running any analyses, such as t-test, ANOVA, or linear regression. I thought normal distribution of variables was the important assumption to proceed to analyses. That’s why stats textbooks show you how to draw histograms and QQ-plots in the beginning of data analysis in the early chapters and see if they’re normally distributed, isn’t it? There I was, drawing histograms, looking at the shape and thinking, <i>“Oh, no, my data are not normal. I should transform them first or I can’t run any analyses.”</i></p>
+<p>No, you don’t have to transform your observed variables just because they don’t follow a normal distribution. Linear regression analysis, which includes t-test and ANOVA, does not assume normality for either predictors (IV) or an outcome (DV).</p>
+<p><i>No way! When I learned regression analysis, I remember my stats professor said we should check normality!</i></p>
+<p>Yes, you should check normality of errors AFTER modeling. In linear regression, errors are assumed to follow a normal distribution with a mean of zero.</p>
+<pre><code>Y = intercept + coefficient * X + error</code></pre>
+<pre class="r"><code># Simulation conditions
+# sample size = 30, true coefficient = 0.3
+# replications = 10000
+
+set.seed(2015)  # if you want to replicate results
+n &lt;- 10000
+
+# Case 1: Errors are normally distributed
+results1 = data.frame(est=rep(NA,n), se=NA, t=NA, p=NA)
+for(i in 1:n){
+    x = scale(rchisq(30, 1))  # non-normal x
+    error = rnorm(30)  # normal error
+    y = 0 + 0.3*x + error  # y regressed on x and error
+    m = lm(y ~ x)
+    results1[i,] = summary(m)$coefficients[&#39;x&#39;,]
+}
+
+# Case 2: Errors are NOT normally distributed
+results2 = data.frame(est=rep(NA,n), se=NA, t=NA, p=NA)
+for(i in 1:n){
+    x = scale(rchisq(30, 1))  # non-normal x
+    error = scale(rchisq(30, 1))  # non-normal errors
+    y = 0 + 0.3*x + error  # y regressed on x and error
+    m = lm(y ~ x)
+    results2[i,] = summary(m)$coefficients[&#39;x&#39;,]
+}</code></pre>
+<p>If you want to visually assess if the distribution of each variable looks normal:</p>
+<pre class="r"><code>qqnorm(x); qqline(x)
+qqnorm(error); qqline(error)
+qqnorm(y); qqline(y)</code></pre>
+<p>Tip: Check out another StatLab article, <i><a href="https://uvastatlab.github.io/2015/08/26/understanding-q-q-plots/" target="_blank">Understanding Q-Q Plots</a></i>.</p>
+<p>Let’s look at means of the results of 10000 replications.</p>
+<pre class="r"><code>colMeans(results1)</code></pre>
+<pre><code>##       est        se         t         p 
+## 0.2990674 0.1838041 1.6570579 0.2259360</code></pre>
+<pre class="r"><code>colMeans(results2)</code></pre>
+<pre><code>##       est        se         t         p 
+## 0.3007691 0.1855503 1.6404420 0.2459877</code></pre>
+<p>Wait, didn’t I say the errors should be normally distributed? They are essentially the same! It seems like it’s working totally fine even with non-normal errors.</p>
+<p>In fact, linear regression analysis works well, even with non-normal errors. But, the problem is with p-values for hypothesis testing.</p>
+<p>After running a linear regression, what researchers would usually like to know is–is the coefficient different from zero? The t-statistics (and its corresponding p-value) answers the question if the estimated coefficient is statistically significantly different from zero.</p>
+<p>Let’s look at the distributions of the two results.</p>
+<pre class="r"><code># The estimates are normally distributed in Case 1
+hist(results1$est, breaks=100, freq=FALSE,
+     xlim=c(-0.5, 1.1), ylim=c(0, 2.5),
+     main=&#39;Case 1: Normal Errors&#39;, 
+     xlab=&#39;Coefficient Estimation&#39;)
+curve(dnorm(x, mean=mean(results1$est), 
+            sd=sd(results1$est)),
+      col=&#39;red&#39;, lwd=3, add=TRUE)
+abline(v=0.3, col=&#39;red&#39;, lwd=3)</code></pre>
+<p><img src="/post/2015-09-14-should-i-always-transform-my-variables-to-make-them-normal_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<pre class="r"><code># The estimates are NOT normally distributed in Case 2
+hist(results2$est, breaks=100, freq=FALSE,
+     xlim=c(-0.5, 1.1), ylim=c(0, 2.5),
+     main=&#39;Case 2: Non-normal Errors&#39;, 
+     xlab=&#39;Coefficient Estimation&#39;)
+curve(dnorm(x, mean=mean(results2$est), 
+            sd=sd(results2$est)),
+      col=&#39;red&#39;, lwd=3, add=TRUE)
+abline(v=0.3, col=&#39;red&#39;, lwd=3)</code></pre>
+<p><img src="/post/2015-09-14-should-i-always-transform-my-variables-to-make-them-normal_files/figure-html/unnamed-chunk-4-2.png" width="672" /></p>
+<p>Now we can see differences. The distribution of estimated coefficients follows a normal distribution in Case 1, but not in Case 2. That means that in Case 2 we cannot apply hypothesis testing, which is based on a normal distribution (or related distributions, such as a t-distribution). When errors are not normally distributed, estimations are not normally distributed and we can no longer use p-values to decide if the coefficient is different from zero. In short, if the normality assumption of the errors is not met, we cannot draw a valid conclusion based on statistical inference in linear regression analysis.</p>
+<p>And even then those procedures are actually pretty robust to violations of normality. In our second example above, our simulated sample size was 30 (kind of small) and our errors were drawn from a chi-square distribution with 1 degree of freedom. (You can’t get any more non-normal than that!) And yet the sampling distribution histogram of the coefficient was not as far from normal as you might expect. Now if your sample is small (less than 30) and you detect extremely non-normal errors, you might consider alternatives to constructing standard errors and p-values, such as bootstrapping. But otherwise you can probably rest easy if your errors seem “normal enough”.</p>
+<p><i>Okay, I understand my variables don’t have to be normal. Why do we even bother checking histogram before analysis then?</i></p>
+<p>Although your data don’t have to be normal, it’s still a good idea to check data distributions just to understand your data. Do they look reasonable? Your data might not be normal for a reason. Is it count data or reaction time? In such cases, you may want to transform it or use other analysis methods (e.g., generalized linear models or nonparametric methods). The relationship between two variables may also be non-linear (which you might detect with a scatterplot). In that case transforming one or both variables may be necessary.</p>
+<div id="summary" class="section level3">
+<h3>Summary</h3>
+<p>None of your observed variables have to be normal in linear regression analysis, which includes t-test and ANOVA. The errors after modeling, however, should be normal to draw a valid conclusion by hypothesis testing.</p>
+<p><strong>Note</strong>: There are other analysis methods that assume multivariate normality for observed variables (e.g., Structural Equation Modeling).</p>
+<p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Bommae Kim</em><br />
+<em>Statistical Consulting Associate</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.0 (2019-04-26)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17134)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.6.0  magrittr_1.5    bookdown_0.9    tools_3.6.0    
+##  [5] htmltools_0.3.6 yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3  
+##  [9] rmarkdown_1.12  blogdown_0.11   knitr_1.22      stringr_1.4.0  
+## [13] digest_0.6.18   xfun_0.6        evaluate_0.13</code></pre>
+</div>
