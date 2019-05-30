@@ -1,0 +1,243 @@
+---
+title: A Beginner’s Guide to Text Analysis with quanteda
+author: Leah Malkovich
+date: '2018-11-27'
+slug: a-beginner-s-guide-to-text-analysis-with-quanteda
+categories:
+  - R
+tags:
+  - text mining
+  - text analysis
+---
+
+A lot of introductory tutorials to quanteda assume that the reader has some base of knowledge about the program's functionality or how it might be used. Other tutorials assume that the user is an expert in R and on what goes on under the hood when you're coding. This introductory guide will assume none of that. Instead, I'm presuming a very basic understanding of R (like how to assign variables) and that you've just heard of quanteda for the first time today.
+
+### What is quanteda?
+
+There are three major components of a text as understood by quanteda:
+
+- the corpus
+- the document-feature matrix (the "dfm")
+- tokens
+
+A corpus is an object within R that we create by loading our text data into R (explained below) and using the <code>corpus</code> command. It is only by turning our data into a corpus format that quanteda is able to work with and process the text we want to analyze. A corpus holds documents separately from each other and is typically unchanged as we conduct our analysis. We might think of it as the back-up copy which we "Save As" rather than transforming or cleaning.
+
+The dfm is the analytical unit on which we will perform analysis. As implied in its name, a dfm puts the documents into a matrix format. The rows are the original texts and the columns are the features of that text (often tokens). Dfms neatly organize the documents we want to look at, and are particularly handy if we want to analyze only part of the whole set of texts within the corpus. A dfm is also viewable with the <code>View</code> command--useful if we want to get an initial sense of our data before doing later analysis.
+
+Finally, tokens are typically each individual word in a text. This default can be changed to be sentences or characters instead if we want. However, in general, we will stick with the default because seeing how many times the letter "r" is in a text is less useful than the entire word, like "race."
+
+### Let's Get Started!
+
+If you haven't already, install and load quanteda in R. This should only take a few seconds.
+
+```{r eval=FALSE}
+install.packages("quanteda")
+library(quanteda)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(quanteda)
+```
+
+
+### Loading Our Data
+
+As will usually be the case when working with your own data, we must first grapple with getting our texts into R in a format that R understands. In this case, that is a data frame. Developed by the same authors of quanteda, the sister package readtext simplifies our task, useable on data including those in .txt, .csv, .json, .doc, and .pdf formats.
+
+So, go ahead and install and load readtext, too.
+
+```{r eval=FALSE}
+install.packages("readtext")
+library(readtext)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(readtext)
+
+```
+
+
+For our two files, we will first download each from their links on The Gutenberg Project. Then, we will rename them with the information we want the dataframe to contain. For <em>Pride and Prejudice</em>, this will look like "Pride and Prejudice_Jane Austen_2008_English.txt" and for <em>A Tale of Two Cities</em>, the file will be called "A Tale of Two Cities_Charles Dickens_2009_English.txt". The code below accomplishes this using the <code>download.file</code> function that comes with R. Notice we create a temporary directory called "tmp" to store the files using <code>dir.create</code>.
+
+We ask <code>readtext</code> to read in all txt files in the "tmp" directory using the wildcard phrase `"tmp/*.txt"`. Then, we indicate that we want the document variables to be sourced from the "filenames" -- a location readtext recognizes. Next, we assign the document variable names, in order of appearance with the <code>docvarnames</code> argument. We also indicate that each variable name is separated from the next with an underscore with <code>dvsep</code> and that the encoding is "UTF-8" with <code>encoding</code>. Finally we use the <code>unlink</code> function to delete the "tmp" directory.
+
+```{r eval=FALSE}
+dir.create("tmp")
+# download texts
+download.file(url = "https://www.gutenberg.org/files/1342/1342-0.txt", 
+              destfile = "tmp/Pride and Prejudice_Jane Austen_2008_English.txt")
+download.file(url = "https://www.gutenberg.org/files/98/98-0.txt", 
+              destfile = "tmp/A Tale of Two Cities_Charles Dickens_2009_English.txt")
+# read in texts
+dataframe <- readtext("tmp/*.txt",
+                      docvarsfrom = "filenames",
+                      docvarnames = c("title", 
+                                      "author", 
+                                      "year uploaded",
+                                      "language"),
+                      dvsep = "_",
+                      encoding = "UTF-8")
+# delete tmp directory
+unlink("tmp", recursive = TRUE)
+```
+
+
+```{r echo=FALSE}
+dataframe <- readRDS("../../static/data/dataframe.Rds")
+```
+
+
+Having loaded our data into R, we are now ready to convert it into a corpus.
+
+### Making Our Corpus
+
+As mentioned above, a corpus is an object that quanteda understands. By converting our two downloaded documents--which are currently in a data frame--into a corpus, we are turning them into a stable object which all of our later analysis will draw from.
+
+Below, we will first create a corpus using the <code>corpus</code> command. Then, we will print a summary of the corpus, which tells us how many "types" and "tokens" there are within our texts in the corpus, as well as the document variables we created above. "Types" is the number of one-of-a-kind tokens a text contains. While "tokens" counts the number of words in a text--every "and" or "the" is another token--types only counts each unique word one time, no matter how often it appears.
+
+```{r eval=FALSE}
+doc.corpus <- corpus(dataframe)
+summary(doc.corpus)
+```
+
+```{r echo=FALSE}
+doc.corpus <- corpus(dataframe)
+```
+
+
+```
+## Corpus consisting of 2 documents:
+## 
+##                                                   Text Types Tokens
+##  A Tale of Two Cities_Charles Dickens_2009_English.txt 11603 170730
+##       Pride and Prejudice_Jane Austen_2008_English.txt  7469 147871
+##  Sentences                title          author year.uploaded language
+##       7930 A Tale of Two Cities Charles Dickens          2009  English
+##       6098  Pride and Prejudice     Jane Austen          2008  English
+## 
+```
+
+
+So, now that we've converted our documents into a corpus, we have two options for cleaning prior to analysis: <code>dfm</code> or <code>tokens</code>. <code>dfm</code> can be characterized as slightly more aggressive, as it assumes we want to remove all punctuation and convert everything into lowercase. <code>tokens</code>, on the other hand, does not perform any operation that we haven't specifically spelled out in our code. For illustrative purposes, I'm going to demonstrate how to do both. We will typically eventually need the material in a <code>dfm</code> format in order to perform analysis, but understanding how to use <code>tokens</code> adds valuable flexibility.
+
+Before beginning, we might ask: why would we want to clean our texts at all? How is that useful or necessary? The rationale behind cleaning is twofold, First, if we're dealing with a corpus that contains hundreds of documents, cleaning will certainly speed up our analysis. By telling R to remove certain tokens, we streamline and expedite our work. Accordingly, cleaning gets rid of tokens without substantive meaning. Typically, we won't care how many times a speaker uses the word "the", just like we don't care how many "r"'s there are. Thus, in cleaning, we will often remove punctuation, remove numbers, remove all the spaces, stem the words, remove all of the stop words, and convert everything into lowercase.
+
+### Cleaning and Creating Tokens
+
+As I explained before, tokens are usually individual words in a document. That is the default understanding that quanteda will apply to our texts. However, if we wanted the tokens to be sentences instead, we can include the argument <code>what = "sentence"</code>. The same option applies to characters, with the corresponding argument being <code>what = character</code> (more information on both of these options is available in the R Documentation, accessed by running <code>?tokens</code> in the Console).
+
+In this code, we also create a new object using this function: <code>doc.tokens</code>. We do so to allow the later manipulation with the <code>dfm</code> function to occur on an unaltered object.
+
+For illustration:
+
+```{r}
+doc.tokens <- tokens(doc.corpus)
+# doc.tokens.sentence <- tokens(doc.corpus, 
+#                               what = "sentence")
+# doc.tokens.character <- tokens(doc.corpus, 
+#                                what = "character")
+```
+
+R will display the first 1000 tokens for any of these configurations if run. Be sure to rerun the first option with tokens as words before proceeding!
+
+The syntax for removing punctuation, removing numbers, and removing spaces all follows the same logic. To get rid of punctuation, we use the argument <code>remove_punct = TRUE</code>. Removing numbers is as simple as adding <code>remove_numbers = TRUE</code>. Lastly, removing spaces--along with tabs and other separators--is just tacking on <code>remove_separators = TRUE</code>. We only need to use this option when our tokens are words if we have not yet used the punctuation command. We might use it if our tokens are characters, but since they aren't here we'll save it for another time.
+
+```{r}
+doc.tokens <- tokens(doc.tokens, remove_punct = TRUE, 
+                     remove_numbers = TRUE)
+```
+
+The next step we’ll take is to remove the stop words. A good question at this point is: what are stop words? Stop words are words that commonly appear in text, but do not typically carry significance for the meaning. For instance, "the," "for," and "it" are all considered stop words. (Note: There are ways to edit this function to include more or fewer stop words, but we won’t get into that here.) To remove stop words, use the function <code>tokens_select</code> with the arguments <code>stopwords('english')</code> and <code>selection = 'remove'</code>:
+
+```{r}
+doc.tokens <- tokens_select(doc.tokens, 
+                            stopwords('english'),
+                            selection='remove')
+```
+
+Next, we will "stem" the tokens. To "stem" means to reduce each word down to its base form, allowing us to make comparisons across tense and quantity. For instance, if we had the words "dance," "dances," and "danced" in a text, they would all be reduced down to an easily comparable "dance" by using the stem argument. We use a specific function <code>tokens_wordstem</code> to perform this task.
+
+```{r}
+doc.tokens <- tokens_wordstem(doc.tokens)
+```
+
+
+Finally, we will convert all of the words to lowercase. This standardizes all of the words for us, so that if we search for mentions of a particular word, those at the beginning of sentences won't be left out.
+
+```{r}
+doc.tokens <- tokens_tolower(doc.tokens)
+```
+
+If we run the command <code>summary(doc.tokens)</code> now, in this case we will be returned with statistics telling us that our documents are 90,000-105,000 tokens shorter than what we started with--making for cleaner and easier analysis.
+
+### Converting to a DFM
+
+If, on the other hand, we wanted to go directly to creating a document feature matrix (dfm), performing all of the same functions as above--getting rid of punctuation, numbers, and spaces (which we also won't do here, but is applied with the same syntax as listed above), stemming the words, deleting all of the stop words, and changing everything into lowercase--we would use the following code. The <code>dfm</code> function converts eligible corpuses into the dfm format, while also removing punctuation and making the text all lowercase. Since we already walked through the purpose of each operation in relation to tokens, I will include all of the code in the same code chunk. Keep in mind that each procedure will be performed in the order listed above (excepting punctuation and lowercasing).
+
+```{r}
+doc.dfm <- dfm(doc.corpus, 
+               remove_numbers = TRUE, 
+               stem = TRUE, 
+               remove = stopwords("english"))
+
+```
+
+
+However, in general if we want to be careful we will proceed through tokenizing before converting our object into a dfm. Thus, we would perform the following final step, utilizing our previously created tokenized object for use as our final dfm.
+
+```{r}
+doc.dfm.final <- dfm(doc.tokens)
+```
+
+### Initial Analysis
+
+Having completed all of this cleaning, what would we want to do next? To start, we can utilize the kwic function (standing for keywords-in-context) to briefly examine the context in which certain words appear. So, for example, if we wanted to search for mentions of the word “love”, we would include it in quotation marks to tell R to report its usage. We would add the argument window = to tell R how many tokens around each mention of “love” that we would like for it to display. In this case, we’ll go with 3 words so that the phrases aren’t overly lengthy. In the kwic output, we are also told the token positioning of that particular mention by the number given after the document title–1778, 1820, etc. words in. Below we use the head function to view just the first 6 results in the interest of space. To explore all keywords-in-context, you may wish to use View which sends the output to the RStudio Viewer (assuming you’re using RStudio).
+
+Two important notes here: First, be sure to use the doc.tokens instead of the doc.dfm object because kwic does not work on dfm objects. Second, notice that since we got rid of our stop words previously, some of these sentences don’t make a lot of sense! We could have run this analysis earlier or without removing stop words–it just might slow down operations for corpuses with more than two documents.
+
+```{r}
+head(kwic(doc.tokens, "love", 
+          window = 3))
+
+# to see all keywords-in-context
+# View(kwic(doc.tokens, "love", window = 3))
+
+```
+
+Another thing we might be quickly interested in learning is the most used words in our texts. For this, we would use the function <code>topfeatures</code>. If we're interested in the top 5 words, we would add the argument <code>5</code>. For the top 20 words would we'd use <code>20</code>, and so on. This command also tells us the counts of each word throughout the corpus. Note that we must use our dfm object for <code>topfeatures</code> for the same reason we used a tokens object for <code>kwic</code>.
+
+```{r}
+topfeatures(doc.dfm.final, 5)
+topfeatures(doc.dfm.final, 20)
+```
+
+If, after looking at these results and realizing we wanted to take out mentions of "elizabeth" or "darci" (for Mr. Darcy in <em>Pride and Prejudice</em>, it appears), we could have included them both with our earlier <code>tokens_select</code> stop words command.
+
+Having now gone through the process of loading, cleaning, and understanding the basics of quanteda, we will end here. While the two analyses we conducted here are quite basic in nature, there of course exist a wealth of sentiment and content analysis options that reach beyond the scope of this article.
+
+### Resources
+
+
+- Benoit, Kenneth, Kohei Watanabe, Haiyan Wang, Paul Nulty, Adam Obeng, Stefan Müller, and Akitaka Matsuo. (2018) “quanteda: An R package for the quantitative analysis of textual data”. Journal of Open Source Software. 3(30), 774. https://doi.org/10.21105/joss.00774.
+- https://quanteda.io
+- https://tutorials.quanteda.io
+- https://cran.r-project.org/web/packages/quanteda/vignettes/quickstart.html
+- https://cran.r-project.org/web/packages/quanteda/index.html
+- https://rdrr.io/cran/quanteda/man/ntoken.html
+- https://manifesto-project.wzb.eu/down/tutorials/quanteda
+- http://kenbenoit.net/TAUR-Hugo/readme/
+- https://blog.paperspace.com/intro-to-datascience/
+- https://cran.r-project.org/web/packages/readtext/vignettes/readtext_vignette.html
+- https://cran.r-project.org/web/packages/readtext/README.html
+- https://www.rdocumentation.org/packages/base/versions/3.5.1/topics/paste
+- http://xpo6.com/list-of-english-stop-words/
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Leah Malkovich_   
+_Statistical Consulting Associate_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```

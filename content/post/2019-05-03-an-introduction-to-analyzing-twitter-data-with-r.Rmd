@@ -381,7 +381,7 @@ What we've explored today are only a few ways we can make use of Twitter data, b
 For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
 
 _Leah Malkovich_   
-_Statistical Research Consultant_  
+_Statistical Consulting Associate_  
 _University of Virginia Library_  
 
 ```{r}

@@ -454,7 +454,7 @@ If you have variables with no missing values, you'll most likely have to exclude
 For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
 
 _Aycan Katitas_   
-_Statistical Research Consultant_   
+_Statistical Consulting Associate_   
 _University of Virginia Library_  
 
 ```{r}
