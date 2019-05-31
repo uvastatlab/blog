@@ -1,0 +1,249 @@
+---
+title: Using Data.gov APIs in R
+author: Yun Tai
+date: '2016-10-03'
+slug: using-data-gov-apis-in-r
+categories:
+  - R
+tags:
+  - api
+  - data wrangling
+---
+
+
+
+<p>Data.gov catalogs government data and makes them available on the web; you can find data in a variety of topics such as agriculture, business, climate, education, energy, finance, public safty and many more. It is a good start point for finding data if you don’t already know which particular data source to begin your search, however it can still be time consuming when it comes to actually downloading the raw data you need. Fortunately, Data.gov also includes APIs from across government, which can help with obtaining raw datasets. In this post, I share examples of using Data.gov APIs in R to download data from the web. Many APIs are available from the agencies partnering with Data.gov - in this post, I use College Scorecard data from the Department of Education and Alternative Fuel Stations data from the National Renewable Energy Laboratory as examples.</p>
+<p>Before running this script, you’ll need to install the httr package if you haven’t done so before. Make sure your machine is connected to the Internet, then run <code>install.packages("httr")</code> - you only need to do this once.</p>
+<div id="api-key" class="section level3">
+<h3>API key</h3>
+<p>Get your API key at: <a href="https://api.data.gov/signup/" class="uri">https://api.data.gov/signup/</a>. Make sure to plug in your own API key in the following R codes.</p>
+</div>
+<div id="working-directory-and-r-package" class="section level3">
+<h3>Working directory and R package</h3>
+<p>Set the working directory on your computer (the path to where you want R to read/store files) and load the httr package.</p>
+<pre class="r"><code># Set working directory 
+# plug in the working directory on your machine
+setwd(&#39;~/DataApiR&#39;) 
+
+# Load package
+library(httr)</code></pre>
+</div>
+<div id="college-scorecard-data-api" class="section level3">
+<h3>College Scorecard Data API</h3>
+<p>The College Scorecard project provides information of college costs and outcomes at individual postsecondary institution level. Reading the <a href="https://collegescorecard.ed.gov/data/documentation/" target="_blank">documentation</a> of this data will help with understanding how this dataset is structured. If you’re interested in using this data, find variables in their <a href="https://collegescorecard.ed.gov/assets/CollegeScorecardDataDictionary-08-18-2016.xlsx" target="_blank">Data Dictionary</a>. In the following example, I download all available data for Emory University, then extract variables from the downloaded data.</p>
+<pre class="r"><code># plug in your API key
+myapikey &lt;- &quot;YOUR API KEY&quot;
+
+# the url path to the service
+URL &lt;- &quot;https://api.data.gov/ed/collegescorecard/v1/schools?&quot;
+
+
+# GET(): download all available data for Emory University
+get.data &lt;- GET(URL, query=list(api_key=myapikey,
+                                school.name=&quot;Emory University&quot;))</code></pre>
+<pre class="r"><code># content(): extract the content from the query
+emory.data &lt;- content(get.data) 
+class(emory.data) # it&#39;s a list object
+
+## [1] &quot;list&quot;
+
+# what&#39;s in emory.data
+names(emory.data) # contains two components: metadata, results
+
+## [1] &quot;metadata&quot; &quot;results&quot;
+
+# what&#39;s inside the results component
+names(emory.data$results[[1]])
+
+##  [1] &quot;2008&quot;     &quot;2009&quot;     &quot;2006&quot;     &quot;ope6_id&quot;  &quot;2007&quot;     &quot;2004&quot;    
+##  [7] &quot;2013&quot;     &quot;2005&quot;     &quot;location&quot; &quot;2014&quot;     &quot;2002&quot;     &quot;2003&quot;    
+## [13] &quot;id&quot;       &quot;1996&quot;     &quot;1997&quot;     &quot;school&quot;   &quot;1998&quot;     &quot;2012&quot;    
+## [19] &quot;2011&quot;     &quot;2010&quot;     &quot;ope8_id&quot;  &quot;1999&quot;     &quot;2001&quot;     &quot;2000&quot;
+
+# see available dev-categories for 2013 data
+names(emory.data$results[[1]]$`2013`)
+
+## [1] &quot;earnings&quot;   &quot;academics&quot;  &quot;student&quot;    &quot;admissions&quot; &quot;repayment&quot; 
+## [6] &quot;aid&quot;        &quot;cost&quot;       &quot;completion&quot;
+
+# available variables under the cost category for 2013 data
+names(emory.data$results[[1]]$`2013`$cost)
+
+## [1] &quot;title_iv&quot;      &quot;avg_net_price&quot; &quot;attendance&quot;    &quot;tuition&quot;      
+## [5] &quot;net_price&quot;
+
+# elements of the tuition variable
+names(emory.data$results[[1]]$`2013`$cost$tuition)
+
+## [1] &quot;out_of_state&quot; &quot;in_state&quot;     &quot;program_year&quot; </code></pre>
+<p>Hopefully you now get the idea of how the dataset is structured through seeing the levels of the list. Let’s try to extract variables from the downloaded data. To run the following codes, you need to install the magrittr package.</p>
+<pre class="r"><code># load package
+library(magrittr)
+
+# subset list for annual data only
+emory.ann &lt;- emory.data$results[[1]][c(as.character(1996:2013))]
+names(emory.ann)
+
+##  [1] &quot;1996&quot; &quot;1997&quot; &quot;1998&quot; &quot;1999&quot; &quot;2000&quot; &quot;2001&quot; &quot;2002&quot; &quot;2003&quot; &quot;2004&quot; &quot;2005&quot;
+## [11] &quot;2006&quot; &quot;2007&quot; &quot;2008&quot; &quot;2009&quot; &quot;2010&quot; &quot;2011&quot; &quot;2012&quot; &quot;2013&quot;
+
+# extract enrollment of undergraduate 
+# degree-seeking students for each year
+s.size &lt;- emory.ann %&gt;%
+    sapply(function(x) x$student$size) %&gt;% 
+    unlist()
+
+# extract percentage of first-generation students for each year
+s.fg &lt;- emory.ann %&gt;%
+    sapply(function(x) x$student$share_firstgeneration) %&gt;% 
+    unlist()
+
+# combine the two variables into a data frame
+emory.s &lt;- data.frame(s.size, s.fg)
+
+# see the first few rows of the data frame
+head(emory.s) 
+
+##      s.size      s.fg
+## 1996   6027 0.1405167
+## 1997   5996 0.1400849
+## 1998   6316 0.1480363
+## 1999   6215 0.1534494
+## 2001   6265 0.1474711
+## 2002   6187 0.1468254
+
+# create a variable of year from the row number
+emory.s$year &lt;- rownames(emory.s)
+
+# create a variable s.fg.n: number of first-generation students
+emory.s$s.fg.n &lt;- round(emory.s$s.size*emory.s$s.fg)
+
+# save the data as a .csv file
+write.csv(emory.s, file=&quot;emory.s.csv&quot;, row.names = F)</code></pre>
+<p>Just to play a bit more with the data we got, we can plot the variables we extracted and created. Install the ggplot2 package to run the following codes.</p>
+<pre class="r"><code>library(ggplot2)
+
+# Line graph of total enrollment and first generation 
+# student number
+ggplot(emory.s, aes(year)) + 
+  geom_line(aes(y = s.size, colour = &quot;s.size&quot;, group=1)) + 
+  geom_line(aes(y = s.fg.n, colour = &quot;s.fg.n&quot;, group=1)) +
+  xlab(&quot;Year&quot;) + ylab(&quot;Number&quot;) + # Set axis labels
+  ggtitle(&quot;Enrollment: Emory University&quot;) + # set title      
+  scale_colour_discrete(name=&quot;Enrollment&quot;,  # modify legend
+                          labels=c(&quot;First Generation&quot;, 
+                                   &quot;Total&quot;)) +
+  # adjust x-axis text position
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) </code></pre>
+<p><img src="/img/datagovapi01.jpeg" /></p>
+</div>
+<div id="the-r-package-for-college-scorecard-data-api" class="section level3">
+<h3>The R Package for College Scorecard Data API</h3>
+<p>Many data APIs can be accessed via R packages, College Scorecard is one of them. I find this rscorecard wrapper fairly easy to use for downloading purpose. Check the package’s <a href="https://github.com/btskinner/rscorecard" target="_blank">Github</a> page for more details. Here is a simple example of using the package to obtain College Scorecard records that meet the conditions of the query.</p>
+<pre class="r"><code>library(rscorecard)
+sc_key(&#39;YOUR API KEY&#39;)
+
+# extract Virginia institutions&#39; 2013 data with 
+# three variables
+df &lt;- sc_init() %&gt;% 
+    sc_filter(stabbr == &#39;VA&#39;) %&gt;% 
+    sc_select(unitid, instnm, stabbr) %&gt;% 
+    sc_year(2013) %&gt;% 
+    sc_get()
+
+# see first few cases
+head(df)
+
+##     unitid                                         instnm stabbr year
+## 1   481526               The Chrysm Insitute of Esthetics     VA 2013
+## 2 24893410 ECPI University-Culinary Institute of Virginia     VA 2013
+## 3   475194         Miller-Motte Technical College-Roanoke     VA 2013
+## 4   484765                 University of Phoenix-Virginia     VA 2013
+## 5   459268                 South UniversityVirginia Beach     VA 2013
+## 6 23368402           Strayer University-Woodbridge Campus     VA 2013</code></pre>
+</div>
+<div id="renewable-energy-data-api" class="section level3">
+<h3>Renewable Energy Data API</h3>
+<p>Let’s use another institution’s data API as an example. The National Renewable Data Laboratory offers APIs for users to access energy data in a few categories. (See its <a href="https://developer.nrel.gov/docs/" target="_blank">documentation</a>.) In the following example, I query their database of alternative fuel stations in the Transportation category. Again, reading its data <a href="https://developer.nrel.gov/docs/transportation/alt-fuel-stations-v1/all/" target="_blank">documentation</a> should help with data query construction.</p>
+<pre class="r"><code>library(httr)
+library(magrittr)
+library(ggplot2)
+
+# Get all stations data in Virginia, remember to plug in your own API key
+get.afs &lt;- GET(&quot;http://api.data.gov/nrel/alt-fuel-stations/v1.json?api_key=[YOUR API KEY]&amp;state=VA&quot;) 
+
+
+# extract content from the query
+afs &lt;- content(get.afs)
+
+# see what&#39;s available in the downloaded data
+names(afs)
+
+## [1] &quot;station_locator_url&quot; &quot;total_results&quot;       &quot;station_counts&quot;     
+## [4] &quot;fuel_stations&quot;
+
+# how many stations in the downloaded data
+afs$total_results
+
+## [1] 526
+
+# see variables/fields under fuel_stations
+&gt; names(afs$fuel_stations[[1]])
+
+##  [1] &quot;access_days_time&quot;        &quot;cards_accepted&quot;         
+##  [3] &quot;date_last_confirmed&quot;     &quot;expected_date&quot;          
+##  [5] &quot;fuel_type_code&quot;          &quot;id&quot;                     
+##  [7] &quot;groups_with_access_code&quot; &quot;open_date&quot;              
+##  [9] &quot;owner_type_code&quot;         &quot;status_code&quot;            
+## [11] &quot;station_name&quot;            &quot;station_phone&quot;          
+## [13] &quot;updated_at&quot;              &quot;geocode_status&quot;         
+## [15] &quot;latitude&quot;                &quot;longitude&quot;              
+## [17] &quot;city&quot;                    &quot;intersection_directions&quot;
+## [19] &quot;plus4&quot;                   &quot;state&quot;                  
+## [21] &quot;street_address&quot;          &quot;zip&quot;                    
+## [23] &quot;bd_blends&quot;               &quot;e85_blender_pump&quot;       
+## [25] &quot;ev_connector_types&quot;      &quot;ev_dc_fast_num&quot;         
+## [27] &quot;ev_level1_evse_num&quot;      &quot;ev_level2_evse_num&quot;     
+## [29] &quot;ev_network&quot;              &quot;ev_network_web&quot;         
+## [31] &quot;ev_other_evse&quot;           &quot;hy_status_link&quot;         
+## [33] &quot;lpg_primary&quot;             &quot;ng_fill_type_code&quot;      
+## [35] &quot;ng_psi&quot;                  &quot;ng_vehicle_class&quot;
+
+# extract vars: station_name, fuel_type_code
+fsname &lt;- afs$fuel_stations %&gt;%
+    sapply(function(x) x$station_name) %&gt;%
+    unlist()
+ftcode &lt;- afs$fuel_stations %&gt;%
+    sapply(function(x) x$fuel_type_code) %&gt;%
+    unlist()
+
+# combine the two vars in a data frame
+afsdf &lt;- data.frame(fsname, ftcode)
+
+# see the first few rows
+head(afsdf)
+
+##                              fsname ftcode
+## 1   Virginia Natural Gas - Lance Rd    CNG
+## 2 Virginia Natural Gas - VNG Office    CNG
+## 3                      Dixie Gas Co    LPG
+## 4                            U-Haul    LPG
+## 5                  Suburban Propane    LPG
+## 6                        Revere Gas    LPG
+
+# plot ftcode: type of alternative fuel the station provides
+ggplot(afsdf, aes(x=ftcode)) +
+    geom_bar(stat=&quot;count&quot;, fill=&quot;steelblue&quot;) +
+    theme_minimal()</code></pre>
+<p><img src="/img/datagovapi02.jpeg" /></p>
+</div>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>18F/open-data-maker. (2016). GitHub. Retrieved 20 September 2016, from <a href="https://github.com/18F/open-data-maker/blob/api-docs/API.md" class="uri">https://github.com/18F/open-data-maker/blob/api-docs/API.md</a>.</li>
+<li>Boehmke, B. (2016). Scraping via APIs. <a href="http://bradleyboehmke.github.io" class="uri">http://bradleyboehmke.github.io</a>. Retrieved 20 September 2016, from <a href="http://bradleyboehmke.github.io/2016/01/scraping-via-apis.html" class="uri">http://bradleyboehmke.github.io/2016/01/scraping-via-apis.html</a>.</li>
+</ul>
+<p><em>Yun Tai</em><br />
+<em>CLIR Postdoctoral Fellow</em><br />
+<em>University of Virginia Library</em></p>
+</div>

@@ -1,0 +1,203 @@
+---
+title: Getting UN Comtrade Data with R
+author: Yun Tai
+date: '2016-10-03'
+slug: getting-un-comtrade-data-with-r
+categories:
+  - R
+tags:
+  - api
+  - data wrangling
+---
+
+The <a href="http://comtrade.un.org/" target="_blank">UN Comtrade Database</a> provides free access to global trade data. You can get data by using their data extraction <a href="http://comtrade.un.org/data/" target="_blank">interface</a> or API. In this post, we share some possible ways of downloading, preparing and plotting trade data in R.
+
+Before running this script, you’ll need to install the rjson package if you haven’t done so before. Make sure your machine is connected to the Internet, and run `install.packages("rjson”)` - you only need to do this once.
+
+### Get country/area codes
+
+Now we can load the package, then use the `fromJSON` function to read the country/area codes into R. Typically, the codes are needed to identify countries and extract the corresponding data.
+
+```{r eval=FALSE}
+library(rjson)
+
+# the url of the country/area codes in .json 
+string <- "http://comtrade.un.org/data/cache/partnerAreas.json"
+
+# fromJSON(): read the .json object and convert to R object
+reporters <- fromJSON(file=string)
+
+# convert to data frame
+reporters <- as.data.frame(t(sapply(reporters$results,rbind)))
+
+# see the first few rows of the data frame
+head(reporters)
+
+##    V1                       V2
+## 1 all                      All
+## 2   0                    World
+## 3   4              Afghanistan
+## 4 472 Africa CAMEU region, nes
+## 5   8                  Albania
+## 6  12                  Algeria
+ 
+```
+
+### Function to download UN Comtrade data
+
+Here we define a function called `get.Comtrade` to download data from the database using `read.csv` function for .csv formats or `fromJSON` for .json formats, then convert the downloaded data to an R object.
+
+```{r eval=FALSE}
+# Function to extract data in csv or json formats
+
+get.Comtrade <- function(
+  # construct the url for downloading
+  url="http://comtrade.un.org/api/get?"
+  ,maxrec=50000
+  ,type="C"
+  ,freq="A"
+  ,px="HS"
+  ,ps="now"
+  ,r
+  ,p
+  ,rg="all"
+  ,cc="TOTAL"
+  ,fmt="json"
+)
+{
+  string <- paste(url
+                 ,"max=",maxrec,"&" # maximum no. of records returned
+                 ,"type=",type,"&"  # type of trade (c=commodities)
+                 ,"freq=",freq,"&"  # frequency
+                 ,"px=",px,"&"      # classification
+                 ,"ps=",ps,"&"      # time period
+                 ,"r=",r,"&"        # reporting area
+                 ,"p=",p,"&"        # partner country
+                 ,"rg=",rg,"&"      # trade flow
+                 ,"cc=",cc,"&"      # classification code
+                 ,"fmt=",fmt        # Format
+                 ,sep = ""
+)
+  # read .csv and convert to a list 
+  if(fmt == "csv"){
+    raw.data<- read.csv(string,header=TRUE)
+    return(list(validation=NULL, data=raw.data))
+  # read .json and convert to a list
+  } else {
+    if(fmt == "json" ) {
+      raw.data<- fromJSON(file=string)
+      data<- raw.data$dataset
+      validation<- unlist(raw.data$validation, recursive=TRUE)
+      ndata 0) {
+        var.names<- names(data[[1]])
+        data<- as.data.frame(t( sapply(data,rbind)))
+        ndata<- NULL
+        for(i in 1:ncol(data)){
+          data[sapply(data[,i],is.null),i]<- NA
+          ndata<- cbind(ndata, unlist(data[,i]))
+        }
+        ndata<- as.data.frame(ndata)
+        colnames(ndata)<- var.names
+      }
+      return(list(validation=validation,data =ndata))
+    }
+  }
+}
+```
+
+### Extract total trade flows data
+
+Now let’s try to use the function `get.Comtrade` defined above to download data. We specify one reporter and two partners, all other parameters are left set to their defaults.
+
+```{r eval=FALSE}
+# Extract latest annual HS total trade flows in .json format (default
+# parameters), specifying the codes of reporter (USA=842) and partners
+# (France=251, UK=826)
+
+# call the download function
+dt1 <- get.Comtrade(r="842", p="251,826")
+
+# extract data in .csv format
+dt2 <- get.Comtrade(r="842", p="251,826", fmt="csv")
+class(dt2) 
+
+## [1] "list"
+
+# convert to data frame
+dt2df <- as.data.frame(do.call(rbind, dt2))
+head(dt2df,2)
+
+##        Classification Year Period Period.Desc. Aggregate.Level
+## data.1             H4 2015   2015         2015               0
+## data.2             H4 2015   2015         2015               0
+##        Is.Leaf.Code Trade.Flow.Code Trade.Flow Reporter.Code Reporter
+## data.1            0               1     Import           842      USA
+## data.2            0               2     Export           842      USA
+##        Reporter.ISO Partner.Code Partner Partner.ISO X2nd.Partner.Code
+## data.1          USA          251  France         FRA                NA
+## data.2          USA          251  France         FRA                NA
+##        X2nd.Partner X2nd.Partner.ISO Customs.Proc..Code Customs
+## data.1           NA               NA                 NA      NA
+## data.2           NA               NA                 NA      NA
+##        Mode.of.Transport.Code Mode.of.Transport Commodity.Code
+## data.1                     NA                NA          TOTAL
+## data.2                     NA                NA          TOTAL
+##              Commodity Qty.Unit.Code    Qty.Unit Qty Alt.Qty.Unit.Code
+## data.1 All Commodities             1 No Quantity  NA                NA
+## data.2 All Commodities             1 No Quantity  NA                NA
+##        Alt.Qty.Unit Alt.Qty Netweight..kg. Gross.weight..kg.
+## data.1           NA      NA             NA                NA
+## data.2           NA      NA             NA                NA
+##        Trade.Value..US.. CIF.Trade.Value..US.. FOB.Trade.Value..US.. Flag
+## data.1       48692329891                    NA                    NA    0
+## data.2       31454467959                    NA                    NA    0
+```
+
+
+### Extract cereal export data
+
+Here we extract cereal export data from three countries. This <a href="http://comtrade.un.org/db/mr/rfCommoditiesList.aspx" target="_blank">list</a> contains HS codes defining commodities.
+
+```{r eval=FALSE}
+# prepared cereal food export from Canada, 
+# Mexico and USA, 2010-2014
+dt3 <- get.Comtrade(r="124,484,842", 
+                    p="0", 
+                    ps="2010,2011,2012,2013,2014", 
+                    rg=2, 
+                    cc="1904", 
+                    fmt="csv")
+dt3df <- as.data.frame(do.call(rbind, dt3))
+
+```
+
+### Plot the data
+
+Here we use ggplot2 to plot the cereal export value from 2010 to 2014 of Canada, Mexico and USA. Make sure to install the package to be able to use ggplot function. In this example, we plot year on x-axis and trade value on y-axis, color the lines by country, then modify the axis labels and set the title of the plot.
+
+```{r eval=FALSE}
+# round trade value to millions and save as TradeValue
+dt3df$TradeValue <- round(dt3df$Trade.Value..US../1e6, 1) 
+
+library(ggplot2)
+
+# plot cereal trade value of the three countries
+ggplot(dt3df, aes(x=Year, y=TradeValue, 
+                  group=Reporter, colour=Reporter)) +
+   geom_line() +
+   xlab("Year") + 
+  ylab("Trade Value (M)") + # set axis labels
+  
+```
+
+
+![](/img/uncomtrade01.jpeg)
+
+
+### References
+Data API (v2) – example – R | UN Comtrade: International Trade Statistics. (2016). Comtrade.un.org. Retrieved 25 August 2016, from http://comtrade.un.org/data/Doc/api/ex/r
+
+_Yun Tai_   
+_CLIR Postdoctoral Fellow_  
+_University of Virginia Library_  
+

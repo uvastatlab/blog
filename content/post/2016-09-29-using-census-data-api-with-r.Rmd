@@ -1,0 +1,268 @@
+---
+title: Using Census Data API with R
+author: Yun Tai
+date: '2016-09-29'
+slug: using-census-data-api-with-r
+categories:
+  - R
+tags:
+  - api
+  - data wrangling
+---
+
+Datasets provided by the US Census Bureau, such as Decennial Census and American Community Survey (ACS), are widely used by many researchers, among others. You can certainly find and download census data from the Census Bureau website, from our licensed data source Social Explorer, or other free sources such as IPUMS-USA, then load the data into one of the statistical packages or other softwares to analyze or present the data. Alternatively, you can do all of the above, from downloading to presenting, in one platform, in this case, R, by utilizing the APIs provided by the Census Bureau. It can be a bit of a learning process to do so if you have no or very limited experience with APIs and R. In this post, I share a few examples of using Census Bureau APIs with R to obtain census datasets. Many Census Bureau datasets are available via API – we will use Decennial Census 2010 API in the following examples.
+
+Before running this script, you’ll need to install the RJSONIO package if you haven’t done so before. Make sure your machine is connected to the Internet, and run `install.packages("RJSONIO")` – you only need to do this once.
+
+### API key
+
+Get your API key at: http://www.census.gov/developers/. Make sure to plug in your own API key in the following R codes.
+
+### Working directory and R package
+
+Set the working directory on your computer (the path to where you want R to read/store files) and load the RJSONIO package.
+
+```{r eval=FALSE}
+# Set working directory 
+setwd('~/DataApiR') # plug in the working directory on your machine
+library(RJSONIO)
+```
+
+### Extract state level data
+
+Here we extract total population, white population and black population of Alabama. To look up other variables, see the list of Census 2010 variables: http://api.census.gov/data/2010/sf1/variables.html.
+
+```{r eval=FALSE}
+# call for total population, white population and black population of Alabama
+# total population = P0030001, white population = P0030002,
+# black population = P0030003;
+# FIPS code of Alabama = 01
+resURL <- "http://api.census.gov/data/2010/sf1?key=[YOUR KEY]&get=P0030001,P0030002,P0030003&for=state:01" 
+
+# convert JSON content to R objects
+ljson <- fromJSON(resURL)
+
+# see the extracted data
+ljson
+## [[1]]
+## [1] "P0030001" "P0030002" "P0030003" "state"   
+## 
+## [[2]]
+## [1] "4779736" "3275394" "1251311" "01"
+```
+
+### Extract county level data
+
+Now let’s try to retrieve county level data in the state of Virginia for the same variables.
+
+```{r eval=FALSE}
+# call for total population, white population and black population of each
+# county in Virginia
+resURL <- "http://api.census.gov/data/2010/sf1?key=[YOUR KEY]&get=P0030001,P0030002,P0030003&for=county:*&in=state:51"
+
+# convert and see first few rows of the data
+ljson <- fromJSON(resURL)
+head(ljson,3)
+## [[1]]
+## [1] "P0030001" "P0030002" "P0030003" "state"    "county"  
+## 
+## [[2]]
+## [1] "33164" "21662" "9303"  "51"    "001"  
+## 
+## [[3]]
+## [1] "98970" "79738" "9600"  "51"    "003"
+```
+
+
+### Function to extract data
+
+
+We can write a function to retrieve census data and convert them to a data frame. Again, we will extract county level data in the state of Virginia for the same variabls.
+
+```{r eval=FALSE}
+# function to retrieve and convert data
+getData <- function(APIkey,state,varname){
+  resURL <- paste("http://api.census.gov/data/2010/sf1?get=",
+                  varname,
+                  "&for=county:*&in=state:",
+                  state,"&key=",
+                  APIkey,
+                  sep="")
+  # convert JSON content to R objects
+  lJSON <- fromJSON(resURL) 
+   # keep everything but the 1st element (var names) in lJSON
+  lJSON <- lJSON[2:length(lJSON)]
+  # extract county
+  lJSON.cou <- sapply(lJSON,function(x) x[5]) 
+  # extract values of the variable for each county
+  lJSON.tot <- sapply(lJSON,function(x) x[1]) 
+  lJSON.whi <- sapply(lJSON,function(x) x[2])
+  lJSON.bla <- sapply(lJSON,function(x) x[3])
+  # create data frame with counties and values
+  df <- data.frame(lJSON.cou, 
+                   as.numeric(lJSON.tot),
+                   as.numeric(lJSON.whi),
+                   as.numeric(lJSON.bla)) 
+  # name the fields/vars in the data frame
+  names(df) <- c("county","tpop",
+                 "wpop","bpop") 
+  return(df)
+}
+
+# API key for census data
+APIkey <- "yourAPIkey"
+
+# state code (Virginia)
+state <- 51
+
+# variables
+varname <- paste("P0030001","P0030002",
+                 "P0030003",sep=",")
+
+# call the function
+vapop <- getData(APIkey,state,varname)
+
+# see the first few rows
+head(vapop)
+##   county  tpop  wpop bpop
+## 1    001 33164 21662 9303
+## 2    003 98970 79738 9600
+## 3    005 16250 15145  761
+## 4    007 12690  9332 2932
+## 5    009 32353 24829 6148
+## 6    011 14973 11597 3007
+
+```
+
+That’s probably all you need for the purpose of getting census data, but let’s do a bit more to try some simple mapping of census data. To run the rest of the lines, you will need to install rgdal, dplyr and tmap packages.
+
+### Mapping census data
+
+First, we’ll need to obtain shape files of Virginia counties so that we can plot the numeric data on a map. The shape files can be downloaded at the Census Bureau website: http://www.census.gov/cgi-bin/geo/shapefiles2010/main. Save the downloaded shapefiles to your working directory.
+
+```{r eval=FALSE}
+library(rgdal)
+
+# Use readOGR() to read in spatial data:
+
+# dsn (data source name): specifies the directory 
+# in which the file is stored
+
+# layer: specifies the file name
+vacounty <- readOGR(dsn="tl_2010_51_county10", 
+                    layer="tl_2010_51_county10")
+
+## OGR data source with driver: ESRI Shapefile 
+## Source: "tl_2010_51_county10", layer: "tl_2010_51_county10"
+## with 134 features
+## It has 17 fields
+
+class(vacounty)
+## [1] "SpatialPolygonsDataFrame"
+## attr(,"package")
+## [1] "sp"
+
+
+# features: rows/observations
+# fields: columns/variables
+
+plot(vacounty)  
+
+```
+
+![](/img/censusapi01.jpeg)
+
+```{r eval=FALSE}
+# list field names 
+names(vacounty) 
+##  [1] "STATEFP10"  "COUNTYFP10" "COUNTYNS10" "GEOID10"    "NAME10"    
+##  [6] "NAMELSAD10" "LSAD10"     "CLASSFP10"  "MTFCC10"    "CSAFP10"   
+## [11] "CBSAFP10"   "METDIVFP10" "FUNCSTAT10" "ALAND10"    "AWATER10"  
+## [16] "INTPTLAT10" "INTPTLON10"
+```
+
+Now we have the VA county shape files ready. Let’s “join” our numeric data to the shape files so that we can plot them.
+
+```{r eval=FALSE}
+# Join vapop (attributes) to vacounty (shapefile with attributes)
+
+ibrary(dplyr)
+
+# See if the rows in the two objects match; 
+# uses the %in% command to identify
+# which values in an object are also contained in another
+
+vacounty$COUNTYFP10 %in% vapop$county
+##   [1] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [15] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [29] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [43] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [57] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [71] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [85] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+##  [99] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+## [113] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+## [127] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+
+# Join the the two datasets and check the 
+# first few rows of the joined result
+
+head(left_join(vacounty@data, vapop, 
+               by=c("COUNTYFP10"="county"))) 
+##   STATEFP10 COUNTYFP10 COUNTYNS10 GEOID10        NAME10
+## 1        51        011   01497238   51011    Appomattox
+## 2        51        017   01673638   51017          Bath
+## 3        51        045   01673664   51045         Craig
+## 4        51        103   01480139   51103     Lancaster
+## 5        51        041   01480111   51041  Chesterfield
+## 6        51        093   01702378   51093 Isle of Wight
+##             NAMELSAD10 LSAD10 CLASSFP10 MTFCC10 CSAFP10 CBSAFP10
+## 1    Appomattox County     06        H1   G4020        31340
+## 2          Bath County     06        H1   G4020         
+## 3         Craig County     06        H1   G4020        40220
+## 4     Lancaster County     06        H1   G4020         
+## 5  Chesterfield County     06        H1   G4020        40060
+## 6 Isle of Wight County     06        H1   G4020        47260
+##   METDIVFP10 FUNCSTAT10    ALAND10  AWATER10  INTPTLAT10   INTPTLON10
+## 1                 A  863744566   3204517 +37.3707253 -078.8109404
+## 2                 A 1370512659  14049862 +38.0689876 -079.7328980
+## 3                 A  853489575   2798854 +37.4731287 -080.2317340
+## 4                 A  345115848 254201621 +37.7038306 -076.4131985
+## 5                 A 1096334108  35372995 +37.3784337 -077.5858474
+## 6                 A  817432028 122288802 +36.9014184 -076.7075687
+##     tpop   wpop  bpop
+## 1  14973  11597  3007
+## 2   4731   4432   222
+## 3   5190   5122     5
+## 4  11391   7989  3184
+## 5 316236 215954 69412
+## 6  35270  25318  8712
+
+# save the joined dataset
+vacounty@data <- left_join(vacounty@data, vapop, 
+                           by=c("COUNTYFP10"="county"))
+```
+
+Here is the fun part.
+
+```{r eval=FALSE}
+# Plot total population by county 
+
+library(tmap)  
+
+# qtm(): quick thematic map plot
+qtm(vacounty, 
+    fill="tpop", 
+    title="Total Population")
+```
+
+![](/img/censusapi02.jpeg)
+
+### References
+- Bureau, U. (2016). Decennial Census (2010, 2000, 1990). Census.gov. Retrieved 18 August 2016, from http://www.census.gov/data/developers/data-sets/decennial-census-data.html.
+- Exploring census and demographic data with R. (2013). R-bloggers. Retrieved 18 August 2016, from https://www.r-bloggers.com/exploring-census-and-demographic-data-with-r/
+
+_Yun Tai_   
+_CLIR Postdoctoral Fellow_  
+_University of Virginia Library_  
+
