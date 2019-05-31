@@ -1,0 +1,333 @@
+---
+title: 'Stata Basics: Create, Recode and Label Variables'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-create-recode-and-label-variables
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+
+
+<p>This post demonstrates how to create new variables, recode existing variables and label variables and values of variables. We use variables of the census.dta data that come with Stata as examples.</p>
+<div id="generate-create-variables" class="section level3">
+<h3><code>generate</code>: create variables</h3>
+<p>Here we use the <code>generate</code> command to create a new variable representing populations younger than 18 years old. We do so by summing up the two existing variables: poplt5 (population &lt; 5 years old) and pop5_17 (population of 5 to 17 years old).</p>
+<pre><code>* Load data census.dta 
+&gt; sysuse census.dta
+(1980 Census data by state)
+
+* See the information of census.dta
+&gt; describe
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:            13                          6 Apr 2014 15:43
+ size:         2,900                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop             long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, &lt; 5 year
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+medage          float   %9.2f                 Median age
+death           long    %12.0gc               Number of deaths
+marriage        long    %12.0gc               Number of marriages
+divorce         long    %12.0gc               Number of divorces
+-----------------------------------------------------------------------------
+Sorted by: 
+
+* Create a new variable pop0_17 representing youth population 
+&gt; generate pop0_17 = poplt5 + pop5_17
+
+* Summary statistics for the three variables
+&gt; summarize poplt5 pop5_17 pop0_17
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+      poplt5 |         50    326277.8    331585.1      35998    1708400
+     pop5_17 |         50    945951.6    959372.8      91796    4680558
+     pop0_17 |         50     1272229     1289731     130745    6388958
+
+* -order-: reorder variables
+&gt; order state state2 region pop poplt5 pop0_17 </code></pre>
+</div>
+<div id="replace-replace-contents-of-existing-variables" class="section level3">
+<h3><code>replace</code>: replace contents of existing variables</h3>
+<p>Here we create the youth population variable again, but this time we make it into thousands and replace the one we just created.</p>
+<pre><code>&gt; replace pop0_17 = pop0_17/1000
+(50 real changes made)
+
+&gt; summarize pop0_17 
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+     pop0_17 |         50    1272.229    1289.731    130.745   6388.958</code></pre>
+</div>
+<div id="recode-variables" class="section level3">
+<h3>Recode variables</h3>
+<p>Say we want to break pop (total population) into three categories. First we use the <code>tabulate</code> command to see the frequencies of this variable.</p>
+<pre><code>&gt; tabulate pop
+
+ Population |      Freq.     Percent        Cum.
+------------+-----------------------------------
+    401,851 |          1        2.00        2.00
+    469,557 |          1        2.00        4.00
+    511,456 |          1        2.00        6.00
+    594,338 |          1        2.00        8.00
+    652,717 |          1        2.00       10.00
+    690,768 |          1        2.00       12.00
+    786,690 |          1        2.00       14.00
+    800,493 |          1        2.00       16.00
+    920,610 |          1        2.00       18.00
+    943,935 |          1        2.00       20.00
+    947,154 |          1        2.00       22.00
+    964,691 |          1        2.00       24.00
+    1124660 |          1        2.00       26.00
+    1302894 |          1        2.00       28.00
+    1461037 |          1        2.00       30.00
+    1569825 |          1        2.00       32.00
+    1949644 |          1        2.00       34.00
+    2286435 |          1        2.00       36.00
+    2363679 |          1        2.00       38.00
+    2520638 |          1        2.00       40.00
+    2633105 |          1        2.00       42.00
+    2718215 |          1        2.00       44.00
+    2889964 |          1        2.00       46.00
+    2913808 |          1        2.00       48.00
+    3025290 |          1        2.00       50.00
+    3107576 |          1        2.00       52.00
+    3121820 |          1        2.00       54.00
+    3660777 |          1        2.00       56.00
+    3893888 |          1        2.00       58.00
+    4075970 |          1        2.00       60.00
+    4132156 |          1        2.00       62.00
+    4205900 |          1        2.00       64.00
+    4216975 |          1        2.00       66.00
+    4591120 |          1        2.00       68.00
+    4705767 |          1        2.00       70.00
+    4916686 |          1        2.00       72.00
+    5346818 |          1        2.00       74.00
+    5463105 |          1        2.00       76.00
+    5490224 |          1        2.00       78.00
+    5737037 |          1        2.00       80.00
+    5881766 |          1        2.00       82.00
+    7364823 |          1        2.00       84.00
+    9262078 |          1        2.00       86.00
+    9746324 |          1        2.00       88.00
+   1.08e+07 |          1        2.00       90.00
+   1.14e+07 |          1        2.00       92.00
+   1.19e+07 |          1        2.00       94.00
+   1.42e+07 |          1        2.00       96.00
+   1.76e+07 |          1        2.00       98.00
+   2.37e+07 |          1        2.00      100.00
+------------+-----------------------------------
+      Total |         50      100.00</code></pre>
+<p>Then we create a new variable called pop_c and transform the original variable pop into three categories.</p>
+<pre><code>&gt; generate pop_c = .
+(50 missing values generated)
+
+&gt; replace pop_c = 1 if (pop &lt;= 2000000) 
+(17 real changes made) 
+
+&gt; replace pop_c = 2 if (pop &gt;= 2000001) &amp; (pop &lt;= 4800000) 
+(18 real changes made) 
+
+&gt; replace pop_c = 3 if (pop &gt;= 4800001)
+(15 real changes made)
+ 
+* See if our recoding worked correctly
+&gt; tabulate pop pop_c
+
+           |              pop_c
+Population |         1          2          3 |     Total
+-----------+---------------------------------+----------
+   401,851 |         1          0          0 |         1 
+   469,557 |         1          0          0 |         1 
+   511,456 |         1          0          0 |         1 
+   594,338 |         1          0          0 |         1 
+   652,717 |         1          0          0 |         1 
+   690,768 |         1          0          0 |         1 
+   786,690 |         1          0          0 |         1 
+   800,493 |         1          0          0 |         1 
+   920,610 |         1          0          0 |         1 
+   943,935 |         1          0          0 |         1 
+   947,154 |         1          0          0 |         1 
+   964,691 |         1          0          0 |         1 
+   1124660 |         1          0          0 |         1 
+   1302894 |         1          0          0 |         1 
+   1461037 |         1          0          0 |         1 
+   1569825 |         1          0          0 |         1 
+   1949644 |         1          0          0 |         1 
+   2286435 |         0          1          0 |         1 
+   2363679 |         0          1          0 |         1 
+   2520638 |         0          1          0 |         1 
+   2633105 |         0          1          0 |         1 
+   2718215 |         0          1          0 |         1 
+   2889964 |         0          1          0 |         1 
+   2913808 |         0          1          0 |         1 
+   3025290 |         0          1          0 |         1 
+   3107576 |         0          1          0 |         1 
+   3121820 |         0          1          0 |         1 
+   3660777 |         0          1          0 |         1 
+   3893888 |         0          1          0 |         1 
+   4075970 |         0          1          0 |         1 
+   4132156 |         0          1          0 |         1 
+   4205900 |         0          1          0 |         1 
+   4216975 |         0          1          0 |         1 
+   4591120 |         0          1          0 |         1 
+   4705767 |         0          1          0 |         1 
+   4916686 |         0          0          1 |         1 
+   5346818 |         0          0          1 |         1 
+   5463105 |         0          0          1 |         1 
+   5490224 |         0          0          1 |         1 
+   5737037 |         0          0          1 |         1 
+   5881766 |         0          0          1 |         1 
+   7364823 |         0          0          1 |         1 
+   9262078 |         0          0          1 |         1 
+   9746324 |         0          0          1 |         1 
+  1.08e+07 |         0          0          1 |         1 
+  1.14e+07 |         0          0          1 |         1 
+  1.19e+07 |         0          0          1 |         1 
+  1.42e+07 |         0          0          1 |         1 
+  1.76e+07 |         0          0          1 |         1 
+  2.37e+07 |         0          0          1 |         1 
+-----------+---------------------------------+----------
+     Total |        17         18         15 |        50 </code></pre>
+<p>We can use the <code>recode</code> command to recode variables as well. Here we create another new variable called pop_c2 then do the recode in the same manner as we did for pop_c.</p>
+<pre><code>&gt; generate pop_c2 = pop
+
+&gt; recode pop_c2 (min/2000000=1) (2000001/4800000=2) (4800001/max=3)
+(pop_c2: 50 changes made)
+ 
+* Summary statistics for the two recoded variables
+&gt; summarize pop_c pop_c2
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+       pop_c |         50        1.96    .8071113          1          3
+      pop_c2 |         50        1.96    .8071113          1          3</code></pre>
+<p>If you are not happy with the original variable name of total population, you can change it by using the -rename- command. Here we rename pop as pop_t.</p>
+<pre><code>&gt; rename pop pop_t </code></pre>
+</div>
+<div id="label-variables-and-values" class="section level3">
+<h3>Label variables and values</h3>
+<p>Now that we have some new variables created or recoded from original variables. I would like to label them so that other people can get a better idea of what they are. I personally believe this is good practice even if you are the only person using the dataset – we forget things, the labels can serve as basic “documentation” of the dataset.</p>
+<pre><code>* See which variables need to be labeled
+&gt; describe
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:            16                          6 Apr 2014 15:43
+ size:         3,500                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop_t           long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, &lt; 5 year
+pop0_17         float   %9.0g                 
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+medage          float   %9.2f                 Median age
+death           long    %12.0gc               Number of deaths
+marriage        long    %12.0gc               Number of marriages
+divorce         long    %12.0gc               Number of divorces
+pop_c           float   %9.0g                 
+pop_c2          float   %9.0g                 
+----------------------------------------------------------------------------
+Sorted by: 
+ 
+* Label variable 
+&gt; label variable pop0_17 &quot;Pop, &lt; 18 years&quot; 
+&gt; label variable pop_c &quot;Categorized population&quot;
+
+* Remember we categorized pop_c into three categories: 1,2 and 3
+&gt; table pop_c
+
+----------------------
+Categoriz |
+ed        |
+populatio |
+n         |      Freq.
+----------+-----------
+        1 |         17
+        2 |         18
+        3 |         15
+----------------------
+</code></pre>
+<p>Let’s label them as low, medium and high.</p>
+<pre><code>* Label values
+* First we define those labels
+&gt; label define popcl 1 &quot;low&quot; 2 &quot;medium&quot; 3 &quot;high&quot;
+ 
+* Then we attach the value label popcl to the variable pop_c
+&gt; label values pop_c popcl 
+ 
+* Now the three categories are presented as low, medium and high 
+&gt; table pop_c 
+
+----------------------
+Categoriz |
+ed        |
+populatio |
+n         |      Freq.
+----------+-----------
+      low |         17
+   medium |         18
+     high |         15
+----------------------
+
+* Remove the duplicated variable pop_c2 
+&gt; drop pop_c2
+ 
+* You can also label the dataset
+&gt; label data &quot;1980 Census data by state: v2&quot;
+
+* see the information of the dataset 
+&gt; describe 
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state: v2
+ vars:            15                          6 Apr 2014 15:43
+ size:         3,300                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop_t           long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, &lt; 5 year
+pop0_17         float   %9.0g                 Pop, &lt; 18 years
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+medage          float   %9.2f                 Median age
+death           long    %12.0gc               Number of deaths
+marriage        long    %12.0gc               Number of marriages
+divorce         long    %12.0gc               Number of divorces
+pop_c           float   %9.0g      popcl      Categorized population
+----------------------------------------------------------------------------
+Sorted by: 
+</code></pre>
+<p><em>Yun Tai</em><br />
+<em>CLIR Postdoctoral Fellow</em><br />
+<em>University of Virginia Library</em></p>
+</div>

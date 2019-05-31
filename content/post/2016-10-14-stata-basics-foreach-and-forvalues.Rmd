@@ -1,0 +1,220 @@
+---
+title: 'Stata Basics: foreach and forvalues'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-foreach-and-forvalues
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+There are times we need to do some repetitive tasks in the process of data preparation, analysis or presentation, for instance, computing a set of variables in a same manner, rename or create a series of variables, or repetitively recode values of a number of variables. In this post, I show a few of simple example "loops" using Stata commands `foreach`, `local` and `forvalues` to handle some common simple repetitive tasks.
+
+### `foreach`: loop over items
+
+Consider this sample dataset of monthly average temperature for three years.
+
+```
+* input data
+> clear
+> input year mtemp1-mtemp12
+
+          year     mtemp1     mtemp2     mtemp3     mtemp4     mtemp5     mtemp6     mtemp7     mtemp8     mtemp9    mtemp10    mtemp11    mtemp12
+  1. 2013 4 3 5 14 18 23 25 22 19 15 7 6
+  2. 2014 -1 3 5 13 19 23 24 23 21 15 7 5
+  3. 2015 2 -1 7 14 21 24 25 24 21 14 11 10
+  4. end
+
+```
+
+Now the mean temperatures of each month are in Centigrade, if we want to convert them to Fahrenheit, we could do the computation for the 12 variables.
+
+```
+generate fmtemp1 = mtemp1*(9/5)+32
+generate fmtemp2 = mtemp1*(9/5)+32
+generate fmtemp3 = mtemp1*(9/5)+32
+generate fmtemp4 = mtemp1*(9/5)+32
+generate fmtemp5 = mtemp1*(9/5)+32
+generate fmtemp6 = mtemp1*(9/5)+32
+generate fmtemp7 = mtemp1*(9/5)+32
+generate fmtemp8 = mtemp1*(9/5)+32
+generate fmtemp9 = mtemp1*(9/5)+32
+generate fmtemp10 = mtemp1*(9/5)+32
+generate fmtemp11 = mtemp1*(9/5)+32
+generate fmtemp12 = mtemp1*(9/5)+32
+```
+
+However this takes a lot of typing. Alternatively, we can use the `foreach` command to achieve the same goal. In the following codes, we tell Stata to do the same thing (the computation: c*9/5+32) for each of the variable in the varlist – mtemp1 to mtemp12.
+
+```
+> foreach v of varlist mtemp1-mtemp12 {
+    generate f`v' = `v'*(9/5)+32
+  } 
+ 
+* list variables
+> ds
+year      mtemp3    mtemp6    mtemp9    mtemp12   fmtemp3   fmtemp6   fmtemp9   fmtemp12
+mtemp1    mtemp4    mtemp7    mtemp10   fmtemp1   fmtemp4   fmtemp7   fmtemp10
+mtemp2    mtemp5    mtemp8    mtemp11   fmtemp2   fmtemp5   fmtemp8   fmtemp11
+```
+
+Note that braces must be specified with `foreach`. The open brace has to be on the same line as the foreach, and the close brace must be on a line by itself. It’s crucial to close loops properly, especially if you have one or more loops nested in another loop.
+
+### local: define macro
+
+This was a rather simple repetitive task which can be handled solely by the foreach command. Here we introduce another command `local`, which is utilized a lot with commands like `foreach` to deal with repetitive tasks that are more complex. The `local` command is a way of defining a macro in Stata. A Stata macro can contain multiple elements; it has a name and contents. Consider the following two examples:
+
+```
+* define a local macro called month
+> local month jan feb mar apr
+
+> display `"`month'"' 
+jan feb mar apr
+```
+Define a local macro called mcode and another called month, alter the contents of mcode in the foreach loop, then display them in a form of “mcode: month”.
+
+
+```
+> local mcode 0
+> local month jan feb mar apr
+> foreach m of local month {
+    local mcode = `mcode' + 1
+    display "`mcode': `m'"
+   }
+1: jan
+2: feb
+3: mar
+4: apr
+```
+Note when you call a defined macro, it has to be wrapped in ` (left tick) and ‘ (apostrophe) symbols.
+
+### Rename multiple variables
+
+Take the temperature dataset we created as an example. Let’s say we want to rename variables mtemp1-mtemp12 as mtempjan-mtenpdec. We can do so by just tweaking a bit of the codes in the previous example.
+
+Define local macro mcode and month, then rename the 12 vars in the foreach loop.
+
+```
+> local mcode 0
+> local month jan feb mar apr may jun jul aug sep oct nov dec
+> foreach m of local month {
+    local mcode = `mcode' + 1
+    rename mtemp`mcode' mtemp`m'
+  }
+> ds
+year      mtempmar  mtempjun  mtempsep  mtempdec  fmtemp3   fmtemp6   fmtemp9   fmtemp12
+mtempjan  mtempapr  mtempjul  mtempoct  fmtemp1   fmtemp4   fmtemp7   fmtemp10
+mtempfeb  mtempmay  mtempaug  mtempnov  fmtemp2   fmtemp5   fmtemp8   fmtemp11
+```
+
+We can obtain the same results in a slightly different way. This time we use another 12 variables fmtemp1-fmtemp12 as examples. Again, we will rename them as fmtempjan-fmtempdec.
+
+Define local macro month, then define local macro monthII in the foreach loop with specifying the string function word to reference the contents of the local macro month.
+
+```
+> local month jan feb mar apr may jun jul aug sep oct nov dec
+> foreach n of numlist 1/12 {
+    local monthII: word `n' of `month'
+    display "`monthII'"
+    rename fmtemp`n' fmtemp`monthII'   
+  } 
+jan
+feb
+mar
+apr
+may
+jun
+jul
+aug
+sep
+oct
+nov
+dec
+
+> ds
+year       mtempmar   mtempjun   mtempsep   mtempdec   fmtempmar  fmtempjun  fmtempsep  fmtempdec
+mtempjan   mtempapr   mtempjul   mtempoct   fmtempjan  fmtempapr  fmtempjul  fmtempoct
+mtempfeb   mtempmay   mtempaug   mtempnov   fmtempfeb  fmtempmay  fmtempaug  fmtempnov
+```
+
+I usually run `display` to see how the macro looks like before actually applying the defined macro on tasks like changing variable names, just to make sure I don’t accidentally change them to some undesired results or even cause errors; however the display line is not necessary in this case.
+
+Here we rename them back to fmtemp1-fmtemp12.
+
+```
+> local mcode 0
+> foreach n in jan feb mar apr may jun jul aug sep oct nov dec {
+    local mcode = `mcode' + 1
+    rename fmtemp`n' fmtemp`mcode'
+  }
+
+> ds
+year      mtempmar  mtempjun  mtempsep  mtempdec  fmtemp3   fmtemp6   fmtemp9   fmtemp12
+mtempjan  mtempapr  mtempjul  mtempoct  fmtemp1   fmtemp4   fmtemp7   fmtemp10
+mtempfeb  mtempmay  mtempaug  mtempnov  fmtemp2   fmtemp5   fmtemp8   fmtemp11
+```
+
+### `forvalues`: loop over consecutive values
+
+The `forvalues` command is another command that gets to be used a lot in handling repetitive works. Consider the same temperature dataset we created, suppose we would like to generate twelve dummy variables (warm1-warm12) to reflect if each of the monthly average temperature is higher than the one in the previous year. For example, I will code warm1 for the year of 2014 as 1 if the value of fmtemp1 for 2014 is higher than the value for 2013. I will code all the warm variables as 99 for the year of 2013, since they don’t have references to compare in this case.
+
+We can do this by running the following codes, then repeat them for twelve times to create the twelve variables warm1-warm12.
+
+```
+* _n creates sequences of numbers. Type "help _n" for descriptions and examples.
+> generate warm1=1 if fmtemp1 > fmtemp1[_n-1]
+(2 missing values generated)
+
+> replace warm1=0 if fmtemp1 <= fmtemp1[_n-1]
+(2 real changes made)
+
+> replace warm1=99 if year==2013
+(1 real change made)
+
+> list year fmtemp1 warm1, clean
+
+       year   fmtemp1   warm1  
+  1.   2013      39.2      99  
+  2.   2014      30.2       0  
+  3.   2015      35.6       1  
+```
+
+However this takes a lot of typing and may even create unwanted mistakes in the process of typing or copy-paste them over and over
+
+```
+* drop warm1 we generated
+> drop warm1
+```
+
+
+Instead, we can use `forvalues` to do so:
+
+```
+> forvalues i=1/12 {
+    generate warm`i'=1 if fmtemp`i' > fmtemp`i'[_n-1]
+    replace warm`i'=0 if fmtemp`i' <= fmtemp`i'[_n-1]
+    replace warm`i'=99 if year==2013
+  }
+ 
+* see the results
+> list year fmtemp1-fmtemp3 warm1-warm3, clean 
+
+       year   fmtemp1   fmtemp2   fmtemp3   warm1   warm2   warm3  
+  1.   2013      39.2      37.4        41      99      99      99  
+  2.   2014      30.2      37.4        41       0       0       0  
+  3.   2015      35.6      30.2      44.6       1       0       1 
+  
+```
+
+### Reference
+
+Baum, C. (2005). A little bit of Stata programming goes a long way… Working Papers in Economics, 69.
+
+
+_Yun Tai_   
+_CLIR Postdoctoral Fellow_  
+_University of Virginia Library_ 
+
+
+

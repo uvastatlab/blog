@@ -1,0 +1,321 @@
+---
+title: 'Stata Basics: Combine Data (Append and Merge)'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-combine-data-append-and-merge
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+
+
+<p>When I first started working with data, which was in a statistics class, we mostly used clean and completed dataset as examples. Later on, I realize it’s not always the case when doing research or data analysis for other purposes; in reality, we often need to put two or more dataset together to be able to begin whatever statistic analysis tasks we would like to perform. In this post, I demonstrate how to combine datasets into one file in two typical ways: append and merge, that are row-wise combining and column-wise combining, respectively.</p>
+<div id="append-data-append" class="section level3">
+<h3>Append data: append</h3>
+<p>Say you would like to stack one of your data file on top of another, then you can use the <code>append</code> command to do so. Usually the data files we would like to append contain the same variables, so let’s create two fictional data files, each of them has 4 variables: id, character name, character family and numbers of episode the character appeared in.</p>
+<pre><code>
+* Set working directory
+&gt; cd [YOUR PATH] 
+
+* create dataset 1
+&gt; clear
+&gt; input id str8 name str9 family epi
+
+            id       name     family        epi
+  1. 1 &quot;Arya&quot; &quot;Stark&quot; 33
+  2. 2 &quot;Cersei&quot; &quot;Lannister&quot; 36
+  3. 3 &quot;Ned&quot; &quot;Stark&quot; 11
+  4. end
+
+&gt; save got1, replace
+file got1.dta saved
+
+&gt; list
+
+     +-------------------------------+
+     | id     name      family   epi |
+     |-------------------------------|
+  1. |  1     Arya       Stark    33 |
+  2. |  2   Cersei   Lannister    36 |
+  3. |  3      Ned       Stark    11 |
+     +-------------------------------+
+
+* create dataset 2
+&gt; clear
+&gt; input id str8 name str9 family epi
+
+            id       name     family        epi
+  1. 5 &quot;Robert&quot; &quot;Baratheon&quot; 7
+  2. 4 &quot;Jon&quot; &quot;Stark&quot; 32
+  3. 6 &quot;Tyrion&quot; &quot;Lannister&quot; 36
+  4. end
+
+&gt; save got2, replace
+file got2.dta saved
+
+&gt; list
+
+     +-------------------------------+
+     | id     name      family   epi |
+     |-------------------------------|
+  1. |  5   Robert   Baratheon     7 |
+  2. |  4      Jon       Stark    32 |
+  3. |  6   Tyrion   Lannister    36 |
+     +-------------------------------+
+
+* combine the two datasets and see the results
+&gt; use got1, clear
+&gt; append using got2
+&gt; list
+
+     +-------------------------------+
+     | id     name      family   epi |
+     |-------------------------------|
+  1. |  1     Arya       Stark    33 |
+  2. |  2   Cersei   Lannister    36 |
+  3. |  3      Ned       Stark    11 |
+  4. |  5   Robert   Baratheon     7 |
+  5. |  4      Jon       Stark    32 |
+     |-------------------------------|
+  6. |  6   Tyrion   Lannister    36 |
+     +-------------------------------+</code></pre>
+<p>The combined dataset looks right to me, however we are not able to tell which dataset the observations come from. In some cases this may cause some inconvenience in tracing back to the original files or even problems in data analysis – say, in this case, if got1 and got2 contain records from two different seasons, we should mark that in the combined dataset. We can simply do this by generating a variable indicating season before we append them.</p>
+<pre><code>&gt; use got1, clear
+&gt; generate season=1
+&gt; save got1, replace
+file got1.dta saved
+
+&gt; use got2, clear
+&gt; generate season=2
+&gt; save got2, replace
+file got2.dta saved
+
+&gt; use got1, clear
+&gt; append using got2
+&gt; list
+
+     +----------------------------------------+
+     | id     name      family   epi   season |
+     |----------------------------------------|
+  1. |  1     Arya       Stark    33        1 |
+  2. |  2   Cersei   Lannister    36        1 |
+  3. |  3      Ned       Stark    11        1 |
+  4. |  5   Robert   Baratheon     7        2 |
+  5. |  4      Jon       Stark    32        2 |
+     |----------------------------------------|
+  6. |  6   Tyrion   Lannister    36        2 |
+     +----------------------------------------+
+
+&gt; save got3, replace
+file got3.dta saved</code></pre>
+<p>Now we have a combined dataset with a variable indicating which original dataset the observations come from – although this dataset is officially fictional, as Robert Baratheon was not seen in season two.</p>
+</div>
+<div id="merge-data-merge" class="section level3">
+<h3>Merge data: merge</h3>
+<p>It is usually pretty straightforward to append data, however it sometimes gets a bit tricky when you need to combine data in a column-wise manner, that is, merge data. Below we use two examples to demonstrate one-to-one merge and one-to-many merge.</p>
+<div id="one-to-one-merge-merge-11" class="section level4">
+<h4>One-to-one merge: <code>merge 1:1</code></h4>
+<p>In the dataset we just appended (got3), we have 5 variables, with the id variable uniquely identifying the 6 observations in the data. Say we have another data file contains the id variable and the same 6 observations, but with a new variable called status – in other words, a new column. In this case, if we want to combine this new data file to got3, we should use one-to-one merge to match the records in the two files.</p>
+<pre><code>* First, we create the new data file with id and the new variable status
+&gt; clear 
+&gt; input id status
+
+            id     status
+  1. 1 1
+  2. 2 1
+  3. 3 0 
+  4. 4 1
+  5. 6 1
+  6. 5 0
+  7. end 
+
+&gt; list
+
+     +-------------+
+     | id   status |
+     |-------------|
+  1. |  1        1 |
+  2. |  2        1 |
+  3. |  3        0 |
+  4. |  4        1 |
+  5. |  6        1 |
+     |-------------|
+  6. |  5        0 |
+     +-------------+
+
+&gt; save got4, replace
+file got4.dta saved
+
+* sort observations by id in got3
+&gt; use got3, clear
+&gt; sort id
+&gt; list
+
+     +----------------------------------------+
+     | id     name      family   epi   season |
+     |----------------------------------------|
+  1. |  1     Arya       Stark    33        1 |
+  2. |  2   Cersei   Lannister    36        1 |
+  3. |  3      Ned       Stark    11        1 |
+  4. |  4      Jon       Stark    32        2 |
+  5. |  5   Robert   Baratheon     7        2 |
+     |----------------------------------------|
+  6. |  6   Tyrion   Lannister    36        2 |
+     +----------------------------------------+
+
+&gt; save got3m, replace
+file got3m.dta saved
+
+* sort observations by id in got4
+&gt; use got4, clear
+&gt; sort id
+&gt; list
+
+     +-------------+
+     | id   status |
+     |-------------|
+  1. |  1        1 |
+  2. |  2        1 |
+  3. |  3        0 |
+  4. |  4        1 |
+  5. |  5        0 |
+     |-------------|
+  6. |  6        1 |
+     +-------------+
+
+&gt; save got4m, replace
+file got4m.dta saved
+
+* merge the two files, we base this merge on the id variable in both files
+&gt; use got3m, clear
+&gt; merge 1:1 id using got4m
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                                 6  (_merge==3)
+    -----------------------------------------
+
+&gt; list
+
+     +---------------------------------------------------------------+
+     | id     name      family   epi   season   status        _merge |
+     |---------------------------------------------------------------|
+  1. |  1     Arya       Stark    33        1        1   matched (3) |
+  2. |  2   Cersei   Lannister    36        1        1   matched (3) |
+  3. |  3      Ned       Stark    11        1        0   matched (3) |
+  4. |  4      Jon       Stark    32        2        1   matched (3) |
+  5. |  5   Robert   Baratheon     7        2        0   matched (3) |
+     |---------------------------------------------------------------|
+  6. |  6   Tyrion   Lannister    36        2        1   matched (3) |
+     +---------------------------------------------------------------+</code></pre>
+<p>Note Stata creates a _merge variable in the merged results, which indicates how the merge was done for each observation. The value of _merge is 1 if the observation comes form file1 (master file) only, 2 if the observation comes from file2 (using file) only, 3 if the observation comes from both of the two files – in other words, 3 means the observation is matched. In this example, we can easily inspect every observation to see if they are matched. If you get more records in a dataset, which we normally do, you can summarize this _merge variable to see if you have any mismatched case.</p>
+<pre><code>&gt; tabulate _merge
+
+                 _merge |      Freq.     Percent        Cum.
+------------------------+-----------------------------------
+            matched (3) |          6      100.00      100.00
+------------------------+-----------------------------------
+                  Total |          6      100.00
+</code></pre>
+<p>Looks like we have every observation matched in this merging example.</p>
+</div>
+<div id="one-to-many-merge-merge-1m" class="section level4">
+<h4>One-to-many merge: <code>merge 1:m</code></h4>
+<p>Here I show an example of another kind of merge called one-to-many merge. Let’s illustrate when would we need to perform one-to-many merge by combining two sample datasets: one with information of dads, another with records of their kids.</p>
+<p>First we create the dads file with family id, family name, dads name and their status, sort the observations by family id.</p>
+<pre><code>&gt; clear 
+&gt; input familyid str9 family str8 dname dstatus
+
+      familyid     family      dname    dstatus
+  1. 3 &quot;Stark&quot; &quot;Ned&quot; 0
+  2. 1 &quot;Baratheon&quot; &quot;Robert&quot; 0
+  3. 2 &quot;Lannister&quot; &quot;Tywin&quot; 1
+  4. end
+
+&gt; list
+
+     +-----------------------------------------+
+     | familyid      family    dname   dstatus |
+     |-----------------------------------------|
+  1. |        3       Stark      Ned         0 |
+  2. |        1   Baratheon   Robert         0 |
+  3. |        2   Lannister    Tywin         1 |
+     +-----------------------------------------+
+
+&gt; sort familyid
+&gt; save got5, replace
+file got5.dta saved
+</code></pre>
+<p>Then we create the kids file with the same variables, sort by family id as well.</p>
+<pre><code>&gt; clear
+&gt; input familyid str9 family str8 kname kstatus
+
+      familyid     family      kname    kstatus
+  1. 2 &quot;Lannister&quot; &quot;Cersei&quot; 1
+  2. 3 &quot;Stark&quot; &quot;Arya&quot; 1
+  3. 2 &quot;Lannister&quot; &quot;Tyrion&quot; 1
+  4. 3 &quot;Stark&quot; &quot;Jon&quot; 1
+  5. 1 &quot;Baratheon&quot; &quot;Joffrey&quot; 0
+  6. end
+
+&gt; list
+
+     +------------------------------------------+
+     | familyid      family     kname   kstatus |
+     |------------------------------------------|
+  1. |        2   Lannister    Cersei         1 |
+  2. |        3       Stark      Arya         1 |
+  3. |        2   Lannister    Tyrion         1 |
+  4. |        3       Stark       Jon         1 |
+  5. |        1   Baratheon   Joffrey         0 |
+     +------------------------------------------+
+
+&gt; sort familyid
+&gt; save got6, replace
+file got6.dta saved</code></pre>
+<p>Now we have the two files sharing the familyid variable as an identifier, since each dad may have more than one kid, we use one-to-many merge to combine them.</p>
+<pre><code>* use the dads file as master file and kids file as using file
+&gt; use got5, clear
+&gt; merge 1:m familyid using got6
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                                 5  (_merge==3)
+    -----------------------------------------
+
+&gt; list
+
+     +---------------------------------------------------------------------------+
+     | familyid      family    dname   dstatus     kname   kstatus        _merge |
+     |---------------------------------------------------------------------------|
+  1. |        1   Baratheon   Robert         0   Joffrey         0   matched (3) |
+  2. |        2   Lannister    Tywin         1    Cersei         1   matched (3) |
+  3. |        3       Stark      Ned         0       Jon         1   matched (3) |
+  4. |        2   Lannister    Tywin         1    Tyrion         1   matched (3) |
+  5. |        3       Stark      Ned         0      Arya         1   matched (3) |
+     +---------------------------------------------------------------------------+
+
+* sort by familyid 
+&gt; sort familyid 
+&gt; list
+
+     +---------------------------------------------------------------------------+
+     | familyid      family    dname   dstatus     kname   kstatus        _merge |
+     |---------------------------------------------------------------------------|
+  1. |        1   Baratheon   Robert         0   Joffrey         0   matched (3) |
+  2. |        2   Lannister    Tywin         1    Cersei         1   matched (3) |
+  3. |        2   Lannister    Tywin         1    Tyrion         1   matched (3) |
+  4. |        3       Stark      Ned         0      Arya         1   matched (3) |
+  5. |        3       Stark      Ned         0       Jon         1   matched (3) |
+     +---------------------------------------------------------------------------+
+</code></pre>
+<p>So the steps are really the same for one-to-one and one-to-many merge. Just pick the right one depending on the datasets you’re are going to combine, and what kind of end product you would like to obtain from the merging.</p>
+<p><em>Yun Tai</em><br />
+<em>CLIR Postdoctoral Fellow</em><br />
+<em>University of Virginia Library</em></p>
+</div>
+</div>

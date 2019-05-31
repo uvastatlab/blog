@@ -1,0 +1,224 @@
+---
+title: 'Stata Basics: Subset Data'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-subset-data
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+Sometimes only parts of a dataset mean something to you. In this post, we show you how to subset a dataset in Stata, by variables or by observations. We use the census.dta dataset installed with Stata as the sample data.
+
+
+```
+* Load the data
+> sysuse census.dta
+(1980 Census data by state)
+
+* See the information of the data
+> describe
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:            13                          6 Apr 2014 15:43
+ size:         2,900                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop             long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, < 5 year
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+medage          float   %9.2f                 Median age
+death           long    %12.0gc               Number of deaths
+marriage        long    %12.0gc               Number of marriages
+divorce         long    %12.0gc               Number of divorces
+----------------------------------------------------------------------------
+Sorted by: 
+```
+
+### `keep`: keep variables or observations
+
+There are 13 variables in this dataset. Say we would like to have a separate file that contains only the list of the states with the region variable. We can use the `keep` command to do so.
+
+```
+> keep state state2 region
+
+> describe
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:             3                          6 Apr 2014 15:43
+ size:           900                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+---------------------------------------------------------------------------
+Sorted by: 
+
+```
+Now you should only see that three variables remain in the data. Note that this change only applies to the copy of the data in the memory, not the file on disk – you need to use the `save` command to make change to the file itself. You may want to be careful when you save this change, as you will permanently lose all the other variables that are not in the keep list. So here I save it as a new file called slist.
+
+```
+> save slist
+file slist.dta saved
+
+* Now if you load back the original file, you should still have all the variables
+> sysuse census.dta, clear
+(1980 Census data by state)
+```
+
+Note the clear option clears the current data in the memory, which contains the three variables we kept – don’t worry, you should still have it on your disk since we have saved it as slist.dta.
+
+### `drop`: drop variables or observations
+
+The `drop` command also works in subsetting data. Say we only need to work with the population of different age groups. We can remove other variables and save as a new file called census2.
+
+```
+> drop medage death marriage divorce
+
+> describe
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:             9                          6 Apr 2014 15:43
+ size:         2,100                          
+---------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+---------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop             long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, < 5 year
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+----------------------------------------------------------------------------
+Sorted by: 
+
+> save census2
+file census2.dta saved
+
+```
+
+### Subset by observations
+
+We can also use `keep` and `drop` commands to subset data by keeping or eliminating observations that meet one or more conditions. For example, we can keep the states in the South.
+
+```
+* Load the data again and clear the current one in memory
+> sysuse census.dta, clear
+(1980 Census data by state)
+ 
+* See the contents of region
+> tabulate region
+
+     Census |
+     region |      Freq.     Percent        Cum.
+------------+-----------------------------------
+         NE |          9       18.00       18.00
+    N Cntrl |         12       24.00       42.00
+      South |         16       32.00       74.00
+       West |         13       26.00      100.00
+------------+-----------------------------------
+      Total |         50      100.00
+
+```
+
+Note region is an integer type of variable with a value label called cenreg indicating the four regions. We can use `label list` to see how the integers are associated with the texts representing the regions.
+
+```
+> label list cenreg
+cenreg:
+           1 NE
+           2 N Cntrl
+           3 South
+           4 West
+
+* The states in the South are coded as 3.
+  
+* Keep the observations/rows (the states) that are in South region
+> keep if region==3
+(34 observations deleted)
+
+> tabulate region 
+
+     Census |
+     region |      Freq.     Percent        Cum.
+------------+-----------------------------------
+      South |         16      100.00      100.00
+------------+-----------------------------------
+      Total |         16      100.00
+
+* Here are the 16 South states (rows) remained in the dataset.
+```
+
+Now let’s use `drop` to eliminate those states with population below the average.
+
+```
+* Load back the data
+> sysuse census.dta, clear
+(1980 Census data by state)
+
+* summary statistics, mean=4518149 
+> summarize pop 
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+         pop |         50     4518149     4715038     401851   2.37e+07
+
+* drop the rows/states with population less than the mean 
+> drop if pop < 4518149 
+(33 observations deleted)
+
+* list the states remained (those with population above the average)
+> list state 
+
+     +---------------+
+     | state         |
+     |---------------|
+  1. | California    |
+  2. | Florida       |
+  3. | Georgia       |
+  4. | Illinois      |
+  5. | Indiana       |
+     |---------------|
+  6. | Massachusetts |
+  7. | Michigan      |
+  8. | Missouri      |
+  9. | New Jersey    |
+ 10. | New York      |
+     |---------------|
+ 11. | N. Carolina   |
+ 12. | Ohio          |
+ 13. | Pennsylvania  |
+ 14. | Tennessee     |
+ 15. | Texas         |
+     |---------------|
+ 16. | Virginia      |
+ 17. | Wisconsin     |
+     +---------------+
+```
+
+You may want to be careful when using the `list` command. In this case, the census.dta is a small dataset with only 50 rows/observations in it, and I eliminated 33 observations so I know I only have a fairly small number of cases to be listed in the output. If you are working with a big dataset, you may not want to list too much information to your output.
+
+_Yun Tai_   
+_CLIR Postdoctoral Fellow_  
+_University of Virginia Library_ 
+
+

@@ -1,0 +1,433 @@
+---
+title: 'Stata Basics: Reshape Data'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-reshape-data
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+In this post, I use a few examples to illustrate the two common data forms: wide form and long form, and how to convert datasets between the two forms – here we call it “reshape” data. Reshaping is often needed when you work with datasets that contain variables with some kinds of sequences, say, time-series data. It is fairly easy to transform data between wide and long forms in Stata using the -reshape- command, however you'll want to be careful when you convert a dataset from one form to another so that you can eliminate possible mistakes in the process of transforming.
+
+First, let’s see how the wide and long forms look like. Here is a simple example of a wide form dataset, in which every variable lives in a column.
+
+```
+     +----------------------------+
+     | id   inc80   inc81   inc82 |
+     |----------------------------|
+  1. |  1    5000    5500    6000 |
+  2. |  2    2000    2200    3300 |
+  3. |  3    3000    2000    1000 |
+     +----------------------------+
+```
+
+While the same dataset in long form should look like this, in which each case takes 3 rows – the 3 years and the corresponding income.
+
+```
+     +------------------+
+     | id   year    inc |
+     |------------------|
+  1. |  1     80   5000 |
+  2. |  1     81   5500 |
+  3. |  1     82   6000 |
+  4. |  2     80   2000 |
+  5. |  2     81   2200 |
+     |------------------|
+  6. |  2     82   3300 |
+  7. |  3     80   3000 |
+  8. |  3     81   2000 |
+  9. |  3     82   1000 |
+     +------------------+
+```
+
+Which form works better for you? It depends on what you need to do with the data. You may find it easier to enter your records in wide format, however long format often works better in many cases of data analysis. So let’s see how to convert a dataset in wide form to long form.
+
+```
+* load dataset reshape1
+> webuse reshape1, clear
+
+* list the data
+> list
+									
+     +-------------------------------------------------------+
+     | id   sex   inc80   inc81   inc82   ue80   ue81   ue82 |
+     |-------------------------------------------------------|
+  1. |  1     0    5000    5500    6000      0      1      0 |
+  2. |  2     1    2000    2200    3300      1      0      0 |
+  3. |  3     0    3000    2000    1000      0      0      1 |
+     +-------------------------------------------------------+
+										
+
+* let's make the first example simpler by keeping id, sex and the inc variables
+> drop ue*
+> list  
+						
+     +----------------------------------+
+     | id   sex   inc80   inc81   inc82 |
+     |----------------------------------|
+  1. |  1     0    5000    5500    6000 |
+  2. |  2     1    2000    2200    3300 |
+  3. |  3     0    3000    2000    1000 |
+     +----------------------------------+
+```
+
+### Reshape from wide to long
+
+The syntax should look like this in general: `reshape long stub, i(i) j(j)`
+
+In this case:
+
+1. the `stub` should be inc, which is the variable to be converted from wide to long
+2. `i` is the id variable, which is the unique identifier of observations in wide form
+3. `j` is the year variable that I am going to create – it tells Stata that suffix of inc (i.e., 80, 81, 82) should be put in the variable called year.
+
+```
+> reshape long inc, i(id) j(year)
+> list
+
+     +------------------------+
+     | id   year   sex    inc |
+     |------------------------|
+  1. |  1     80     0   5000 |
+  2. |  1     81     0   5500 |
+  3. |  1     82     0   6000 |
+  4. |  2     80     1   2000 |
+  5. |  2     81     1   2200 |
+     |------------------------|
+  6. |  2     82     1   3300 |
+  7. |  3     80     0   3000 |
+  8. |  3     81     0   2000 |
+  9. |  3     82     0   1000 |
+     +------------------------+
+```
+
+Here is what Stata did for us. In wide form, we had 3 observations and 3 income variables for the 3 years (80-82). We now have 9 observations in long form – so the transformation looks right to me in terms of number of observations/rows.
+
+```
+(note: j = 80 81 82)
+
+Data                               wide   ->   long
+-----------------------------------------------------------------------------
+Number of obs.                        3   ->       9
+Number of variables                   5   ->       4
+j variable (3 values)                     ->   year
+xij variables:
+                      inc80 inc81 inc82   ->   inc
+-----------------------------------------------------------------------------
+
+* To convert this current data back to wide form, simply type:
+> reshape wide
+> list
+
+     +----------------------------------+
+     | id   inc80   inc81   inc82   sex |
+     |----------------------------------|
+  1. |  1    5000    5500    6000     0 |
+  2. |  2    2000    2200    3300     1 |
+  3. |  3    3000    2000    1000     0 |
+     +----------------------------------+
+```
+
+### Reshape from wide to long: more than one stub
+
+Remember we actually had more variables in the reshape1 dataset. Let’s see how to reshape it.
+
+```
+* load the dataset
+> webuse reshape1, clear
+> list
+
+     +-------------------------------------------------------+
+     | id   sex   inc80   inc81   inc82   ue80   ue81   ue82 |
+     |-------------------------------------------------------|
+  1. |  1     0    5000    5500    6000      0      1      0 |
+  2. |  2     1    2000    2200    3300      1      0      0 |
+  3. |  3     0    3000    2000    1000      0      0      1 |
+     +-------------------------------------------------------+
+
+* reshape from wide to long
+* we simply put inc and ue as stubs, then put id and 
+* year as i and j as we did in the previous example.
+> reshape long inc ue, i(id) j(year)
+> list
+
+     +-----------------------------+
+     | id   year   sex    inc   ue |
+     |-----------------------------|
+  1. |  1     80     0   5000    0 |
+  2. |  1     81     0   5500    1 |
+  3. |  1     82     0   6000    0 |
+  4. |  2     80     1   2000    1 |
+  5. |  2     81     1   2200    0 |
+     |-----------------------------|
+  6. |  2     82     1   3300    0 |
+  7. |  3     80     0   3000    0 |
+  8. |  3     81     0   2000    0 |
+  9. |  3     82     0   1000    1 |
+     +-----------------------------+
+```
+
+### Reshape from wide to long: complex unique identifier
+
+Sometimes a variable called id does not serve as a unique identifier – and that’s one of the reasons we need to be careful when reshaping data. Consider another sample data called reshape2.
+
+```
+* load the data
+> webuse reshape2, clear
+> list
+
+     +----------------------------------+
+     | id   sex   inc80   inc81   inc82 |
+     |----------------------------------|
+  1. |  1     0    5000    5500    6000 |
+  2. |  2     1    2000    2200    3300 |
+  3. |  3     0    3000    2000    1000 |
+  4. |  2     0    2400    2500    2400 |
+     +----------------------------------+
+```
+
+If you reshape using id as the unique identifier `i`, you’ll get error as the variable id does not uniquely identify the observations.
+
+```
+> reshape long inc, i(id) j(year)
+(note: j = 80 81 82)
+variable id does not uniquely identify the observations
+    Your data are currently wide.  You are performing a reshape long.  
+    You specified i(id) and j(year).  In the current wide form, 
+    variable id should uniquely identify the observations.  
+    
+    Remember this picture:
+
+         long                                wide
+        +---------------+                   +------------------+
+        | i   j   a   b |                   | i   a1 a2  b1 b2 |
+        |---------------|  |--------------| | 1   1   3   2  4 |
+        | 1   1   1   2 |                   | 2   5   7   6  8 |
+        | 1   2   3   4 |                   +------------------+
+        | 2   1   5   6 |                   
+        | 2   2   7   8 |
+        +---------------+
+    Type reshape error for a list of the problem observations.
+```
+
+In this case, this id problem may be due to some mistakes in the dataset, however in some other circumstances, you may need to create an unique identifier when reshape the dataset. Let’s modify the dataset reshape2 by turning variable sex to group id called gid.
+
+```
+> rename sex gid
+> order gid id
+> list
+
+     +----------------------------------+
+     | gid   id   inc80   inc81   inc82 |
+     |----------------------------------|
+  1. |   0    1    5000    5500    6000 |
+  2. |   1    2    2000    2200    3300 |
+  3. |   0    3    3000    2000    1000 |
+  4. |   0    2    2400    2500    2400 |
+     +----------------------------------+
+```
+
+Now we have a dataset with gid, id and income for the 3 years – combining gid and id will make an unique identifier.
+
+```
+> reshape long inc, i(gid id) j(year)
+(note: j = 80 81 82)
+
+Data                               wide   ->   long
+-----------------------------------------------------------------------------
+Number of obs.                        4   ->      12
+Number of variables                   5   ->       4
+j variable (3 values)                     ->   year
+xij variables:
+                      inc80 inc81 inc82   ->   inc
+-----------------------------------------------------------------------------
+
+. list
+
+     +------------------------+
+     | gid   id   year    inc |
+     |------------------------|
+  1. |   0    1     80   5000 |
+  2. |   0    1     81   5500 |
+  3. |   0    1     82   6000 |
+  4. |   0    2     80   2400 |
+  5. |   0    2     81   2500 |
+     |------------------------|
+  6. |   0    2     82   2400 |
+  7. |   0    3     80   3000 |
+  8. |   0    3     81   2000 |
+  9. |   0    3     82   1000 |
+ 10. |   1    2     80   2000 |
+     |------------------------|
+ 11. |   1    2     81   2200 |
+ 12. |   1    2     82   3300 |
+     +------------------------+
+```
+
+### Reshape from wide to long: character suffixes
+
+You can still reshape data if the stub variables come with character suffixes. Here we use the bpwide data installed with Stata as an example.
+
+```
+* load data and list the first 4 observations
+> sysuse bpwide, clear 
+(fictional blood-pressure data)
+
+> list in 1/4
+
+     +-----------------------------------------------+
+     | patient    sex   agegrp   bp_bef~e   bp_after |
+     |-----------------------------------------------|
+  1. |       1   Male    30-45        143        153 |
+  2. |       2   Male    30-45        163        170 |
+  3. |       3   Male    30-45        153        168 |
+  4. |       4   Male    30-45        153        142 |
+     +-----------------------------------------------+
+
+* reshape data, note the string option added at the end 
+> reshape long bp_, i(patient) j(when) string
+(note: j = after before)
+
+Data                               wide   ->   long
+-----------------------------------------------------------------------------
+Number of obs.                      120   ->     240
+Number of variables                   5   ->       5
+j variable (2 values)                     ->   when
+xij variables:
+                     bp_after bp_before   ->   bp_
+-----------------------------------------------------------------------------
+
+> list in 1/4
+
+     +----------------------------------------+
+     | patient     when    sex   agegrp   bp_ |
+     |----------------------------------------|
+  1. |       1    after   Male    30-45   153 |
+  2. |       1   before   Male    30-45   143 |
+  3. |       2    after   Male    30-45   170 |
+  4. |       2   before   Male    30-45   163 |
+     +----------------------------------------+
+
+```
+
+### Reshape from long to wide: -reshape wide-
+
+To convert a dataset from long form to wide, simply use the `reshape wide` command instead.
+
+Consider the airacc data. To make a simple example, we only keep 3 variables: airline, time and i_cnt.
+
+```
+> webuse airacc.dta, clear
+> keep airline time i_cnt
+> list in 1/8
+
+     +------------------------+
+     | airline   i_cnt   time |
+     |------------------------|
+  1. |       1      25      1 |
+  2. |       1      17      2 |
+  3. |       1      22      3 |
+  4. |       1      34      4 |
+  5. |       2      26      1 |
+     |------------------------|
+  6. |       2      45      2 |
+  7. |       2      30      3 |
+  8. |       2      25      4 |
+     +------------------------+
+```
+
+In this case, variable i_cnt is the one that we are going to restructure from long to wide, and just like what we did with `reshape long`, the `i` variable is the unique identifier in wide form, and the `j` variable is the one that contains the suffix in wide form.
+
+```
+> reshape wide i_cnt, i(airline) j(time)
+(note: j = 1 2 3 4)
+
+Data                               long   ->   wide
+-----------------------------------------------------------------------------
+Number of obs.                       80   ->      20
+Number of variables                   3   ->       5
+j variable (4 values)              time   ->   (dropped)
+xij variables:
+                                  i_cnt   ->   i_cnt1 i_cnt2 ... i_cnt4
+-----------------------------------------------------------------------------
+
+> list in 1/8
+
+     +---------------------------------------------+
+     | airline   i_cnt1   i_cnt2   i_cnt3   i_cnt4 |
+     |---------------------------------------------|
+  1. |       1       25       17       22       34 |
+  2. |       2       26       45       30       25 |
+  3. |       3       10       23        8       21 |
+  4. |       4       17       18        5       21 |
+  5. |       5       18       19       13       27 |
+     |---------------------------------------------|
+  6. |       6       36       32       23       27 |
+  7. |       7       27       28       25       17 |
+  8. |       8       31       14       22       17 |
+     +---------------------------------------------+
+```
+
+Other usages should be similar to `reshape long` as well, for instance, reshape more than one variable:
+
+```
+* load the airacc data again, this time we keep one more variable: inprog
+> webuse airacc.dta, clear
+> keep airline time i_cnt inprog
+> list in 1/8
+
+     +---------------------------------+
+     | airline   inprog   i_cnt   time |
+     |---------------------------------|
+  1. |       1        1      25      1 |
+  2. |       1        1      17      2 |
+  3. |       1        0      22      3 |
+  4. |       1        0      34      4 |
+  5. |       2        0      26      1 |
+     |---------------------------------|
+  6. |       2        0      45      2 |
+  7. |       2        0      30      3 |
+  8. |       2        1      25      4 |
+     +---------------------------------+
+```
+
+Reshape the two variables i_cnt and inprog with the `i` and `j` variables remaining the same.
+
+```
+> reshape wide i_cnt inprog, i(airline) j(time)
+(note: j = 1 2 3 4)
+
+Data                               long   ->   wide
+-----------------------------------------------------------------------------
+Number of obs.                       80   ->      20
+Number of variables                   4   ->       9
+j variable (4 values)              time   ->   (dropped)
+xij variables:
+                                  i_cnt   ->   i_cnt1 i_cnt2 ... i_cnt4
+                                 inprog   ->   inprog1 inprog2 ... inprog4
+-----------------------------------------------------------------------------
+
+> list in 1/8
+
+     +-------------------------------------------------------------------------------------+
+     | airline   inprog1   i_cnt1   inprog2   i_cnt2   inprog3   i_cnt3   inprog4   i_cnt4 |
+     |-------------------------------------------------------------------------------------|
+  1. |       1         1       25         1       17         0       22         0       34 |
+  2. |       2         0       26         0       45         0       30         1       25 |
+  3. |       3         0       10         0       23         1        8         0       21 |
+  4. |       4         0       17         1       18         0        5         0       21 |
+  5. |       5         0       18         0       19         0       13         1       27 |
+     |-------------------------------------------------------------------------------------|
+  6. |       6         0       36         0       32         0       23         1       27 |
+  7. |       7         0       27         1       28         1       25         1       17 |
+  8. |       8         1       31         0       14         0       22         0       17 |
+     +-------------------------------------------------------------------------------------+
+```
+
+_Yun Tai_   
+_CLIR Postdoctoral Fellow_  
+_University of Virginia Library_ 
+
+

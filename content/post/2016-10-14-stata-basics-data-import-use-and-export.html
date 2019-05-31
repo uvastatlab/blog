@@ -1,0 +1,150 @@
+---
+title: 'Stata Basics: Data Import, Use and Export'
+author: Yun Tai
+date: '2016-10-14'
+slug: stata-basics-data-import-use-and-export
+categories:
+  - Stata
+tags:
+  - stata
+---
+
+
+
+<p>In Stata, the very first step of analyzing a dataset should be opening the dataset in Stata so that it knows which file you are going to work with. Yes, you can simply double click on a Stata data file that ends in .dta to open it, or you can do something fancier to achieve the same goal – like write some codes. Okay, there is at least one more reason than being fancier that makes me prefer to write syntax than clicking through things in Stata – I like to have everything I did recorded so that I can easily reproduce the same work or use the scripts again when working on similar tasks next time. In this post, I introduce ways of reading in, using and saving Stata and other formats of data files.</p>
+<div id="sysuse-reading-in-datasets-come-with-stata" class="section level3">
+<h3><code>sysuse</code>: reading in datasets come with Stata</h3>
+<p>Several example datasets are installed with Stata. This command reads in one of them, census.dta, to memory. You should be able to see the data in your Stata Data Browser after running this following line.</p>
+<pre><code>&gt; sysuse census.dta
+(1980 Census data by state)</code></pre>
+</div>
+<div id="describe-the-information-of-the-dataset-in-memory" class="section level3">
+<h3><code>describe</code>: the information of the dataset in memory</h3>
+<pre><code>
+
+&gt; describe 
+
+Contains data from /Applications/Stata/ado/base/c/census.dta
+  obs:            50                          1980 Census data by state
+ vars:            13                          6 Apr 2014 15:43
+ size:         2,900                          
+-------------------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+-------------------------------------------------------------------------------------
+state           str14   %-14s                 State
+state2          str2    %-2s                  Two-letter state abbreviation
+region          int     %-8.0g     cenreg     Census region
+pop             long    %12.0gc               Population
+poplt5          long    %12.0gc               Pop, &lt; 5 year
+pop5_17         long    %12.0gc               Pop, 5 to 17 years
+pop18p          long    %12.0gc               Pop, 18 and older
+pop65p          long    %12.0gc               Pop, 65 and older
+popurban        long    %12.0gc               Urban population
+medage          float   %9.2f                 Median age
+death           long    %12.0gc               Number of deaths
+marriage        long    %12.0gc               Number of marriages
+divorce         long    %12.0gc               Number of divorces
+-------------------------------------------------------------------------------------
+Sorted by: 
+ 
+</code></pre>
+<p>Tip: run <code>set more off</code> to tell Stata to not display the -more- messages</p>
+</div>
+<div id="summarize-summary-statistics" class="section level3">
+<h3><code>summarize</code>: summary statistics</h3>
+<pre><code>&gt; summarize
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+       state |          0
+      state2 |          0
+      region |         50        2.66    1.061574          1          4
+         pop |         50     4518149     4715038     401851   2.37e+07
+      poplt5 |         50    326277.8    331585.1      35998    1708400
+-------------+---------------------------------------------------------
+     pop5_17 |         50    945951.6    959372.8      91796    4680558
+      pop18p |         50     3245920     3430531     271106   1.73e+07
+      pop65p |         50    509502.8    538932.4      11547    2414250
+    popurban |         50     3328253     4090178     172735   2.16e+07
+      medage |         50       29.54    1.693445       24.2       34.7
+-------------+---------------------------------------------------------
+       death |         50    39474.26    41742.35       1604     186428
+    marriage |         50     47701.4    45130.42       4437     210864
+     divorce |         50    23679.44    25094.01       2142     133541
+</code></pre>
+</div>
+<div id="clear-wipe-out-the-data-in-memory" class="section level3">
+<h3><code>clear</code>: wipe out the data in memory</h3>
+<pre><code>&gt; clear
+ </code></pre>
+</div>
+<div id="use-read-in-stata-datasets" class="section level3">
+<h3><code>use</code>: read in Stata datasets</h3>
+<p>Most of the time, we use datasets that are either stored on our machine or on the web. Simply use the <code>use</code> command to read in the data file to memory.</p>
+<pre><code>* read in data files on the web
+&gt; use http://www.stata-press.com/data/r14/apple.dta
+(Apple trees)
+
+&gt; describe 
+
+Contains data from http://www.stata-press.com/data/r14/apple.dta
+  obs:            10                          Apple trees
+ vars:             2                          16 Jan 2014 11:23
+ size:           100                          
+-------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+-------------------------------------------------------------------------
+treatment       int     %8.0g                 Fertilizer
+weight          double  %10.0g                Average weight in grams
+-------------------------------------------------------------------------
+Sorted by: 
+</code></pre>
+</div>
+<div id="cd-change-directory" class="section level3">
+<h3><code>cd</code>: change directory</h3>
+<p>Now let’s save this dataset on the web to your machine. You can use the <code>cd</code> command to tell Stata where to save this file.</p>
+<pre><code>* see the current directory
+&gt; pwd
+/Users/Username/Desktop/StataBasics
+
+* Change directory (plug in the path on your machine)
+&gt; cd YOUR PATH
+
+* Your directory/path may look like this -
+* Stata for Windows: 
+* cd C:Users\username\data
+* Stata for Mac: 
+* cd /Users/username/data</code></pre>
+</div>
+<div id="save-save-files" class="section level3">
+<h3><code>save</code>: save files</h3>
+<pre><code>&gt; save apple
+file apple.dta saved
+
+* use the replace option to overwrite an existing file 
+&gt; save apple, replace
+file apple.dta saved
+</code></pre>
+</div>
+<div id="dir-display-file-names" class="section level3">
+<h3><code>dir</code>: display file names</h3>
+<pre><code>* see what&#39;s in your working directory
+&gt; dir
+* you should see apple.dta listed in your directory
+</code></pre>
+</div>
+<div id="insheet-and-outsheet-import-and-export-.csv-files" class="section level3">
+<h3><code>insheet</code> and <code>outsheet</code>: import and export .csv files</h3>
+<p>Oftentimes we work with Stata and other software for the same project. In that case we need to import data files that are not in a Stata format or export Stata data files to other formats. Here is an example of how to save datasets as .csv files and read them into Stata.</p>
+<pre><code>* -outsheet-: save as .csv files
+&gt; outsheet using apple.csv, comma 
+
+* -insheet-: read in .csv files
+&gt; insheet using &quot;apple.csv&quot;, clear
+(2 vars, 10 obs)</code></pre>
+<p><em>Yun Tai</em><br />
+<em>CLIR Postdoctoral Fellow</em><br />
+<em>University of Virginia Library</em></p>
+</div>
