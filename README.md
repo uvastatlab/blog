@@ -126,8 +126,8 @@ Store in `/static/data`
 Example: `blog/static/data/demo.csv`   
 Example: `blog/static/data/demo.Rds`   
 
-In Rmd file add: `demo <- read.csv("../../static/data/demo.csv")`
-In Rmd file add: `demo <- readRDS("../../static/data/demo.Rds")`
+In Rmd file add: `demo <- read.csv("../../static/data/demo.csv")`   
+In Rmd file add: `demo <- readRDS("../../static/data/demo.Rds")`   
 
 Clay and Michele can also upload data to https://static.lib.virginia.edu/statlab/materials/ 
 
