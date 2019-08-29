@@ -1,0 +1,368 @@
+---
+title: Simulating Data for Count Models
+author: Clay Ford
+date: '2019-08-29'
+slug: simulating-data-for-count-models
+categories:
+  - R
+tags:
+  - count regression
+  - simulation
+  - negative binomial regression
+  - poisson regression
+---
+
+
+
+<p>A count model is a linear model where the dependent variable is a count. For example, the number of times a car breaks down, the number of rats in a litter, the number of times a young student gets out of his seat, etc. Counts are either 0 or a postive whole number, which means we need to use special distributions to generate the data.</p>
+<div id="the-poisson-distribution" class="section level2">
+<h2>The Poisson Distribution</h2>
+<p>The most common count distribution is the Poisson distribution. It generates whole numbers greater than or equal to 0. It has one parameter, the mean, which is usually symbolized as <span class="math inline">\(\lambda\)</span> (lambda). The Poisson distribution has the unique property that its mean and variance are equal. We can simulate values from a Poisson model in R using the <code>rpois</code> function. Use the <code>lambda</code> argument to set the mean. Below we generate 500 values from a distribution with <code>lambda</code> = 4:</p>
+<pre class="r"><code>y &lt;- rpois(n = 500, lambda = 4)
+table(y)</code></pre>
+<pre><code>## y
+##   0   1   2   3   4   5   6   7   8   9 
+##   7  31  70 101  96  85  60  20  25   5</code></pre>
+<pre class="r"><code>barplot(table(y))</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<pre class="r"><code>mean(y)</code></pre>
+<pre><code>## [1] 4.056</code></pre>
+<pre class="r"><code>var(y)</code></pre>
+<pre><code>## [1] 3.60808</code></pre>
+<p>Notice the mean and variance are similar. With larger values of <code>n</code> we’ll see them grow closer and closer together.</p>
+<p>Now let’s say we want to generate a simple model that generates different counts based on whether you’re a male or female. Here’s one way to accomplish that:</p>
+<pre class="r"><code>set.seed(3)
+n &lt;- 500
+male &lt;- sample(c(0,1), size = n, replace = TRUE)
+y_sim &lt;- rpois(n = n, lambda = exp(-2 + 0.5 * (male == 1)))</code></pre>
+<p>Notice we used <code>rpois</code> again but this time the mean is <em>conditional</em> on whether or not you’re a male. If you’re female, lambda is <code>exp(-2)</code>. If your male, lambda is <code>exp(-1.5)</code>. Why use the <code>exp</code> function? Because that ensures lambda is positive. We could have just used positive numbers to begin with, but as we’ll see, modeling count data with a generalized linear model will default to using <code>log</code> as the <em>link</em> function which assumes our original model was exponentiated.</p>
+<p>Here’s a quick table of the counts we generated.</p>
+<pre class="r"><code>table(y_sim, male)</code></pre>
+<pre><code>##      male
+## y_sim   0   1
+##     0 218 196
+##     1  29  44
+##     2   2  10
+##     3   1   0</code></pre>
+<p>We can already see more instances of males having higher counts, as we would expect since we have a postive coefficient for males in the model.</p>
+<p>Let’s fit a model to our count data using the <code>glm</code> function. How close can we get to recovering the “true” values of -2 and 0.5? We have to specify <code>family = poisson</code> since we’re modeling count data.</p>
+<pre class="r"><code>m1 &lt;- glm(y_sim ~ male, family = poisson)
+summary(m1)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y_sim ~ male, family = poisson)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.7155  -0.7155  -0.5367  -0.5367   3.5366  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  -1.9379     0.1667 -11.628  &lt; 2e-16 ***
+## male          0.5754     0.2083   2.762  0.00575 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for poisson family taken to be 1)
+## 
+##     Null deviance: 361.75  on 499  degrees of freedom
+## Residual deviance: 353.80  on 498  degrees of freedom
+## AIC: 538.16
+## 
+## Number of Fisher Scoring iterations: 6</code></pre>
+<p>Notice the coefficients in the summary are pretty close to what we specified in our model. We generated the data with a coefficient of 0.5 for males. The model estimated a coefficient of 0.57. The basic interpretation is that being male increases the log of expected counts by 0.57. That’s not easy to understand. If we exponentiate we get a multiplicative interpretation.</p>
+<pre class="r"><code>exp(0.57) </code></pre>
+<pre><code>## [1] 1.768267</code></pre>
+<p>The interpretation now is that the expected count is about 1.77 times greater for males, or a 77% increase.</p>
+<p>What if we wanted to generate data in which the expected count was 2 times greater for males? Using some trial and error we find that <code>exp(0.7)</code> is about 2.</p>
+<pre class="r"><code>exp(0.7)</code></pre>
+<pre><code>## [1] 2.013753</code></pre>
+<p>Therefore we could do the following to simulate such data:</p>
+<pre class="r"><code>set.seed(4)
+n &lt;- 500
+male &lt;- sample(c(0,1), size = n, replace = TRUE)
+y_sim &lt;- rpois(n = n, lambda = exp(-2 + 0.7 * (male == 1)))</code></pre>
+<p>And as expected, the expected count is about twice as high for males</p>
+<pre class="r"><code>m1 &lt;- glm(y_sim ~ male, family = poisson)
+exp(coef(m1)[&#39;male&#39;])</code></pre>
+<pre><code>##     male 
+## 2.149378</code></pre>
+<p>What kind of counts does this model simulate? First let’s look at our original data:</p>
+<pre class="r"><code>dat &lt;- data.frame(y_sim, male)
+library(ggplot2)
+ggplot(dat, aes(x = y_sim)) +
+  geom_bar() +
+  facet_wrap(~male)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>Now let’s generate counts using our model. There are two ways we can go about this. Recall that a count model returns the <em>expected count</em>. That would be the lambda in a Poisson model. Using the expected count for females and males, we can randomly generate counts:</p>
+<pre class="r"><code>p.out &lt;- predict(m1, type = &quot;response&quot;)
+counts &lt;- rpois(n = n, lambda = p.out)
+dat2 &lt;- data.frame(counts, male)
+ggplot(dat2, aes(x = counts)) +
+  geom_bar() +
+  facet_wrap(~male)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>This looks pretty similar to the original data. This is random, so if you run the code above, you’ll probably get something that looks different.</p>
+<p>A second way to use the model to generate counts is to use the expected counts for males and females to <em>generate probabilities</em> for various counts, and then generate the counts by multiplying the probabilities by the original number of males and females. Below we use the <code>dpois</code> function to calculate the expected probabilities of 0, 1, and 2 counts using the model generated male and female lambda values. We then multiply those probabilities by the number of females and males. That gives us expected number of 0, 1, and 2 counts for each gender. Since the expected counts have decimals, we use the <code>round</code> function to convert them to whole numbers when we create our data frame.</p>
+<pre class="r"><code>p.out &lt;- predict(m1, type = &quot;response&quot;, newdata = data.frame(male = c(0,1)))
+female_fit &lt;- dpois(0:2,lambda = p.out[1]) * sum(male == 0) 
+male_fit &lt;- dpois(0:2,lambda = p.out[2]) * sum(male == 1)
+dat3 &lt;- data.frame(male = rep(c(0,1), each = 3),
+                   count = round(c(female_fit, male_fit)),
+                   counts = rep(0:2, 2))
+ggplot(dat3, aes(x = counts, y = count)) +
+  geom_col() +
+  facet_wrap(~male)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p>The result is almost indistinguishable from our original data. This is what we expect. We created the model to generate the data, and then fit the <em>exact same model</em> to the data we generated to recover the original parameters. This may seem like a pointless exercise, but it ensures we understand our count model. If know how to generate data from a count model, then we know how to interpret a count model fit to data.</p>
+<p>An easier way to check model fit is to create a rootogram. We can do this using the <code>rootogram</code> function in the countreg package.</p>
+<pre class="r"><code># Need to install from R-Forge instead of CRAN
+# install.packages(&quot;countreg&quot;, repos=&quot;http://R-Forge.R-project.org&quot;)
+countreg::rootogram(m1)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>The tops of the bars are the <em>expected frequencies</em> of the counts given the model. The counts are plotted on the square-root scale to help visualize smaller frequencies. The red line shows the fitted frequencies as a smooth curve. The x-axis is actually a horizontal reference line. Bars that hang below the line show underfitting, bars that hang above show overfitting. In this case it’s hard to see any over or underfitting because we fit the right model. In a moment we’ll see some rootograms that clearly identify an ill-fitting model.</p>
+</div>
+<div id="the-negative-binomial-distribution" class="section level2">
+<h2>The Negative-Binomial Distribution</h2>
+<p>The Poisson distribution assumes that the mean and variance are equal. This is a very strong assumption. A count distribution that allows the mean and variance to differ is the Negative Binomial distribution. Learning about the negative binomial distribution allows us to generate and model more general types of counts.</p>
+<p>The variance of the negative binomial distribution is a function of its mean and a dispersion parameter, <span class="math inline">\(k\)</span>:</p>
+<p><span class="math display">\[var(Y) = \mu + \mu^{2}/k\]</span>
+Sometimes <span class="math inline">\(k\)</span> is referred to as <span class="math inline">\(\theta\)</span> (theta). As <span class="math inline">\(k\)</span> grows large, the second part of the equation approaches 0 and converges to a Poisson distribution.</p>
+<p>We can generate data from a negative binomial distribution using the <code>rnbinom</code> function. Instead of <code>lambda</code>, it has a <code>mu</code> argument. The dispersion parameter, <span class="math inline">\(k\)</span>, is specified with the <code>size</code> argument. Below we generate 500 values from a negative binomial distribution with <code>mu</code> = 4 and <span class="math inline">\(k\)</span> = 5:</p>
+<pre class="r"><code>y &lt;- rnbinom(n = 500, mu = 4, size = 5)
+table(y)</code></pre>
+<pre><code>## y
+##  0  1  2  3  4  5  6  7  8  9 10 11 12 16 
+## 26 70 66 75 82 58 43 30 20 15  6  6  2  1</code></pre>
+<pre class="r"><code>barplot(table(y))</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<pre class="r"><code>mean(y)</code></pre>
+<pre><code>## [1] 3.948</code></pre>
+<pre class="r"><code>var(y)</code></pre>
+<pre><code>## [1] 6.734766</code></pre>
+<p>We see the variance is a good deal larger than the mean. Because of this we often say the distribution exhibits <em>overdispersion</em>.</p>
+<p>Once again let’s generate a simple model that produces different counts based on whether you’re a male or female. Here’s one way to accomplish that using the same model as before, but this time with a dispersion parameter that we’ve set to 0.5. (Since the dispersion parameter is in the denominator, smaller values actually lead to more dispersion.)</p>
+<pre class="r"><code>set.seed(5)
+n &lt;- 500
+male &lt;- sample(c(0,1), size = n, replace = TRUE)
+y_sim &lt;- rnbinom(n = n, 
+                 mu = exp(-2 + 0.7 * (male == 1)), 
+                 size = 0.05)</code></pre>
+<p>A quick call to table shows us how the counts break down:</p>
+<pre class="r"><code>table(y_sim, male)</code></pre>
+<pre><code>##      male
+## y_sim   0   1
+##    0  236 222
+##    1   13   6
+##    2    4   4
+##    3    2   4
+##    4    1   1
+##    5    1   2
+##    6    0   3
+##    11   0   1</code></pre>
+<p>We know we generated the data using a negative binomial distribution, but let’s first fit it with a Poisson model and see what we get.</p>
+<pre class="r"><code>m2 &lt;- glm(y_sim ~ male, family = poisson)
+summary(m2)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y_sim ~ male, family = poisson)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.7536  -0.7536  -0.5293  -0.5293   7.6824  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  -1.9656     0.1667 -11.793  &lt; 2e-16 ***
+## male          0.7066     0.2056   3.437 0.000589 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for poisson family taken to be 1)
+## 
+##     Null deviance: 577.19  on 499  degrees of freedom
+## Residual deviance: 564.71  on 498  degrees of freedom
+## AIC: 677.76
+## 
+## Number of Fisher Scoring iterations: 7</code></pre>
+<p>The model certainly looks “significant”. The estimated coefficients are not too far off from the “true” values of -2 and 0.5. But how does this model fit? Let’s make a rootogram.</p>
+<pre class="r"><code>countreg::rootogram(m2)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p>That doesn’t look good. The Poisson model underfits 0 and 3 counts and way overfits 1 counts.</p>
+<p>Now let’s fit the appropriate model. For this we need to load the MASS package which has the <code>glm.nb</code> function.</p>
+<pre class="r"><code>library(MASS)
+m3 &lt;- glm.nb(y_sim ~ male)
+summary(m3)</code></pre>
+<pre><code>## 
+## Call:
+## glm.nb(formula = y_sim ~ male, init.theta = 0.06023302753, link = log)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.4582  -0.4582  -0.3805  -0.3805   1.9220  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  -1.9656     0.3039  -6.467    1e-10 ***
+## male          0.7066     0.4186   1.688   0.0914 .  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Negative Binomial(0.0602) family taken to be 1)
+## 
+##     Null deviance: 120.69  on 499  degrees of freedom
+## Residual deviance: 117.84  on 498  degrees of freedom
+## AIC: 433.23
+## 
+## Number of Fisher Scoring iterations: 1
+## 
+## 
+##               Theta:  0.0602 
+##           Std. Err.:  0.0137 
+## 
+##  2 x log-likelihood:  -427.2270</code></pre>
+<p>Notice the coefficients are identical to the Poisson model but the standard errors are much larger. Also notice we get an estimate for “Theta”. That’s the model’s estimated dispersion parameter. It’s not too far off from the “true” value of 0.05. How does the rootogram look?</p>
+<pre class="r"><code>countreg::rootogram(m3)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p>Much better! Not perfect but definitely better than what we saw with the Poisson model. The AIC for the negative binomial model is also much lower than the Poisson model (433 vs 677). It’s always a good idea to evaluate multiple pieces of information when comparing models.</p>
+</div>
+<div id="the-zero-inflated-negative-binomial-model" class="section level2">
+<h2>The Zero-Inflated Negative-Binomial Model</h2>
+<p>The negative-binomial distribution allows us to model counts with overdispersion (ie, variance is greater than the mean). But we often see another phenomenon with counts: excess zeros. This occurs in populations where some subjects will never perform or be observed experiencing the activity of interest. Think of modeling the number of servings of meat people eat in a day. There will likely be excess zeros because many people simply don’t eat meat. We have a mixture of populations: people who never eat meat, and those that do but will sometimes eat no meat in a given day. That leads to an inflation of zeros.</p>
+<p>We can simulate such data by <em>mixing</em> distributions. Below we first simulate a series of ones and zeros from a binomial distribution. The probability is set to 0.9, which implies that about 0.1 of the data will be zeros. We then simulate data from a negative binomial distribution based on the binomial distribution. If the original data was 0 from the binomial distribution, it remains a 0. Otherwise we sample from a negative binomial distrbution, which could also be a 0.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> Think of this distribution as the meat-eaters. Some of them will occassionally not eat meat in a given day. Finally we plot the data and note the spike of zeros.</p>
+<pre class="r"><code>set.seed(6)
+n &lt;- 1000
+male &lt;- sample(c(0,1), size = n, replace = TRUE)
+z &lt;- rbinom(n = n, size = 1, prob = 0.9) 
+# mean(z == 0)
+y_sim &lt;- ifelse(z == 0, 0, 
+                rnbinom(n = n, 
+                        mu = exp(1.3 + 1.5 * (male == 1)), 
+                        size = 2))
+# table(y_sim, male)
+barplot(table(y_sim))</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p>Going the other direction, if we wanted to model such data (ie, get some estimate of the process that generated the data) we would use a zero-inflated model. The <code>pscl</code> package provides a function that helps us do this called <code>zeroinfl</code>. It works like the <code>glm</code> and <code>glm.nb</code> functions but the formula accommodates two specifications: one for the process generating counts (including possible zeros) and the other for the process generating just zeros. The latter is specified after the pipe symbol <code>|</code>. We also have to specify the count distribution we suspect models the data. Below would be the correct model since it matches how we simulated the data. The first half of the formula is the process for the counts. We include <code>male</code> because <code>mu</code> was conditional on <code>male</code>. After the pipe, we just include the number 1, which means fit an intercept only. That’s correct, because the probability of zero was not conditional on anything.</p>
+<pre class="r"><code>library(pscl)
+m4 &lt;- zeroinfl(y_sim ~ male | 1, dist = &quot;negbin&quot;)
+summary(m4)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = y_sim ~ male | 1, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.1500 -0.7180 -0.1301  0.4628  5.8656 
+## 
+## Count model coefficients (negbin with log link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  1.35238    0.04551  29.714   &lt;2e-16 ***
+## male         1.42123    0.05709  24.894   &lt;2e-16 ***
+## Log(theta)   0.69065    0.07192   9.602   &lt;2e-16 ***
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  -2.0947     0.1334  -15.71   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 1.995 
+## Number of iterations in BFGS optimization: 10 
+## Log-likelihood: -3007 on 4 Df</code></pre>
+<p>In the summary we see we came close to recovering the true parameters of 1.3 and 1.5 we used in the <code>rnbinom</code> function. The summary returns a logged version of theta. If we exponentiate we see that we also came close to recovering the “true” dispersion parameter of 2. (Theta is also available at the bottom of the summary.)</p>
+<pre class="r"><code>exp(0.69065)</code></pre>
+<pre><code>## [1] 1.995012</code></pre>
+<p>The bottom half of the summary shows the estimated model for the zero generating process. This is a logistic regression model. The intercept is on the log-odds scale. To convert that to probability we could take the inverse logit, which we can do with the <code>plogis</code> function. We see that it comes very close to recovering the “true” probability of a zero:</p>
+<pre class="r"><code>plogis(-2.0947)</code></pre>
+<pre><code>## [1] 0.109613</code></pre>
+<p>We can also use a rootogram to assess model fit:</p>
+<pre class="r"><code>countreg::rootogram(m4)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-24-1.png" width="672" /></p>
+<p>The resulting plot looks pretty good. The red line is our mixture model. We see that our model accommodates the inflated zeros and then tapers down to accommodate the overdispersed count data.</p>
+<p>What happens if we fit a zero-inflated model but misspecify the distribution? Let’s find out. Below we use <code>zeroinfl</code> with a Poisson distribution.</p>
+<pre class="r"><code>m5 &lt;- zeroinfl(y_sim ~ male | 1, dist = &quot;poisson&quot;)
+summary(m5)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = y_sim ~ male | 1, dist = &quot;poisson&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.9408 -1.0843 -0.2559  0.9142 10.4785 
+## 
+## Count model coefficients (poisson with log link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  1.46641    0.02563   57.21   &lt;2e-16 ***
+## male         1.31893    0.02814   46.88   &lt;2e-16 ***
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -1.65062    0.08837  -18.68   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Number of iterations in BFGS optimization: 6 
+## Log-likelihood: -4303 on 3 Df</code></pre>
+<p>The summary looks good if we go by stars. But there’s not much there to assess model fit. Again the rootogram is an invaluable visual aid.</p>
+<pre class="r"><code>countreg::rootogram(m5)</code></pre>
+<p><img src="/post/2019-08-29-simulating-data-for-count-models_files/figure-html/unnamed-chunk-26-1.png" width="672" /></p>
+<p>Although we have a good model for the inflated zeros, our count model is lacking as indicated by the wavy pattern of alternating instances of over and underfitting.</p>
+<p>We could also generate counts where both processes depend on being male. Below we use a logistic regression model to generate probabilities of zero. (See our post <a href="https://uvastatlab.github.io/2019/05/04/simulating-a-logistic-regression-model/">Simulating a Logistic Regression Model</a> for more information.) If you’re female the probability of a 0 count is about 0.69. For males, the probability is about 0.27. Then we generate counts using a negative-binomial model as before.</p>
+<pre class="r"><code>set.seed(7)
+n &lt;- 1000
+male &lt;- sample(c(0,1), size = n, replace = TRUE)
+z &lt;- rbinom(n = n, size = 1, 
+            prob = 1/(1 + exp(-(-0.8 + 1.8 * (male == 1))))) 
+y_sim &lt;- ifelse(z == 0, 0, 
+                rnbinom(n = n, 
+                        mu = exp(1.3 + 1.5 * (male == 1)), 
+                        size = 2))</code></pre>
+<p>The correct model to recover the “true” values needs to include <code>male</code> in both formulas, as demonstrated below:</p>
+<pre class="r"><code>m6 &lt;- zeroinfl(y_sim ~ male | male, dist = &quot;negbin&quot;)
+summary(m6)</code></pre>
+<pre><code>## 
+## Call:
+## zeroinfl(formula = y_sim ~ male | male, dist = &quot;negbin&quot;)
+## 
+## Pearson residuals:
+##     Min      1Q  Median      3Q     Max 
+## -0.9378 -0.4626 -0.4626  0.3721  5.5882 
+## 
+## Count model coefficients (negbin with log link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  1.35608    0.08008  16.934  &lt; 2e-16 ***
+## male         1.43752    0.08901  16.150  &lt; 2e-16 ***
+## Log(theta)   0.63396    0.08589   7.381 1.57e-13 ***
+## 
+## Zero-inflation model coefficients (binomial with logit link):
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)   0.7761     0.1106   7.018 2.25e-12 ***
+## male         -1.8474     0.1507 -12.257  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1 
+## 
+## Theta = 1.8851 
+## Number of iterations in BFGS optimization: 11 
+## Log-likelihood: -2310 on 5 Df</code></pre>
+<p>Once again we come close to getting back the “true” values we used to simulate the data. The bottom half of the summary says that females have about a 68% percent chance of always being 0.</p>
+<pre class="r"><code>plogis(0.7761)</code></pre>
+<pre><code>## [1] 0.684839</code></pre>
+<p>Adding the male coefficient allows us to get the expected probability that a male is always a 0 count, about 26%.</p>
+<pre class="r"><code>plogis(0.7761 + -1.8474) </code></pre>
+<pre><code>## [1] 0.2551559</code></pre>
+<p>These are close to the “true” probablities we assigned in the logistic regression model:</p>
+<pre class="r"><code># female
+1 - 1/(1 + exp(-(-0.8)))</code></pre>
+<pre><code>## [1] 0.6899745</code></pre>
+<pre class="r"><code># male
+1 - 1/(1 + exp(-(-0.8 + 1.8)))</code></pre>
+<pre><code>## [1] 0.2689414</code></pre>
+<p>Try fitting some “wrong” models to the data and review the rootograms to see the lack of fit.</p>
+<p>Hopefully you now have a little better understanding of how to simulate and model count data. For additional reading, see our other blog posts, <a href="https://uvastatlab.github.io/2016/05/05/getting-started-with-negative-binomial-regression-modeling/">Getting started with Negative Binomial Regression Modeling</a> and <a href="https://uvastatlab.github.io/2016/06/01/getting-started-with-hurdle-models/">Getting Started with Hurdle Models</a>.</p>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>The <code>VGAM</code> package provides a function called <code>rzinegbin</code> to generate data from a zero-inflated negative-binomial distribution. To replicate what we did “by hand”: <code>rzinegbin(n = n, munb = exp(1.3 + 1.5 * (male == 1)), size = 2, pstr0 = 0.1)</code><a href="#fnref1" class="footnote-back">↩</a></p></li>
+</ol>
+</div>
