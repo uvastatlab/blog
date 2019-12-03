@@ -41,7 +41,7 @@ There are two repositories for StatLab Articles: **blog** and **uvastatlab.githu
 
 
 	
-## Start and work on a new bog post
+## Start and work on a new blog post
 
 - Before starting make sure your fork is in sync with original repo
     * `git pull upstream master`
