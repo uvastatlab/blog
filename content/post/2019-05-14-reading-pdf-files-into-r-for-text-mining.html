@@ -40,13 +40,11 @@ library(pdftools)</code></pre>
 <p>And we’re pretty much done! The PDF files are now in R, ready to be cleaned up and analyzed. If you want to see what has been read in, you could enter the following in the console, but it’s going to produce unpleasant blocks of text littered with Character Escapes such as <code>\r</code> and <code>\n</code>.</p>
 <pre class="r"><code>opinions</code></pre>
 <p>When text has been read into R, we typically proceed to some sort of analysis. Here’s a quick demo of what we could do with the <code>tm</code> package. (tm = text mining)</p>
-<p>First we load the tm package and then create a corpus, which is basically a database for text. Notice that instead of working with the opinions object we created earlier, we start over.</p>
+<p>First we load the tm package and then create a corpus, which is basically a database for text.</p>
 <pre class="r"><code># install.packages(&quot;tm&quot;)
 library(tm)</code></pre>
-<pre class="r"><code>corp &lt;- Corpus(URISource(files),
-               readerControl = list(reader = readPDF))</code></pre>
-<p>The <code>Corpus</code> function creates a corpus. The first argument to <code>Corpus</code> is what we want to use to create the corpus. In this case, it’s the vector of PDF files. To do this, we use the <code>URISource</code> function to indicate that the files vector is a URI source. URI stands for Uniform Resource Identifier. In other words, we’re telling the <code>Corpus</code> function that the vector of file names identifies our resources. The second argument, <code>readerControl</code>, tells <code>Corpus</code> which reader to use to read in the text from the PDF files. That would be <code>readPDF</code>, a tm function. The <code>readerControl</code> argument requires a list of control parameters, one of which is <code>reader</code>, so we enter <code>list(reader = readPDF)</code>. Finally we save the result to an object called “corp”.</p>
-<p>It turns out that the <code>readPDF</code> function in the tm package actually <em>creates</em> a function that reads in PDF files. The documentation tells us it uses the <code>pdftools::pdf_text</code> function as the default, which is the same function we used above. (<code>?readPDF</code>)</p>
+<pre class="r"><code>corp &lt;- VCorpus(VectorSource(opinions))</code></pre>
+<p>The <code>VCorpus</code> function creates a <em>volatile corpus</em>, which means it’s kept in memory for the duration of the R session. The argument to <code>VCorpus</code> is what we want to use to create the corpus. In this case, it’s the opinions object, which is a list of the 3 opinions. To do this, we have to create a <em>Source object</em> using the <code>VectorSource</code> function. Finally we save the resulting corpus to an object called “corp”.</p>
 <p>Now that we have a corpus, we can create a term-document matrix, or TDM for short. A TDM stores counts of terms for each document. The tm package provides a function to create a TDM called <code>TermDocumentMatrix</code>.</p>
 <pre class="r"><code>opinions.tdm &lt;- TermDocumentMatrix(corp, 
                                    control = 
@@ -113,14 +111,12 @@ library(tm)</code></pre>
 <pre class="r"><code>findFreqTerms(opinions.tdm, 
               lowfreq = 100, 
               highfreq = Inf)</code></pre>
-<pre><code>##  [1] &quot;also&quot;      &quot;amend&quot;     &quot;ant&quot;       &quot;case&quot;      &quot;cite&quot;     
-##  [6] &quot;claus&quot;     &quot;congress&quot;  &quot;constitut&quot; &quot;cost&quot;      &quot;court&quot;    
-## [11] &quot;decis&quot;     &quot;dissent&quot;   &quot;district&quot;  &quot;effect&quot;    &quot;elect&quot;    
-## [16] &quot;execut&quot;    &quot;feder&quot;     &quot;find&quot;      &quot;justic&quot;    &quot;law&quot;      
-## [21] &quot;major&quot;     &quot;make&quot;      &quot;may&quot;       &quot;one&quot;       &quot;opinion&quot;  
-## [26] &quot;petition&quot;  &quot;power&quot;     &quot;reason&quot;    &quot;requir&quot;    &quot;see&quot;      
-## [31] &quot;state&quot;     &quot;time&quot;      &quot;tion&quot;      &quot;unit&quot;      &quot;use&quot;      
-## [36] &quot;year&quot;</code></pre>
+<pre><code>##  [1] &quot;also&quot;      &quot;amend&quot;     &quot;ant&quot;       &quot;case&quot;      &quot;cite&quot;      &quot;claus&quot;    
+##  [7] &quot;congress&quot;  &quot;constitut&quot; &quot;cost&quot;      &quot;court&quot;     &quot;decis&quot;     &quot;dissent&quot;  
+## [13] &quot;district&quot;  &quot;effect&quot;    &quot;elect&quot;     &quot;execut&quot;    &quot;feder&quot;     &quot;find&quot;     
+## [19] &quot;justic&quot;    &quot;law&quot;       &quot;major&quot;     &quot;make&quot;      &quot;may&quot;       &quot;one&quot;      
+## [25] &quot;opinion&quot;   &quot;petition&quot;  &quot;power&quot;     &quot;reason&quot;    &quot;requir&quot;    &quot;see&quot;      
+## [31] &quot;state&quot;     &quot;time&quot;      &quot;tion&quot;      &quot;unit&quot;      &quot;use&quot;       &quot;year&quot;</code></pre>
 <p>To see the counts of those words we could save the result and use it to subset the TDM. Notice we have to use <code>as.matrix</code> to see the print out of the subsetted TDM.</p>
 <pre class="r"><code>ft &lt;- findFreqTerms(opinions.tdm, 
                     lowfreq = 100, 
@@ -167,27 +163,25 @@ as.matrix(opinions.tdm[ft,])</code></pre>
 <p>To see the total counts for those words, we could save the matrix and apply the <code>sum</code> function across the rows:</p>
 <pre class="r"><code>ft.tdm &lt;- as.matrix(opinions.tdm[ft,])
 sort(apply(ft.tdm, 1, sum), decreasing = TRUE)</code></pre>
-<pre><code>##     state     court       see    execut constitut   dissent   opinion 
-##       814       597       349       309       275       245       232 
-##      cost     power       use      case     elect  district    effect 
-##       229       221       190       188       183       175       166 
-##      cite     amend       law       one       may  petition     major 
-##       157       150       147       144       142       141       134 
-##      year     claus    justic      find      unit       ant      tion 
-##       133       128       125       123       123       120       120 
-##      make  congress    requir     feder      also      time    reason 
-##       118       116       114       113       111       111       105 
-##     decis 
-##       101</code></pre>
+<pre><code>##     state     court       see    execut constitut   dissent   opinion      cost 
+##       814       597       349       309       275       245       232       229 
+##     power       use      case     elect  district    effect      cite     amend 
+##       221       190       188       183       175       166       157       150 
+##       law       one       may  petition     major      year     claus    justic 
+##       147       144       142       141       134       133       128       125 
+##      find      unit       ant      tion      make  congress    requir     feder 
+##       123       123       120       120       118       116       114       113 
+##      also      time    reason     decis 
+##       111       111       105       101</code></pre>
 <p>Many more analyses are possible. But again the main point of this tutorial was how to read in text from PDF files for text mining. Hopefully this provides a template to get you started.</p>
 <p>For questions or clarifications regarding this article, contact the UVa Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
 <p><em>Clay Ford</em><br />
 <em>Statistical Research Consultant</em><br />
 <em>University of Virginia Library</em></p>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 3.6.0 (2019-04-26)
+<pre><code>## R version 3.6.1 (2019-07-05)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
-## Running under: Windows 10 x64 (build 17134)
+## Running under: Windows 10 x64 (build 18362)
 ## 
 ## Matrix products: default
 ## 
@@ -202,12 +196,12 @@ sort(apply(ft.tdm, 1, sum), decreasing = TRUE)</code></pre>
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-## [1] tm_0.7-6     NLP_0.2-0    pdftools_2.2
+## [1] tm_0.7-6     NLP_0.2-0    pdftools_2.3
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] Rcpp_1.0.1      bookdown_0.9    digest_0.6.18   SnowballC_0.6.0
-##  [5] slam_0.1-45     magrittr_1.5    evaluate_0.13   blogdown_0.11  
-##  [9] stringi_1.4.3   xml2_1.2.0      qpdf_1.1        rmarkdown_1.12 
-## [13] tools_3.6.0     stringr_1.4.0   parallel_3.6.0  xfun_0.6       
-## [17] yaml_2.2.0      compiler_3.6.0  askpass_1.1     htmltools_0.3.6
-## [21] knitr_1.22</code></pre>
+##  [1] Rcpp_1.0.3      bookdown_0.16   digest_0.6.23   SnowballC_0.6.0
+##  [5] slam_0.1-46     magrittr_1.5    evaluate_0.14   blogdown_0.17  
+##  [9] rlang_0.4.2     stringi_1.4.3   xml2_1.2.2      qpdf_1.1       
+## [13] rmarkdown_1.18  tools_3.6.1     stringr_1.4.0   parallel_3.6.1 
+## [17] xfun_0.11       yaml_2.2.0      compiler_3.6.1  askpass_1.1    
+## [21] htmltools_0.4.0 knitr_1.26</code></pre>

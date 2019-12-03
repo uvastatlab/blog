@@ -76,7 +76,7 @@ opinions
 
 When text has been read into R, we typically proceed to some sort of analysis. Here's a quick demo of what we could do with the `tm` package. (tm = text mining) 
 
-First we load the tm package and then create a corpus, which is basically a database for text. Notice that instead of working with the opinions object we created earlier, we start over. 
+First we load the tm package and then create a corpus, which is basically a database for text. 
 
 ```{r include=FALSE}
 corp <- readRDS("../../static/data/corp.Rds")
@@ -92,15 +92,12 @@ library(tm)
 
 
 ```{r eval=FALSE}
-corp <- Corpus(URISource(files),
-               readerControl = list(reader = readPDF))
+corp <- VCorpus(VectorSource(opinions))
 
 ```
 
 
-The <code>Corpus</code> function creates a corpus. The first argument to <code>Corpus</code> is what we want to use to create the corpus. In this case, it's the vector of PDF files. To do this, we use the <code>URISource</code> function to indicate that the files vector is a URI source. URI stands for Uniform Resource Identifier. In other words, we're telling the <code>Corpus</code> function that the vector of file names identifies our resources. The second argument, <code>readerControl</code>, tells <code>Corpus</code> which reader to use to read in the text from the PDF files. That would be <code>readPDF</code>, a tm function. The <code>readerControl</code> argument requires a list of control parameters, one of which is <code>reader</code>, so we enter <code>list(reader = readPDF)</code>. Finally we save the result to an object called "corp".
-
-It turns out that the `readPDF` function in the tm package actually _creates_ a function that reads in PDF files. The documentation tells us it uses the `pdftools::pdf_text` function as the default, which is the same function we used above. (`?readPDF`)
+The <code>VCorpus</code> function creates a _volatile corpus_, which means it's kept in memory for the duration of the R session. The argument to <code>VCorpus</code> is what we want to use to create the corpus. In this case, it's the opinions object, which is a list of the 3 opinions. To do this, we have to create a _Source object_ using the <code>VectorSource</code> function. Finally we save the resulting corpus to an object called "corp".
 
 Now that we have a corpus, we can create a term-document matrix, or TDM for short. A TDM stores counts of terms for each document. The tm package provides a function to create a TDM called <code>TermDocumentMatrix</code>.
 
