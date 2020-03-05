@@ -1,0 +1,207 @@
+---
+title: Creating a SQLite database for use with R
+author: Clay Ford
+date: '2020-03-05'
+slug: creating-a-sqlite-database-for-use-with-r
+categories:
+  - R
+tags:
+  - data wrangling
+---
+
+When you import or load data into R, the data are stored in Random Access Memory (RAM). This is the memory that is deleted when you close R or shut off your computer. It's very fast but temporary. If you save your data, it is saved to your hard drive. But when you open R again and load the data, once again it is loaded into RAM. While many newer computers come with lots of RAM (such as 16 GB), it's not an infinite amount. When you open RStudio, you're using RAM even if no data is loaded. Open a web browser or any other program and they too are loaded into RAM. So even if your computer has 16 GB of RAM, you can assume you have much less than that for loading data into R.
+
+So what can we do with R when we have data that is too large to fit into RAM but small enough to store on our computer? One option is to create a database that is stored on our hard drive, and then use R to connect to and query the database. This allows us to load only what we need into RAM. For example if our database has 20,000,000 rows and 45 columns, but we only need 50,000 rows and 3 columns, we can query the database and load into memory just the subset of data we want.
+
+In this post we demonstrate how to create a SQLite database. SQLite is free and relatively easy to use. For an introduction to the SQL language, do a web search for "getting started with SQL" or something similar. There are many tutorials available on the web. In this post, however, we are concerned with simply creating a database on our computer, loading data into it, and then using the R package `dplyr` to query the database and pull a subset of the data into memory for further analysis. 
+
+## NYC Parking Violations
+
+For demonstration purposes, we will use 2017 Parking Violation data from [NYC OpenData](https://data.cityofnewyork.us/City-Government/Parking-Violations-Issued-Fiscal-Year-2017/2bnn-yakx). The data is a 2 GB CSV file with over 10 million rows and 43 columns. While it could probably be loaded into RAM, we think it might be better accessed via a database. Plus once we have the database created we may want to add other years such as 2018, 2019 and so on.
+
+To follow along, download the data as a CSV file by clicking on the Export button, selecting CSV, and saving the file as `pvi_2017.csv`. It is also worth noting that an [API](https://dev.socrata.com/foundry/data.cityofnewyork.us/2bnn-yakx) is available for working with this data. An API allows you to submit a query using a URL to retrieve a subset of the data you want. That is often a better solution than creating an on-disk database as we're about to demonstrate. But let's pretend no API is available, or that we really do need a local copy of this data for one reason or another.
+
+## Installing SQLite
+
+The first thing to do is to [download SQLite](https://sqlite.org/download.html). Pick the Precompiled Binaries for your operating system. Our computer runs Windows 10, so we selected the zip file under Precompiled Binaries for Windows labeled as "A bundle of command-line tools for managing SQLite database files."
+
+After the zip file is downloaded, unzip it. In Windows, right click on it and select Extract All. That's all there is to it. To open SQLite, double-click on sqlite3.exe. A simple command line interface will open with a `sqlite>` prompt.
+
+## Creating a database
+
+Now we're ready to create a database. Before we do that though, you'll probably want to change the working directory of SQLite. We can do that with the `.cd` command. For example, let's say we have a folder on our desktop called 'data', then we would change our working directory as follows using the SQLite command line interface:
+
+```
+sqlite> .cd 'C:\Users\clayford\Desktop\data'
+```
+Don't type `sqlite>`. That's the prompt. Type what's after the prompt. Obviously your path will be specific to your computer. 
+
+Now create the database by using the `.open` command. Assuming you don't already have a database called "pvi.db", this will create a new empty database called "pvi.db".
+
+```
+sqlite> .open pvi.db
+```
+
+The next step is to import the CSV file into the database. We can do that with the following commands:
+
+```
+sqlite> .mode csv
+sqlite> .import pvi_2017.csv pvi
+```
+
+The first command `.mode csv` tells SQLite to interpret the file as a CSV file. The next command `.import pvi_2017.csv pvi` imports the "pvi_2017.csv" file into a _table_ called "pvi". You can name the table whatever you want. A database usually contains multiple tables. In this example we just have one. The second command will likely take a minute or two to finish. When it's finished you will see the `sqlite>` prompt ready for another command. 
+
+To see the column names in the pvi table, enter `.schema` at the `sqlite>` prompt. You should see 43 column names along with their storage type. 
+
+If some or all the columns are being imported with the wrong or an undesirable data type, it is possible to create an empty table prior to import with data type pre-defined. This takes a little more work, but may allow you to make more sophisticated queries. 
+
+For example, after we imported the data, we noticed SQLite set all column data types to TEXT. This is not ideal as there are several columns that are better expressed as integers. Here's one way we could have created the table in advance with specified data types using a SQL command. (We typed the following code in a text editor and then copied and pasted into sqlite.) This would follow the `.open pvi.db` command above.  
+
+The first line says we want to create a table called "pvi". Notice we don’t need a period before create. Commands preceded by a period are known as dot commands and are specific to the sqlite3 program. In this case we are just running a SQL command. Next we open a parenthesis and begin defining the column names. We simply copied the column names from the NYC OpenData site and surrounded with square brackets. The square brackets are required whenever you have a space in your column name. After each column name we define the data type. `int` is integer. `varchar(n)` is variable length character data with maximum length n. For some variables we knew the maximum length. For others we weren't sure and entered 256 as a safe but not too big length. (See [this page](https://www.w3schools.com/sql/sql_datatypes.asp) for a nice overview of SQL data types.) Finally we end with a closing parenthesis and a semi-colon. SQL commands end with a semi-colon.
+
+```
+sqlite> create table pvi (
+[Summons Number] int,
+[Plate ID] varchar(10),
+[Registration State] varchar(4),
+[Plate Type] varchar(5),
+[Issue Date] varchar(20),
+[Violation Code Number] int,
+[Vehicle Body Type] varchar(256),
+[Vehicle Make] varchar(256),
+[Issuing Agency] varchar(256),
+[Street Code1] int,
+[Street Code2] int,
+[Street Code3] int,
+[Vehicle Expiration Date] int,
+[Violation Location] varchar(256),
+[Violation Precinct] int,
+[Issuer Precinct] int,
+[Issuer Code] int,
+[Issuer Command] varchar(256),
+[Issuer Squad] varchar(256),
+[Violation Time] varchar(256),
+[Time First Observed] varchar(256),
+[Violation County] varchar(256),
+[Violation In Front Of Or Opposite] varchar(256),
+[House Number] varchar(256),
+[Street Name] varchar(256),
+[Intersecting Street] varchar(256),
+[Date First Observed] int,
+[Law Section] int,
+[Sub Division] varchar(256),
+[Violation Legal Code] varchar(256),
+[Days Parking In Effect]  varchar(256),
+[From Hours In Effect] varchar(256),
+[To Hours In Effec]t varchar(256),
+[Vehicle Color] varchar(256),
+[Unregistered Vehicle?] varchar(256),
+[Vehicle Year] int,
+[Meter] int,
+[Feet From Curb] int,
+[Violation Post Code] varchar(256),
+[Violation Description] varchar(256),
+[No Standing or Stopping Violation] varchar(256),
+[Hydrant Violation] varchar(256),
+[Double Parking Violation] varchar(256)
+);
+```
+Once the table is created, then we can import the csv file using the same code from above:
+
+```
+sqlite> .mode csv
+sqlite> .import pvi_2017.csv pvi
+```
+
+The only catch is, since the table was already created, the `.import` command will import the entire CSV file _including the header_. That means we need to do a little minor clean up once the import finishes to remove the extra record with the column names. One way we can do that is as follows:
+
+```
+sqlite> delete from pvi where typeof([Violation Code Number]) == "text";
+```
+
+This says find the row where the data type in the Violation Code Number cell is text, and delete it. According to our table specification, Violation Code Number should be an integer. If there's a cell in that column that is type text, that means the entire row is the extra column headers.
+
+## Adding an index to the database
+
+It can help to add an index, or several indices, to a database. This can speed up queries. For more on the logic behind adding an index, see [Query Planning](https://www.sqlite.org/queryplanner.html) on the SQLite web site. For now we show you how to add them. 
+
+Let's say we know that we will be making queries by Registration State. This is the state license plate of the car. Here's how we can add an index for Registration State.
+
+```
+sqlite> create index [Registration State] on pvi([Registration State]);
+```
+
+In this case we are just running a SQL command to create an index, so we don't need a dot before the command. Notice the square brackets around "Registration State". That's because there is a space in the name. That was the column name in the original CSV file. If the name had been "RegistrationState", then we would not have needed the square brackets. Once again notice the ending semi-colon. Without that, sqlite will return a new prompt with 3 dots. That means you submitted an incomplete SQL command and sqlite is awaiting the rest of the command. 
+
+You can create more indices if you like using the syntax above as a template. The general guideline is to create indices for columns of interest, particularly those that you will use to subset or filter the data.
+
+Once you're done, you can exit the sqlite program by typing `.exit` and hitting Enter.
+
+```
+sqlite> .exit
+```
+
+## Connect to the database in R
+
+Now that we have our database locally stored on our hard drive, we're ready to connect to it in R and query it. To do this we'll need to install the DBI, dplyr, dbplyr and RSQLite packages.
+
+```{r eval=FALSE}
+install.packages(c("DBI", "dplyr", "dbplyr", "RSQLite"))
+```
+
+Once installed, we only need to load the DBI and dplyr packages.
+
+```{r message=FALSE}
+library(DBI)
+library(dplyr)
+```
+
+We establish the database connection using the `dbConnect` function from the DBI package. The first arguments says we want to use the SQLite driver from the RSQLite package. The second argument is the name of our database that we just created. We assign the result to `con`, but you can name it something else if you wish. For the following code to work you need to set your working directory to where the database is located. 
+
+```{r eval=FALSE}
+setwd("C:/path/to/pvi.db")
+con <- dbConnect(RSQLite::SQLite(), "pvi.db")
+```
+
+With the connection established, we make a reference to it using the `tbl` function in the `dplyr` package. The first argument is our connection, the second is the table in the database we want to access. In this case it has the same name as our database but it would typically have a different name.
+
+```{r eval=FALSE}
+pvi <- tbl(con, "pvi")
+```
+
+## Submit queries to the database
+
+With our connection to the database established we can use `dplyr` commands to query the data just as if it was loaded into our workspace as a data frame. For example, let's say we wanted to analyze just parking violations for cars with New Jersey licenese plates. Here's how we could pull just those records from the database and load into RAM:
+
+```{r eval=FALSE}
+NJ <- pvi %>% 
+  filter(`Registration State` == "NJ") %>% 
+  select(`Plate ID`, `Vehicle Make`, `Violation Description`) %>% 
+  collect()
+```
+
+This says take the pvi table and then return rows where `Registration State` equals "NJ", and then only return three columns: Plate ID, Vehicle Make, and Violation Description. The final function, `collect()`, pulls the data into a local data frame. Without `collect()`, the result would simply be a query. To actually pull the data into our workspace, we need to include `collect()`. Because we indexed the database by Registration State, the query is relatively fast and only takes a few seconds. 
+
+When finished working with the database, disconnect from it using the following code:
+
+```{r eval=FALSE}
+dbDisconnect(con)
+```
+
+## Going further
+
+This was a basic intro to creating a SQLite database with one table from a single CSV file. To learn more about SQLite and working with databases in R see the following resources:
+
+- [dbplyr vignette](https://cran.r-project.org/web/packages/dbplyr/vignettes/dbplyr.html)
+- Nicholas Horton's [Building precursors to data science](https://nhorton.people.amherst.edu/precursors/). In particular, see the Airline delay example using a large SQLite database
+
+For questions or clarifications regarding this article, contact the UVa Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+
