@@ -135,6 +135,8 @@ predict(mod.hurdle, type = "response")[1:5]
 
 ```
 
+(For details on how the ratio of non-zero probabilities is calculated, see [this note](https://rpubs.com/clayford/hurdle_ratio).)
+
 It appears we have addressed the excess 0's, but what about the overdispersion? We can visualize the fit of this model using a rootogram, available in the <a href="https://r-forge.r-project.org/R/?group_id=522">countreg package</a>:
 
 ```{r message=FALSE, warning=FALSE}
