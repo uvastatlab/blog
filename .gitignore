@@ -2,3 +2,7 @@
 .Rproj.user/
 .Rhistory
 .Rproj.user
+blogdown/
+.DS_Store
+Thumbs.db
+public/
