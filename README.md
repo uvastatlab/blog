@@ -4,6 +4,7 @@ These instructions are intended for University of Virginia StatLab fellows and U
 
 ## Getting started
 
+- Install [Git](https://git-scm.com/downloads). The instructions that follow assume you are using Git Bash, that Git is configured, and that you have a GitHub account. [This page](https://help.github.com/en/github/getting-started-with-github/set-up-git#setting-up-git) has good instructions on getting Git setup.
 - Make sure you are using the latest version of RStudio. (If you already have RStudio installed, go to Help...Check for Updates)
 - Make sure you are using the latest version of R. Go to [https://cloud.r-project.org/](https://cloud.r-project.org/) to see the version of the latest release. Then open RStudio and enter `version` in the console and hit Enter. If the latest release is newer than your version, then download and install the latest version of R. 
 - install the blogdown package from CRAN or GitHub. Depending on how often you use R this may or may not install a lot of additional packages which blogdown depends on. This can take a minute or two.
@@ -30,15 +31,16 @@ There are two repositories for StatLab Articles: **blog** and **uvastatlab.githu
 
 - Fork both repositories by clicking the Fork button on GitHub; both repos will be copied to your GitHub account
 - Clone the forked repos to your computer:
-    * Let's start with the 'blog' repo. Click the green 'Clone or download' button in your forked version of the 'blog' repo
-	* highlight and copy the URL (eg: https://github.com/your_github_user_name/blog.git OR git@github:your_github_user_name/blog.git, if you're set up with SSH)
+    * Let's start with the 'blog' repo. Click the green 'Clone or download' button in your forked version of the 'blog' repo. You'll have to click on the repo in GitHub to see the button. It will be on the right side of the page.
+	* highlight and copy the URL (eg: https://github.com/your_github_user_name/blog.git OR git@github:your_github_user_name/blog.git, if you're set up with [SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh))
 	* Open Git Bash on your computer and navigate to where you want to clone the repo. This is basically downloading the files to your computer. (Google "how to use cd command line unix" if not sure how to change directories at the command line.
 	* Enter `git clone https://github.com/your_github_user_name/blog.git` or `git clone git@github:your_github_user_name/blog.git` at the prompt and hit Enter. You should see a message like "Cloning into 'blog'...
 	* Repeat the steps above for the uvastatlab.github.io repo
 - cd into new repos and add a Git remote that points back to the original repository (the one you FORKED):
+    * `cd blog`
     * `git remote add upstream https://github.com/uvastatlab/blog.git`
+    * `cd ../uvastatlab.gitub.io/`
     * `git remote add upstream https://github.com/uvastatlab/uvastatlab.github.io.git`
-
 
 	
 ## Start and work on a new blog post
