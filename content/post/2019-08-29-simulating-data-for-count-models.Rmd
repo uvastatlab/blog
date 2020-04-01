@@ -328,4 +328,13 @@ Try fitting some "wrong" models to the data and review the rootograms to see the
 
 Hopefully you now have a little better understanding of how to simulate and model count data. For additional reading, see our other blog posts, [Getting started with Negative Binomial Regression Modeling](https://uvastatlab.github.io/2016/05/05/getting-started-with-negative-binomial-regression-modeling/) and [Getting Started with Hurdle Models](https://uvastatlab.github.io/2016/06/01/getting-started-with-hurdle-models/). 
 
+For questions or clarifications regarding this article, contact the UVA 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
 
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
