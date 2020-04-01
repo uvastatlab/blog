@@ -45,36 +45,63 @@ There are two repositories for StatLab Articles: **blog** and **uvastatlab.githu
 	
 ## Start and work on a new blog post
 
-- Before starting make sure your fork is in sync with original repo
-    * `git pull upstream master`
-    * `git push origin master`
+- Before starting make sure your forks are in sync with original repos. Assuming the currenty working directory of GitBash contains the repos, this would look like: 
+    * `cd blog`
+    * `git pull upstream master`   # get the repo on your computer synced to the uvastatlab repo 
+    * `git push origin master`     # push the repo on your computer to your GitHub account
+    * `cd ../uvastatlab.gitub.io/`
+    * `git pull upstream master`   # get the repo on your computer synced to the uvastatlab repo 
+    * `git push origin master`     # push the repo on your computer to your GitHub account
 
 
-- Before starting work on your blog post, create a new branch in both repos!
+- Before starting work on your blog post, **create a new branch in both repos!**. Assuming the currenty working directory of GitBash contains the repos, this would look like: 
+    * `cd blog` 
     * `git checkout -b new_branch_name `
+    * `cd ../uvastatlab.github.io/`
+    * `git checkout -b new_branch_name `   
 	
+TIP: up and down arrows recall command history in GitBash. This can help save time.
 
 - Open RStudio, File...Open Project... and open the "blog" project file in the blog repo
 - Click Addins in the tool bar and click New Post. The first time you do this you may be asked to Install Required Packages. Go ahead and click Yes. You should only have to do this one time.
 - Complete the fields. **Make sure you select R Markdown (.Rmd) as the format!** Click Done. This starts a new Rmd file with a header. 
 - Start working on your blog post using R Markdown. 
 - To preview your work, run `blogdown::serve_site()` at the command line. You should only need to do this once! Thereafter clicking Ctrl + S or Cmd + S should render a preview in the Viewer window. **DO NOT CLICK THE KNIT BUTTON!**
-- Keep working on your blog post until you're ready to publish
+- Keep working on your blog post until you're ready to publish. 
+- Please include the following footer in your blog post: 
+
+````
+For questions or clarifications regarding this article, contact the UVa 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Your Name_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+
+````
 
 
 ## Submit new post to GitHub
 
-- Do the following in both repos
-   *  `git add .`
+- Assuming the currenty working directory of GitBash contains the repos, this would look like:
+   * `cd blog`
+   * `git add .`
    * `git commit -m "descriptive comment"`
-   * `git push origin new_branch_name`
-   * Do in both repos
+   * `git push origin branch_name`
+   * `cd ../uvastatlab.github.io/`          # repeat for uvastatlab.github.io!
+   * `git add .`
+   * `git commit -m "descriptive comment"`
+   * `git push origin branch_name`           # this may take a while if you have slow internet connection
 
 - Open a pull request to the uvastatlab repos. Again have to do in BOTH repos.
-   * Go to your forked version of repo in GitHub
-   * Click the 'Compare & pull request' button. Hopefully you'll see a green message that says "Able to merge"
-   * Click the 'Create pull request' button
-   * Do in both repos
+   * Go to YOUR forked version of repo in GitHub 
+   * Click the green 'Compare & pull request' button. Should be at the top of the page. Hopefully you'll see a green message that says "Able to merge"
+   * Click the green 'Create pull request' button. Hopefully you'll see a message that says "This branch has no conflicts with the base branch."
+   * Do in both repos.
 
 Clay or Michele will either Merge your pull request or reply with comments or changes. 
 
@@ -87,7 +114,7 @@ In the event we reply with changes, implement the changes and resubmit the pull 
 	* Do in both repos
     * There is no need to open another pull request! Your changes will appear to Michele and Clay.
 
-- Once your pull request has been accepted (ie, your blog post is published), you need to do the following in BOTH repos:
+- Once your pull request has been accepted (ie, your blog post is published), you need to do the following in **BOTH repos**:
 	* Fetch from upstream repo: `git fetch upstream` (may need to wait for GitHub to catch up)
     * Check out your fork's local master branch: `git checkout master`
     * merge changes from upstream/master into the local master branch: `git merge upstream/master`
@@ -137,21 +164,6 @@ Clay and Michele can also upload data to https://static.lib.virginia.edu/statlab
 
 For R Markdown posts, you can use $math$ for inline math expressions, and $$math$$ for display-style expressions.
 
-## Please include the following footer in your blog post
-
-````
-For questions or clarifications regarding this article, contact the UVa 
-Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
-
-_Your Name_   
-_Statistical Research Consultant_  
-_University of Virginia Library_  
-
-```{r}
-sessionInfo()
-```
-
-````
 
 ## Rmd file names
 
@@ -161,6 +173,10 @@ It's important to note that the tile of your post will also be used to create th
 
 If the date and title radically change and it bothers you, you can just delete the post and start over. Go to `blog/content/post/` and delete your Rmd file and associated HTML file. **Please be careful! Don't delete the wrong post!** Obviously our site is version controlled and you can restore a deleted file, but it's easier to not have to mess with it. 
 
+## To edit an existing blog post
+
+- Find the post in blog/content/post
+- open the Rmd file (not the html file)
 
 ## Tags and categories
 
