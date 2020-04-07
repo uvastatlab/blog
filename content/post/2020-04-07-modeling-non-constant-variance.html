@@ -1,0 +1,520 @@
+---
+title: Modeling Non-Constant Variance
+author: Clay Ford
+date: '2020-04-07'
+slug: modeling-non-constant-variance
+categories:
+  - R
+tags:
+  - linear regression
+  - simulation
+  - modeling heteroscedasticity
+---
+
+
+
+<p>One of the basic assumptions of linear modeling is constant, or <em>homogeneous</em>, variance. What does that mean exactly? Let’s simulate some data that satisfies this condition to illustrate the concept.</p>
+<p>Below we create a sorted vector of numbers ranging from 1 to 10 called <code>x</code>, and then create a vector of numbers called <code>y</code> that is a function of <code>x</code>. When we plot <code>x</code> vs <code>y</code>, we get a straight line with an intercept of 1.2 and a slope of 2.1.</p>
+<pre class="r"><code>x &lt;- seq(1,10, length.out = 100)
+y &lt;- 1.2 + 2.1 * x
+plot(x, y)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<p>Now let’s add some “noise” to our data so that <code>y</code> is not completely determined by <code>x</code>. We can do that by randomly drawing values from a theoretical Normal distribution with mean 0 and some set variance, and then adding them to the formula that generates <code>y</code>. The <code>rnorm</code> function in R allows us to easily do this. Below we draw 100 random values from a Normal distribution with mean 0 and standard deviation 2 and save as a vector called <code>noise</code>. (Recall that standard deviation is simply the square root of variance.) Then we generate <code>y</code> with the noise added. The function <code>set.seed(222)</code> allows you to get the same “random” data in case you want to follow along. Finally we re-plot the data.</p>
+<pre class="r"><code>set.seed(222)
+noise &lt;- rnorm(n = 100, mean = 0, sd = 2)
+y &lt;- 1.2 + 2.1 * x + noise
+plot(x, y)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Now we have data that is a combination of a linear, deterministic component (<span class="math inline">\(y = 1.2 + 2.1x\)</span>) and random noise drawn from a <span class="math inline">\(N(0, 2)\)</span> distribution. These are the basic assumptions we make about our data when we fit a traditional linear model. Below we use the <code>lm</code> function to “recover” the “true” values we used to generate the data, of which there are three:</p>
+<ul>
+<li>The intercept: 1.2</li>
+<li>The slope: 2.1</li>
+<li>The standard deviation: 2</li>
+</ul>
+<pre class="r"><code>m &lt;- lm(y ~ x)
+summary(m)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -5.5831 -1.2165  0.3288  1.3022  4.3714 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.27426    0.44720   2.849  0.00534 ** 
+## x            2.09449    0.07338  28.541  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.926 on 98 degrees of freedom
+## Multiple R-squared:  0.8926, Adjusted R-squared:  0.8915 
+## F-statistic: 814.6 on 1 and 98 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>The <code>(Intercept)</code> and <code>x</code> (ie, slope) estimates in the Coefficients section, 1.27 and 2.09, are quite close to 1.2 and 2.1, respectively. The Residual standard error of 1.926 is also quite close to the <em>constant value</em> of 2. We produced a “good” model because we knew how <code>y</code> was generated and gave the <code>lm</code> function the “correct” model to fit. While we can’t do this in real life, it’s a useful exercise to help us understand the assumptions of linear modeling.</p>
+<p>Now what if the variance was <em>not</em> constant? What if we multiplied the standard deviation of 2 by the square root of <code>x</code>? As we see in the plot below, the vertical scatter of the points increases as <code>x</code> increases.</p>
+<pre class="r"><code>set.seed(222)
+noise &lt;- rnorm(n = 100, mean = 0, sd = 2 * sqrt(x))
+y &lt;- 1.2 + 2.1 * x + noise
+plot(x, y)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>We multiplied 2 by <code>sqrt(x)</code> because we’re specifying standard deviation. If we could specify variance, we would have multiplied 4 by just <code>x</code>.</p>
+<p>If we fit the same model using <code>lm</code>, we get a Residual Standard error of 4.488.</p>
+<pre class="r"><code>m2 &lt;- lm(y ~ x)
+summary(m2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -15.0460  -2.4013   0.5638   2.8734  10.2996 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)    1.313      1.042    1.26    0.211    
+## x              2.096      0.171   12.26   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 4.488 on 98 degrees of freedom
+## Multiple R-squared:  0.6051, Adjusted R-squared:  0.6011 
+## F-statistic: 150.2 on 1 and 98 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>We know that isn’t right, because we simulated the data. There was no constant standard deviation when we created the “noise”. Each random value was drawn from a different Normal distribution, each with mean 0 but a standard deviation that varied according to <code>x</code>. This means our assumption of <em>constant variance</em> is violated. How would we detect this in real life?</p>
+<p>The most common way is plotting residuals versus fitted values. This is easy to do in R. Just call <code>plot</code> on the model object. This generates four different plots to assess the traditional modeling assumptions. <a href="https://uvastatlab.github.io/2015/09/21/understanding-diagnostic-plots-for-linear-regression-analysis/">See this blog post</a> for more information. The plots we’re interested in are the 1st and 3rd plots, which we can specify with the <code>which</code> argument.</p>
+<pre class="r"><code>plot(m2, which = 1)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<pre class="r"><code>plot(m2, which = 3)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-7-2.png" width="672" /></p>
+<p>In the first plot we see the variability around 0 <em>increase</em> as we move further to the right with bigger fitted values. In the third plot we also see increasing variability as we move to the right, though this time the residuals have been standardized and transformed to the square root scale. The positive trajectory of the smooth red line indicates an <em>increase</em> in variance.</p>
+<p>So now that we’ve confirmed that our assumption of non-constant variance is invalid, what can we do? One approach is to log transform the data. This sometimes works if your response variable is positive and highly skewed. But that’s not really the case here. <code>y</code> is only slightly skewed. (Call <code>hist()</code> on <code>y</code> to verify.) Plus we know our data is not on a log scale.</p>
+<p>Another approach is to <em>model</em> the non-constant variance. That’s the topic of this blog post.</p>
+<p>To do this, we will use functions from the <code>nlme</code> package that is included with the base installation of R. The workhorse function is <code>gls</code>, which stands for “generalized least squares”. We use it just as we would the <code>lm</code> function, except we also use the <code>weights</code> argument along with a handful of <em>variance functions</em>. Let’s demonstrate with an example.</p>
+<p>Below we fit the “correct” model to our data that exhibited non-constant variance. We load the <code>nlme</code> package so we can use the <code>gls</code> function<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>. We specify the model syntax as before, <code>y ~ x</code>. Then we use the <code>weights</code> argument to specify the variance function, in this case <code>varFixed</code>, also part of the <code>nlme</code> package. This says our variance function has no parameters and a single covariate, <code>x</code>, which is precisely how we generated the data. The syntax, <code>~x</code>, is a <em>one-sided formula</em> that can be read as “model variance as a function of <code>x</code>.”</p>
+<pre class="r"><code>library(nlme)
+vm1 &lt;- gls(y ~ x, weights = varFixed(~x))
+summary(vm1)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x 
+##   Data: NULL 
+##        AIC      BIC    logLik
+##   576.2928 584.0477 -285.1464
+## 
+## Variance function:
+##  Structure: fixed weights
+##  Formula: ~x 
+## 
+## Coefficients:
+##                Value Std.Error   t-value p-value
+## (Intercept) 1.369583 0.6936599  1.974431  0.0511
+## x           2.085425 0.1504863 13.857900  0.0000
+## 
+##  Correlation: 
+##   (Intr)
+## x -0.838
+## 
+## Standardized residuals:
+##        Min         Q1        Med         Q3        Max 
+## -2.8942967 -0.6293867  0.1551594  0.6758773  2.2722755 
+## 
+## Residual standard error: 1.925342 
+## Degrees of freedom: 100 total; 98 residual</code></pre>
+<p>The result produces a Residual Standard error of 1.925 that is very close to 2, the “true” value we used to generate the data. The (Intercept) and slope values, 1.37 and 2.09, are also very close to 1.2 and 2.1.</p>
+<p>Once again we can call <code>plot</code> on the model object. In this case only one plot is generated: standardized residuals versus fitted values:</p>
+<pre class="r"><code>plot(vm1)</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>This plot looks good. As long as we model our variance as a function of <code>x</code>, the fitted model neither overfits nor underfits in any systematic sort of way (unlike when we used <code>lm</code> to fit the model and assumed constant variance.)</p>
+<p>The <code>varFixed</code> function creates <em>weights</em> for each observation, symbolized as <span class="math inline">\(w_i\)</span>. The idea is that the higher the weight a given observation has, the smaller the variance of the Normal distribution from which its noise component was drawn. In our example, as <code>x</code> increases the variance increases. Therefore higher weights should be associated with smaller <code>x</code> values. This can be accomplished by taking the reciprocal of <code>x</code>, that is <span class="math inline">\(w_i = 1/x\)</span>. So when <span class="math inline">\(x = 2\)</span>, <span class="math inline">\(w = 1/2\)</span>. When <span class="math inline">\(x = 10\)</span>, <span class="math inline">\(w = 1/10\)</span>. Larger <code>x</code> get smaller weights.</p>
+<p>Finally, to ensure larger weights are associated with smaller variances, we divide the constant variance by the weight. Stated mathematically,</p>
+<p><span class="math display">\[\epsilon_i \sim N(0, \sigma^2/w_i)\]</span></p>
+<p>Or taking the square root to express standard deviation,</p>
+<p><span class="math display">\[\epsilon_i \sim N(0, \sigma/ \sqrt{w_i})\]</span></p>
+<p>So the larger the denominator (ie, the larger the weight and hence, smaller the <code>x</code>), the smaller the variance and more precise the observed <code>y</code>.</p>
+<p>Incidentally we can use <code>lm</code> to weight observations as well. It too has a <code>weights</code> argument like the <code>gls</code> function. The only difference is we have to be more explicit about how we express the weights. In this case, we have to specify the reciprocal of <code>x</code>. Notice the result is almost identical to what we get using <code>gls</code> and <code>varFixed</code>.</p>
+<pre class="r"><code>m3 &lt;- lm(y ~ x, weights = 1/x)
+summary(m3)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = y ~ x, weights = 1/x)
+## 
+## Weighted Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -5.5725 -1.2118  0.2987  1.3013  4.3749 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)   1.3696     0.6937   1.974   0.0511 .  
+## x             2.0854     0.1505  13.858   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.925 on 98 degrees of freedom
+## Multiple R-squared:  0.6621, Adjusted R-squared:  0.6587 
+## F-statistic:   192 on 1 and 98 DF,  p-value: &lt; 2.2e-16</code></pre>
+<p>The power of the <code>nlme</code> package is that it allows a variety of variance functions. The <code>varFixed</code> function we just illustrated is the simplest and something that can be done with <code>lm</code>. The other variance functions include:</p>
+<ul>
+<li><code>varIdent</code></li>
+<li><code>varPower</code></li>
+<li><code>varExp</code></li>
+<li><code>varConstPower</code></li>
+<li><code>varComb</code></li>
+</ul>
+<p>Let’s explore each of these using simulated data.</p>
+<div id="varident" class="section level2">
+<h2><code>varIdent</code></h2>
+<p>The <code>varIdent</code> function allows us to model different variances per stratum. To see how it works, we’ll first simulate data with this property. Below we use <code>set.seed(11)</code> in case someone wants to simulate the same random data. Then we set <code>n</code> equal to 400, the number of observations we will simulate. <code>x</code> is generated the same as before. In this example we include an additional predictor called <code>g</code> which can be thought of as gender. We randomly sample 400 values of “m” and “f”. Next we simulate a vector of two standard deviations and save as <code>msd</code>. If <code>g == "m"</code>, then the standard deviation is <span class="math inline">\(2 \times 2.5\)</span>. Otherwise it’s <span class="math inline">\(2\)</span> for <code>g == "f"</code>. We use this vector in the next line to generate <code>y</code>. Notice where <code>msd</code> is plugged into the <code>rnorm</code> function. Also notice how we generate <code>y</code>. We include an <em>interaction</em> between <code>x</code> and <code>y</code>. When <code>g == "f"</code>, the intercept and slope is 1.2 and 2.1. When <code>g == "m"</code>, the intercept and slope are (1.2 + 2.8) and (2.1 + 2.8), respectively. Finally we place our simulated data into a data frame and plot with ggplot2.</p>
+<pre class="r"><code>set.seed(11)
+n &lt;- 400
+x &lt;- seq(1,10, length.out = n)
+g &lt;- sample(c(&quot;m&quot;,&quot;f&quot;), size = n, replace = TRUE)
+msd &lt;- ifelse(g==&quot;m&quot;, 2*2.5, 2)
+y &lt;- 1.2 + 2.1*x - 1.5*(g == &quot;m&quot;) + 2.8*x*(g == &quot;m&quot;) + rnorm(n, sd = msd)
+d &lt;- data.frame(y, x, g)
+
+library(ggplot2)
+ggplot(d, aes(x, y, color = g)) + 
+  geom_point()</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p>Notice the different variances for each level of <code>g</code>. The variance for “m” is much greater than the variance for “f”. It has a lot more scatter than “f”. We simulated the data that way. We set the variance for “m” to be 2.5 times that of “f”.</p>
+<p>Now let’s use the <code>gls</code> function with <code>varIdent</code> in attempt to recover these true values. We use the same way as before: define our variance function in the <code>weights</code> argument. Below we specify in the <code>form</code> argument that the formula for modeling variance is conditional on <code>g</code>. The expression <code>~ 1|g</code> is a one-sided formula that says the variance differs between the levels of <code>g</code>. The <code>1</code> just means we have no additional covariates in our model for variance. It is possible to include a formula such as <code>~ x|g</code>, but that would be incorrect in this case since we did not use <code>x</code> in generating the variance. Looking at the plot also shows that while the variability in <code>y</code> is different between the groups, the variability <em>does not increase</em> as <code>x</code> increases.</p>
+<pre class="r"><code>vm2 &lt;- gls(y ~ x*g, data = d, weights = varIdent(form = ~ 1|g))
+summary(vm2)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x * g 
+##   Data: d 
+##        AIC     BIC    logLik
+##   2081.752 2105.64 -1034.876
+## 
+## Variance function:
+##  Structure: Different standard deviations per stratum
+##  Formula: ~1 | g 
+##  Parameter estimates:
+##       f       m 
+## 1.00000 2.58127 
+## 
+## Coefficients:
+##                  Value Std.Error  t-value p-value
+## (Intercept)  0.9686349 0.3237724  2.99172  0.0029
+## x            2.1222707 0.0525024 40.42239  0.0000
+## gm          -1.9765090 0.9352152 -2.11343  0.0352
+## x:gm         2.9957974 0.1553551 19.28355  0.0000
+## 
+##  Correlation: 
+##      (Intr) x      gm    
+## x    -0.901              
+## gm   -0.346  0.312       
+## x:gm  0.304 -0.338 -0.907
+## 
+## Standardized residuals:
+##         Min          Q1         Med          Q3         Max 
+## -2.74115039 -0.67013954  0.01619031  0.69793776  2.72985748 
+## 
+## Residual standard error: 2.005397 
+## Degrees of freedom: 400 total; 396 residual</code></pre>
+<p>First notice at the bottom of the output that the estimated residual standard error is 2.0053974, very close to the “true” value of 2. Also notice in the “Variance function” section we get an estimated value of 2.58127 for group “m”, which is very close to the “true” value of 2.5 we used to generate the different variance for group “m”. In general, when you use the <code>varIdent</code> function to estimate different variances between levels of strata, one of the levels will be set to baseline, and the others will be estimated as multiples of the residual standard error. In this case since “f” comes before “m” alphabetically, “f” was set to baseline, or 1. The estimated residual standard error for group “f” is <span class="math inline">\(2.005397 \times 1\)</span>. The estimated residual standard error for group “m” is <span class="math inline">\(2.005397 \times 2.58127\)</span>.</p>
+<p>It’s important to note these are just estimates. To get a feel for the uncertainty of these estimates, we can use the <code>intervals</code> function from the <code>nlme</code> package to get 95% confidence intervals. To reduce the output, we save the result and view selected elements of the object.</p>
+<pre class="r"><code>int &lt;- intervals(vm2)</code></pre>
+<p>The <code>varStruct</code> element contains the 95% confidence interval for the parameter estimated in the variance function. The parameter in this case is the residual standard error multiplier for the male group.</p>
+<pre class="r"><code>int$varStruct</code></pre>
+<pre><code>##      lower    est.    upper
+## m 2.245615 2.58127 2.967095
+## attr(,&quot;label&quot;)
+## [1] &quot;Variance function:&quot;</code></pre>
+<p>The <code>sigma</code> element contains the 95% confidence interval for the residual standard error.</p>
+<pre class="r"><code>int$sigma</code></pre>
+<pre><code>##    lower     est.    upper 
+## 1.818639 2.005397 2.211335 
+## attr(,&quot;label&quot;)
+## [1] &quot;Residual standard error:&quot;</code></pre>
+<p>Both intervals are quite small and contain the “true” value we used to generate the data.</p>
+</div>
+<div id="varpower" class="section level2">
+<h2><code>varPower</code></h2>
+<p>The <code>varPower</code> function allows us to model variance as a power of the absolute value of a covariate. Once again, to help explain this we will simulate data with this property. Below the main thing to notice is the <code>sd</code> argument of the <code>rnorm</code> function. That’s where we take the standard deviation of 2 and then multiply it by the absolute value of <code>x</code> raised to the power of 1.5. This is similar to how we simulated data to demonstrate the <code>varFixed</code> function above. In that case we simply assumed the exponent was 0.5. (Recall taking the square root of a number is equivalent to raising it to the power of 0.5.) Here we arbitrarily picked a power of 1.5. When we use <code>gls</code> with <code>varPower</code> we will attempt to recover the “true” value of 1.5 in addition to 2.</p>
+<pre class="r"><code>set.seed(4)
+n &lt;- 1000
+x &lt;- seq(1,10,length.out = n)
+y &lt;- 1.2 + 2.1*x + rnorm(n, sd = 2*abs(x)^1.5)
+d &lt;- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>We see the data exhibiting the classic form of variance increasing as the predictor increases. To correctly model this data using <code>gls</code>, we supply it with the formula <code>y ~x</code> and use the <code>weights</code> argument with <code>varPower</code>. Notice we specify the one-sided formula just as we did with the <code>varFixed</code> function. In this model, however, we’ll get an estimate for the power.</p>
+<pre class="r"><code>vm3 &lt;- gls(y ~ x, data = d, weights = varPower(form = ~x))
+summary(vm3)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x 
+##   Data: d 
+##        AIC      BIC    logLik
+##   8840.188 8859.811 -4416.094
+## 
+## Variance function:
+##  Structure: Power of variance covariate
+##  Formula: ~x 
+##  Parameter estimates:
+##    power 
+## 1.520915 
+## 
+## Coefficients:
+##                Value Std.Error  t-value p-value
+## (Intercept) 2.321502 0.4750149 4.887218       0
+## x           1.582272 0.2241367 7.059404       0
+## 
+##  Correlation: 
+##   (Intr)
+## x -0.845
+## 
+## Standardized residuals:
+##          Min           Q1          Med           Q3          Max 
+## -2.892319514 -0.655237190  0.001653178  0.691241690  3.346273816 
+## 
+## Residual standard error: 1.872944 
+## Degrees of freedom: 1000 total; 998 residual</code></pre>
+<pre class="r"><code>int &lt;- intervals(vm3)
+int$varStruct</code></pre>
+<pre><code>##          lower     est.    upper
+## power 1.445064 1.520915 1.596765
+## attr(,&quot;label&quot;)
+## [1] &quot;Variance function:&quot;</code></pre>
+<pre class="r"><code>int$sigma</code></pre>
+<pre><code>##    lower     est.    upper 
+## 1.650987 1.872944 2.124740 
+## attr(,&quot;label&quot;)
+## [1] &quot;Residual standard error:&quot;</code></pre>
+<p>The power is estimated to be 1.52 which is very close to the “true” value of 1.5. The estimated residual standard error of 1.8729439 is also quite close to 2. Both intervals capture the values we used to simulate the data. The coefficients in the model, on the other hand, are somewhat poorly estimated. This is not surprising given how much variability is in <code>y</code>, especially for <span class="math inline">\(x &gt; 2\)</span>.</p>
+</div>
+<div id="varexp" class="section level2">
+<h2><code>varExp</code></h2>
+<p>The <code>varExp</code> function allows us to model variance as an exponential function of a covariate. Yet again we’ll explain this variance function using simulated data. The only change is in the <code>sd</code> argument of the <code>rnorm</code> function. We have a fixed value of 2 that we multiply by <code>x</code> which is itself multiplied by 0.5 and exponentiated. Notice how rapidly the variance increases as we increase <code>x</code>. This is due to the exponential growth of the variance.</p>
+<pre class="r"><code>set.seed(55)
+n &lt;- 400
+x &lt;- seq(1, 10, length.out = n)
+y &lt;- 1.2 + 2.1*x + rnorm(n, sd = 2*exp(0.5*x))
+d &lt;- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p>To work backwards and recover these values we use the <code>varExp</code> function in the <code>weights</code> argument of <code>gls</code>. The one-sided formula does not change in this case. It says model the variance as a function of <code>x</code>. The <code>varExp</code> function says that <code>x</code> has been multiplied by some value and exponentiated, so <code>gls</code> will try to estimate that value.</p>
+<pre class="r"><code>vm4 &lt;- gls(y ~ x, data = d, weights = varExp(form = ~x))
+summary(vm4)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x 
+##   Data: d 
+##        AIC      BIC    logLik
+##   3873.153 3889.098 -1932.576
+## 
+## Variance function:
+##  Structure: Exponential of variance covariate
+##  Formula: ~x 
+##  Parameter estimates:
+##     expon 
+## 0.4845623 
+## 
+## Coefficients:
+##                Value Std.Error  t-value p-value
+## (Intercept) 1.198525 1.1172841 1.072713   0.284
+## x           2.073297 0.4933502 4.202486   0.000
+## 
+##  Correlation: 
+##   (Intr)
+## x -0.892
+## 
+## Standardized residuals:
+##         Min          Q1         Med          Q3         Max 
+## -3.16976627 -0.69525696  0.00614222  0.63718022  2.90423217 
+## 
+## Residual standard error: 2.119192 
+## Degrees of freedom: 400 total; 398 residual</code></pre>
+<pre class="r"><code>int &lt;- intervals(vm4)
+int$varStruct</code></pre>
+<pre><code>##           lower      est.     upper
+## expon 0.4562871 0.4845623 0.5128374
+## attr(,&quot;label&quot;)
+## [1] &quot;Variance function:&quot;</code></pre>
+<pre class="r"><code>int$sigma</code></pre>
+<pre><code>##    lower     est.    upper 
+## 1.786737 2.119192 2.513505 
+## attr(,&quot;label&quot;)
+## [1] &quot;Residual standard error:&quot;</code></pre>
+<p>The “expon” estimate of 0.4845623 in the “variance function” section is very close to our specified value of 0.5. Likewise the estimated residual standard error of 2.1191918 is close to the “true” value of 2. The model coefficient estimates are also close to the values we used to generate the data, but notice the uncertainty in the (Intercept). The hypothesis test in the summary can’t rule out a negative intercept. This again is not surprising since <code>y</code> has so much non-constant variance as well as the fact that we have no observations of <code>x</code> equal to 0. Since the intercept is the value <code>y</code> takes when <code>x</code> equals 0, our estimated intercept is an extrapolation to an event we did not observe.</p>
+</div>
+<div id="varconstpower" class="section level2">
+<h2><code>varConstPower</code></h2>
+<p>The <code>varConstPower</code> function allows us to model variance as a positive constant plus a power of the absolute value of a covariate. That’s a mouthful, but this is basically the same as the <code>varPower</code> function except now we add a positive constant to it. The following code simulates data for which the <code>varConstPower</code> function would be suitable to use. Notice it is identical to the code we used to simulate data for the <code>varPower</code> section, except we add 0.7 to <code>x</code> in the <code>abs</code> function. Why 0.7? No special reason. It’s just a positive constant we picked.</p>
+<pre class="r"><code>set.seed(4)
+n &lt;- 1000
+x &lt;- seq(1,10,length.out = n)
+y &lt;- 1.2 + 2.1*x + rnorm(n, sd = 2*abs(0.7 + x)^1.5)
+d &lt;- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p>The correct way to model this data is to use <code>gls</code> with the <code>varConstPower</code> function. The one-sided formula is the same as before. The summary returns three estimates for the variance model: the constant, the power and the residual standard error. Recall the “true” values are 0.7, 1.5 and 2, respectively.</p>
+<pre class="r"><code>vm5 &lt;- gls(y ~ x, data = d, weights = varConstPower(form = ~x))
+summary(vm5)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x 
+##   Data: d 
+##        AIC      BIC    logLik
+##   9319.794 9344.323 -4654.897
+## 
+## Variance function:
+##  Structure: Constant plus power of variance covariate
+##  Formula: ~x 
+##  Parameter estimates:
+##     const     power 
+## 0.3554921 1.3593016 
+## 
+## Coefficients:
+##                Value Std.Error  t-value p-value
+## (Intercept) 2.763788 0.7607449 3.633003   3e-04
+## x           1.456677 0.2915621 4.996112   0e+00
+## 
+##  Correlation: 
+##   (Intr)
+## x -0.824
+## 
+## Standardized residuals:
+##          Min           Q1          Med           Q3          Max 
+## -2.846999539 -0.664551194  0.006709051  0.679895874  3.287366683 
+## 
+## Residual standard error: 2.887761 
+## Degrees of freedom: 1000 total; 998 residual</code></pre>
+<pre class="r"><code>int &lt;- intervals(vm5)
+int$varStruct</code></pre>
+<pre><code>##            lower      est.    upper
+## const 0.02658804 0.3554921 4.753063
+## power 1.14258677 1.3593016 1.576016
+## attr(,&quot;label&quot;)
+## [1] &quot;Variance function:&quot;</code></pre>
+<pre class="r"><code>int$sigma</code></pre>
+<pre><code>##    lower     est.    upper 
+## 1.814757 2.887761 4.595195 
+## attr(,&quot;label&quot;)
+## [1] &quot;Residual standard error:&quot;</code></pre>
+<p>The intervals capture the “true” values, though the interval for the constant is quite wide. If we didn’t know the true value, it would seem the constant could plausibly be 2 or even 4.</p>
+</div>
+<div id="varcomb" class="section level2">
+<h2><code>varComb</code></h2>
+<p>Finally, the <code>varComb</code> function allows us to model combinations of two or more variance models by multiplying together the corresponding variance functions. Obviously this can accommodate some very complex variance models. We’ll simulate some basic data that would be appropriate to use with the <code>varComb</code> function.</p>
+<p>What we do below is combine two different variance processes:</p>
+<ul>
+<li>One that allows standard deviation to differ between gender (“f” = <span class="math inline">\(2\)</span>, “m” = <span class="math inline">\(2 \times 2.5\)</span>)</li>
+<li>One that allows standard deviation to increase as <code>x</code> increases, where <code>x</code> is multiplied by 1.5 and exponentiated</li>
+</ul>
+<p>To help with visualizing the data we have limited <code>x</code> to range from 1 to 3.</p>
+<pre class="r"><code>set.seed(77)
+n &lt;- 400
+x &lt;- seq(1, 3, length.out = n)
+g &lt;- sample(c(&quot;m&quot;,&quot;f&quot;), size = n, replace = TRUE)
+msd &lt;- ifelse(g==&quot;m&quot;, 2*2.5, 2) * exp(1.5*x)
+y &lt;- 1.2 + 2.1*x - 1.5*(g == &quot;m&quot;) + 2.8*x*(g == &quot;m&quot;) + rnorm(n, sd = msd)
+d &lt;- data.frame(y, x, g)
+ggplot(d, aes(x, y, color = g)) + 
+  geom_point()</code></pre>
+<p><img src="/post/2020-04-07-modeling-non-constant-variance_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
+<p>The plot shows increasing variance as <code>x</code> increases, but also differences in variance between genders. The variance of <code>y</code> for group “m” is much greater than the variance of <code>y</code> in group “f”, especially when <code>x</code> is greater than 1.5.</p>
+<p>To correctly model the data generating process we specified above and attempt to recover the true values, we use the <code>varComb</code> function as a wrapper around two more variance functions: <code>varIdent</code> and <code>varExp</code>. Why these two? Because we have different variances between genders, and we have variance increasing exponentially as a function of <code>x</code>.</p>
+<pre class="r"><code>vm6 &lt;- gls(y ~ x*g, data = d, 
+           weights = varComb(varIdent(form = ~ 1|g),
+                             varExp(form = ~x)))
+summary(vm6)</code></pre>
+<pre><code>## Generalized least squares fit by REML
+##   Model: y ~ x * g 
+##   Data: d 
+##       AIC     BIC    logLik
+##   4431.45 4459.32 -2208.725
+## 
+## Combination of variance functions: 
+##  Structure: Different standard deviations per stratum
+##  Formula: ~1 | g 
+##  Parameter estimates:
+##        f        m 
+## 1.000000 2.437046 
+##  Structure: Exponential of variance covariate
+##  Formula: ~x 
+##  Parameter estimates:
+##    expon 
+## 1.540608 
+## 
+## Coefficients:
+##                  Value Std.Error    t-value p-value
+## (Intercept)  -5.996337  6.539552 -0.9169339  0.3597
+## x             8.829971  4.849272  1.8208860  0.0694
+## gm          -17.572238 16.548540 -1.0618603  0.2889
+## x:gm         16.932938 12.192793  1.3887661  0.1657
+## 
+##  Correlation: 
+##      (Intr) x      gm    
+## x    -0.972              
+## gm   -0.395  0.384       
+## x:gm  0.387 -0.398 -0.974
+## 
+## Standardized residuals:
+##         Min          Q1         Med          Q3         Max 
+## -2.74441479 -0.67478610 -0.00262221  0.66079254  3.14975288 
+## 
+## Residual standard error: 1.794185 
+## Degrees of freedom: 400 total; 396 residual</code></pre>
+<p>The summary section contains two sections for modeling variance. The first estimates the multiplier for the “m” group to be 2.437, which is very close to the true value of 2.5. The exponential parameter is estimated to be 1.54, extremely close to the true value of 1.5 we used when generating the data. Finally the residual standard error is estimated to be about 1.79, close to the true value of 2. Calling <code>intervals(vm6)</code> shows very tight confidence intervals. The <code>A</code> and <code>B</code> prefixes in the <code>varStruct</code> element are just labels for the two different variance models.</p>
+<pre class="r"><code>int &lt;- intervals(vm6)
+int$varStruct</code></pre>
+<pre><code>##            lower     est.    upper
+## A.m     2.119874 2.437046 2.801673
+## B.expon 1.419366 1.540608 1.661850
+## attr(,&quot;label&quot;)
+## [1] &quot;Variance function:&quot;</code></pre>
+<pre class="r"><code>int$sigma</code></pre>
+<pre><code>##    lower     est.    upper 
+## 1.380008 1.794185 2.332669 
+## attr(,&quot;label&quot;)
+## [1] &quot;Residual standard error:&quot;</code></pre>
+<p>Unfortunately due to the large exponential variability, the estimates of the model coefficients are woefully bad.</p>
+</div>
+<div id="whats-the-point" class="section level2">
+<h2>What’s the point?</h2>
+<p>So why did we simulate all this fake data and then attempt to recover “true” values? What good is that? Fair questions. The answer is it helps us understand what assumptions we’re making when we specify and fit a model. When we specify and fit the following model…</p>
+<pre class="r"><code>m &lt;- lm(y ~ x1 + x2)</code></pre>
+<p>…we’re saying we think <code>y</code> is approximately equal to a weighted sum of <code>x1</code> and <code>x2</code> (plus an intercept) with errors being random draws from a Normal distribution with mean of 0 and some <em>fixed</em> standard deviation. Likewise, if we specify and fit the following model…</p>
+<pre class="r"><code>m &lt;- gls(y ~ x1 + x2, data = d, weights = varPower(form = ~x1))</code></pre>
+<p>…we’re saying we think <code>y</code> is approximately equal to a weighted sum of <code>x1</code> and <code>x2</code> (plus an intercept) with errors being random draws from a Normal distribution with mean of 0 and a standard deviation that <em>grows as a multiple of <code>x1</code> raised by some power</em>.</p>
+<p>If we can <em>simulate</em> data suitable for those models, then we have a better understanding of the <em>assumptions</em> we’re making when we use those models. Hopefully you now have a better understanding of what you can do to model variance using the <code>nlme</code> package.</p>
+<p>For questions or clarifications regarding this article, contact the UVA
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Clay Ford</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.6.3 (2020-02-29)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 18362)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] ggplot2_3.3.0 nlme_3.1-144 
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.3       knitr_1.28       magrittr_1.5     tidyselect_1.0.0
+##  [5] munsell_0.5.0    colorspace_1.4-1 lattice_0.20-38  R6_2.4.1        
+##  [9] rlang_0.4.5      dplyr_0.8.5      stringr_1.4.0    tools_3.6.3     
+## [13] grid_3.6.3       gtable_0.3.0     xfun_0.12        withr_2.1.2     
+## [17] htmltools_0.4.0  assertthat_0.2.1 yaml_2.2.1       digest_0.6.25   
+## [21] tibble_2.1.3     lifecycle_0.2.0  crayon_1.3.4     bookdown_0.18   
+## [25] farver_2.0.3     purrr_0.3.3      glue_1.3.2       evaluate_0.14   
+## [29] rmarkdown_2.1    blogdown_0.18    labeling_0.3     stringi_1.4.6   
+## [33] compiler_3.6.3   pillar_1.4.3     scales_1.1.0     pkgconfig_2.0.3</code></pre>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>The <code>nlme</code> package is perhaps better known for its <code>lme</code> function, which is used to fit mixed-effect models (ie, models with both fixed and random effects). This blog post demonstrates variance functions using <code>gls</code>, which does not fit random effects. However everything we present in this blog post can be used with <code>lme</code>.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+</ol>
+</div>

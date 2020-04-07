@@ -1,0 +1,353 @@
+---
+title: Modeling Non-Constant Variance
+author: Clay Ford
+date: '2020-04-07'
+slug: modeling-non-constant-variance
+categories:
+  - R
+tags:
+  - linear regression
+  - simulation
+  - modeling heteroscedasticity
+---
+
+One of the basic assumptions of linear modeling is constant, or _homogeneous_, variance. What does that mean exactly? Let's simulate some data that satisfies this condition to illustrate the concept.
+
+Below we create a sorted vector of numbers ranging from 1 to 10 called `x`, and then create a vector of numbers called `y` that is a function of `x`. When we plot `x` vs `y`, we get a straight line with an intercept of 1.2 and a slope of 2.1. 
+
+```{r}
+x <- seq(1,10, length.out = 100)
+y <- 1.2 + 2.1 * x
+plot(x, y)
+```
+
+Now let's add some "noise" to our data so that `y` is not completely determined by `x`. We can do that by randomly drawing values from a theoretical Normal distribution with mean 0 and some set variance, and then adding them to the formula that generates `y`. The `rnorm` function in R allows us to easily do this. Below we draw 100 random values from a Normal distribution with mean 0 and standard deviation 2 and save as a vector called `noise`. (Recall that standard deviation is simply the square root of variance.) Then we generate `y` with the noise added. The function `set.seed(222)` allows you to get the same "random" data in case you want to follow along. Finally we re-plot the data.
+
+```{r}
+set.seed(222)
+noise <- rnorm(n = 100, mean = 0, sd = 2)
+y <- 1.2 + 2.1 * x + noise
+plot(x, y)
+
+```
+
+Now we have data that is a combination of a linear, deterministic component ($y = 1.2 + 2.1x$) and random noise drawn from a $N(0, 2)$ distribution. These are the basic assumptions we make about our data when we fit a traditional linear model. Below we use the `lm` function to "recover" the "true" values we used to generate the data, of which there are three:
+
+- The intercept: 1.2
+- The slope: 2.1
+- The standard deviation: 2
+
+```{r}
+m <- lm(y ~ x)
+summary(m)
+```
+
+The `(Intercept)` and `x` (ie, slope) estimates in the Coefficients section, `r round(coef(m)[1], 2)` and `r round(coef(m)[2], 2)`, are quite close to 1.2 and 2.1, respectively. The Residual standard error of `r round(sigma(m), 3)` is also quite close to the _constant value_ of 2. We produced a "good" model because we knew how `y` was generated and gave the `lm` function the "correct" model to fit. While we can't do this in real life, it's a useful exercise to help us understand the assumptions of linear modeling.
+
+Now what if the variance was _not_ constant? What if we multiplied the standard deviation of 2 by the square root of `x`? As we see in the plot below, the vertical scatter of the points increases as `x` increases. 
+
+```{r}
+set.seed(222)
+noise <- rnorm(n = 100, mean = 0, sd = 2 * sqrt(x))
+y <- 1.2 + 2.1 * x + noise
+plot(x, y)
+```
+
+We multiplied 2 by `sqrt(x)` because we're specifying standard deviation. If we could specify variance, we would have multiplied 4 by just `x`.
+
+```{r echo=FALSE}
+m2 <- lm(y ~ x)
+
+```
+
+If we fit the same model using `lm`, we get a Residual Standard error of `r round(sigma(m2), 3)`.
+
+```{r}
+m2 <- lm(y ~ x)
+summary(m2)
+
+```
+
+We know that isn't right, because we simulated the data. There was no constant standard deviation when we created the "noise". Each random value was drawn from a different Normal distribution, each with mean 0 but a standard deviation that varied according to `x`. This means our assumption of _constant variance_ is violated. How would we detect this in real life?
+
+The most common way is plotting residuals versus fitted values. This is easy to do in R. Just call `plot` on the model object. This generates four different plots to assess the traditional modeling assumptions. [See this blog post](https://uvastatlab.github.io/2015/09/21/understanding-diagnostic-plots-for-linear-regression-analysis/) for more information. The plots we're interested in are the 1st and 3rd plots, which we can specify with the `which` argument.
+
+```{r}
+plot(m2, which = 1)
+plot(m2, which = 3)
+
+```
+
+In the first plot we see the variability around 0 _increase_ as we move further to the right with bigger fitted values. In the third plot we also see increasing variability as we move to the right, though this time the residuals have been standardized and transformed to the square root scale. The positive trajectory of the smooth red line indicates an _increase_ in variance. 
+
+So now that we've confirmed that our assumption of non-constant variance is invalid, what can we do? One approach is to log transform the data. This sometimes works if your response variable is positive and highly skewed. But that's not really the case here. `y` is only slightly skewed. (Call `hist()` on `y` to verify.) Plus we know our data is not on a log scale.
+
+Another approach is to _model_ the non-constant variance. That's the topic of this blog post.
+
+To do this, we will use functions from the `nlme` package that is included with the base installation of R. The workhorse function is `gls`, which stands for "generalized least squares". We use it just as we would the `lm` function, except we also use the `weights` argument along with a handful of _variance functions_. Let's demonstrate with an example. 
+
+Below we fit the "correct" model to our data that exhibited non-constant variance. We load the `nlme` package so we can use the `gls` function[^1]. We specify the model syntax as before, `y ~ x`. Then we use the `weights` argument to specify the variance function, in this case `varFixed`, also part of the `nlme` package. This says our variance function has no parameters and a single covariate, `x`, which is precisely how we generated the data. The syntax, `~x`, is a _one-sided formula_ that can be read as "model variance as a function of `x`."
+
+
+[^1]: The `nlme` package is perhaps better known for its `lme` function, which is used to fit mixed-effect models (ie, models with both fixed and random effects). This blog post demonstrates variance functions using `gls`, which does not fit random effects. However everything we present in this blog post can be used with `lme`.  
+
+```{r}
+library(nlme)
+vm1 <- gls(y ~ x, weights = varFixed(~x))
+summary(vm1)
+```
+
+The result produces a Residual Standard error of `r round(sigma(vm1), 3)` that is very close to 2, the "true" value we used to generate the data. The (Intercept) and slope values,  `r round(coef(vm1)[1], 2)` and `r round(coef(vm1)[2], 2)`, are also very close to 1.2 and 2.1. 
+
+Once again we can call `plot` on the model object. In this case only one plot is generated: standardized residuals versus fitted values:
+
+```{r}
+plot(vm1)
+
+```
+
+This plot looks good. As long as we model our variance as a function of `x`, the fitted model neither overfits nor underfits in any systematic sort of way (unlike when we used `lm` to fit the model and assumed constant variance.)
+
+The `varFixed` function creates _weights_ for each observation, symbolized as $w_i$. The idea is that the higher the weight a given observation has, the smaller the variance of the Normal distribution from which its noise component was drawn. In our example, as `x` increases the variance increases. Therefore higher weights should be associated with smaller `x` values. This can be accomplished  by taking the reciprocal of `x`, that is $w_i = 1/x$. So when $x = 2$, $w = 1/2$. When $x = 10$, $w = 1/10$. Larger `x` get smaller weights.
+
+Finally, to ensure larger weights are associated with smaller variances, we divide the constant variance by the weight. Stated mathematically,
+
+$$\epsilon_i \sim N(0, \sigma^2/w_i)$$
+
+Or taking the square root to express standard deviation,
+
+$$\epsilon_i \sim N(0, \sigma/ \sqrt{w_i})$$
+
+So the larger the denominator (ie, the larger the weight and hence, smaller the `x`), the smaller the variance and more precise the observed `y`.
+
+Incidentally we can use `lm` to weight observations as well. It too has a `weights` argument like the `gls` function. The only difference is we have to be more explicit about how we express the weights. In this case, we have to specify the reciprocal of `x`. Notice the result is almost identical to what we get using `gls` and `varFixed`.
+
+```{r}
+m3 <- lm(y ~ x, weights = 1/x)
+summary(m3)
+```
+
+The power of the `nlme` package is that it allows a variety of variance functions. The `varFixed` function we just illustrated is the simplest and something that can be done with `lm`. The other variance functions include:
+
+- `varIdent`
+- `varPower`
+- `varExp`
+- `varConstPower`
+- `varComb`
+
+Let's explore each of these using simulated data.
+
+
+## `varIdent`
+
+The `varIdent` function allows us to model different variances per stratum. To see how it works, we'll first simulate data with this property. Below we use `set.seed(11)` in case someone wants to simulate the same random data. Then we set `n` equal to 400, the number of observations we will simulate. `x` is generated the same as before. In this example we include an additional predictor called `g` which can be thought of as gender. We randomly sample 400 values of "m" and "f". Next we simulate a vector of two standard deviations and save as `msd`. If `g == "m"`, then the standard deviation is $2 \times 2.5$. Otherwise it's $2$ for `g == "f"`. We use this vector in the next line to generate `y`. Notice where `msd` is plugged into the `rnorm` function. Also notice how we generate `y`. We include an _interaction_ between `x` and `y`. When `g == "f"`, the intercept and slope is 1.2 and 2.1. When `g == "m"`, the intercept and slope are (1.2 + 2.8) and (2.1 + 2.8), respectively. Finally we place our simulated data into a data frame and plot with ggplot2.   
+
+```{r}
+set.seed(11)
+n <- 400
+x <- seq(1,10, length.out = n)
+g <- sample(c("m","f"), size = n, replace = TRUE)
+msd <- ifelse(g=="m", 2*2.5, 2)
+y <- 1.2 + 2.1*x - 1.5*(g == "m") + 2.8*x*(g == "m") + rnorm(n, sd = msd)
+d <- data.frame(y, x, g)
+
+library(ggplot2)
+ggplot(d, aes(x, y, color = g)) + 
+  geom_point()
+
+```
+
+Notice the different variances for each level of `g`. The variance for "m" is much greater than the variance for "f". It has a lot more scatter than "f". We simulated the data that way. We set the variance for "m" to be 2.5 times that of "f".
+
+Now let's use the `gls` function with `varIdent` in attempt to recover these true values. We use the same way as before: define our variance function in the `weights` argument. Below we specify in the `form` argument that the formula for modeling variance is conditional on `g`. The expression `~ 1|g` is a one-sided formula that says the variance differs between the levels of `g`. The `1` just means we have no additional covariates in our model for variance. It is possible to include a formula such as `~ x|g`, but that would be incorrect in this case since we did not use `x` in generating the variance. Looking at the plot also shows that while the variability in `y` is different between the groups, the variability _does not increase_ as `x` increases.  
+
+```{r}
+vm2 <- gls(y ~ x*g, data = d, weights = varIdent(form = ~ 1|g))
+summary(vm2)
+
+```
+
+
+First notice at the bottom of the output that the estimated residual standard error is `r sigma(vm2)`, very close to the "true" value of 2. Also notice in the "Variance function" section we get an estimated value of 2.58127 for group "m", which is very close to the "true" value of 2.5 we used to generate the different variance for group "m". In general, when you use the `varIdent` function to estimate different variances between levels of strata, one of the levels will be set to baseline, and the others will be estimated as multiples of the residual standard error. In this case since "f" comes before "m" alphabetically, "f" was set to baseline, or 1. The estimated residual standard error for group "f" is $2.005397 \times 1$. The estimated residual standard error for group "m" is $2.005397 \times 2.58127$.
+
+It's important to note these are just estimates. To get a feel for the uncertainty of these estimates, we can use the `intervals` function from the `nlme` package to get 95% confidence intervals. To reduce the output, we save the result and view selected elements of the object.
+
+```{r}
+int <- intervals(vm2)
+
+```
+
+
+The `varStruct` element contains the 95% confidence interval for the parameter estimated in the variance function. The parameter in this case is the residual standard error multiplier for the male group. 
+
+```{r}
+int$varStruct
+
+```
+
+The `sigma` element contains the 95% confidence interval for the residual standard error.
+
+```{r}
+int$sigma
+```
+
+Both intervals are quite small and contain the "true" value we used to generate the data.
+
+
+## `varPower`
+
+The `varPower` function allows us to model variance as a power of the absolute value of a covariate. Once again, to help explain this we will simulate data with this property. Below the main thing to notice is the `sd` argument of the `rnorm` function. That's where we take the standard deviation of 2 and then multiply it by the absolute value of `x` raised to the power of 1.5. This is similar to how we simulated data to demonstrate the `varFixed` function above. In that case we simply assumed the exponent was 0.5. (Recall taking the square root of a number is equivalent to raising it to the power of 0.5.) Here we arbitrarily picked a power of 1.5. When we use `gls` with `varPower` we will attempt to recover the "true" value of 1.5 in addition to 2.
+
+```{r}
+set.seed(4)
+n <- 1000
+x <- seq(1,10,length.out = n)
+y <- 1.2 + 2.1*x + rnorm(n, sd = 2*abs(x)^1.5)
+d <- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()
+
+```
+
+
+We see the data exhibiting the classic form of variance increasing as the predictor increases. To correctly model this data using `gls`, we supply it with the formula `y ~x` and use the `weights` argument with `varPower`. Notice we specify the one-sided formula just as we did with the `varFixed` function. In this model, however, we'll get an estimate for the power.
+
+```{r}
+vm3 <- gls(y ~ x, data = d, weights = varPower(form = ~x))
+summary(vm3)
+int <- intervals(vm3)
+int$varStruct
+int$sigma
+
+```
+
+The power is estimated to be 1.52 which is very close to the "true" value of 1.5. The estimated residual standard error of `r sigma(vm3)` is also quite close to 2. Both intervals capture the values we used to simulate the data. The coefficients in the model, on the other hand, are somewhat poorly estimated. This is not surprising given how much variability is in `y`, especially for $x > 2$. 
+
+## `varExp`
+
+The `varExp` function allows us to model variance as an exponential function of a covariate. Yet again we'll explain this variance function using simulated data. The only change is in the `sd` argument of the `rnorm` function. We have a fixed value of 2 that we multiply by `x` which is itself multiplied by 0.5 and exponentiated. Notice how rapidly the variance increases as we increase `x`. This is due to the exponential growth of the variance. 
+
+```{r}
+set.seed(55)
+n <- 400
+x <- seq(1, 10, length.out = n)
+y <- 1.2 + 2.1*x + rnorm(n, sd = 2*exp(0.5*x))
+d <- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()
+```
+
+To work backwards and recover these values we use the `varExp` function in the `weights` argument of `gls`. The one-sided formula does not change in this case. It says model the variance as a function of `x`. The `varExp` function says that `x` has been multiplied by some value and exponentiated, so `gls` will try to estimate that value. 
+
+```{r}
+vm4 <- gls(y ~ x, data = d, weights = varExp(form = ~x))
+summary(vm4)
+int <- intervals(vm4)
+int$varStruct
+int$sigma
+
+```
+
+The "expon" estimate of 0.4845623 in the "variance function" section is very close to our specified value of 0.5. Likewise the estimated residual standard error of `r sigma(vm4)` is close to the "true" value of 2. The model coefficient estimates are also close to the values we used to generate the data, but notice the uncertainty in the (Intercept). The hypothesis test in the summary can't rule out a negative intercept. This again is not surprising since `y` has so much non-constant variance as well as the fact that we have no observations of `x` equal to 0. Since the intercept is the value `y` takes when `x` equals 0, our estimated intercept is an extrapolation to an event we did not observe.  
+
+## `varConstPower`
+
+The `varConstPower` function allows us to model variance as a positive constant plus a power of the absolute value of a covariate. That's a mouthful, but this is basically the same as the `varPower` function except now we add a positive constant to it. The following code simulates data for which the `varConstPower` function would be suitable to use. Notice it is identical to the code we used to simulate data for the `varPower` section, except we add 0.7 to `x` in the `abs` function. Why 0.7? No special reason. It's just a positive constant we picked.
+
+
+```{r}
+set.seed(4)
+n <- 1000
+x <- seq(1,10,length.out = n)
+y <- 1.2 + 2.1*x + rnorm(n, sd = 2*abs(0.7 + x)^1.5)
+d <- data.frame(y, x)
+ggplot(d, aes(x, y)) + geom_point()
+
+```
+
+
+The correct way to model this data is to use `gls` with the `varConstPower` function. The one-sided formula is the same as before. The summary returns three estimates for the variance model: the constant, the power and the residual standard error. Recall the "true" values are 0.7, 1.5 and 2, respectively.
+
+```{r}
+vm5 <- gls(y ~ x, data = d, weights = varConstPower(form = ~x))
+summary(vm5)
+int <- intervals(vm5)
+int$varStruct
+int$sigma
+
+```
+
+
+The intervals capture the "true" values, though the interval for the constant is quite wide. If we didn't know the true value, it would seem the constant could plausibly be 2 or even 4.  
+
+## `varComb`
+
+Finally, the `varComb` function allows us to model combinations of two or more variance models by multiplying together the corresponding variance functions. Obviously this can accommodate some very complex variance models. We'll simulate some basic data that would be appropriate to use with the `varComb` function.
+
+What we do below is combine two different variance processes:
+
+- One that allows standard deviation to differ between gender ("f" = $2$, "m" = $2 \times 2.5$)
+- One that allows standard deviation to increase as `x` increases, where `x` is multiplied by 1.5 and exponentiated
+
+To help with visualizing the data we have limited `x` to range from 1 to 3.
+
+```{r}
+set.seed(77)
+n <- 400
+x <- seq(1, 3, length.out = n)
+g <- sample(c("m","f"), size = n, replace = TRUE)
+msd <- ifelse(g=="m", 2*2.5, 2) * exp(1.5*x)
+y <- 1.2 + 2.1*x - 1.5*(g == "m") + 2.8*x*(g == "m") + rnorm(n, sd = msd)
+d <- data.frame(y, x, g)
+ggplot(d, aes(x, y, color = g)) + 
+  geom_point()
+```
+
+
+The plot shows increasing variance as `x` increases, but also differences in variance between genders. The variance of `y` for group "m" is much greater than the variance of `y` in group "f", especially when `x` is greater than 1.5.
+
+To correctly model the data generating process we specified above and attempt to recover the true values, we use the `varComb` function as a wrapper around two more variance functions: `varIdent` and `varExp`. Why these two? Because we have different variances between genders, and we have variance increasing exponentially as a function of `x`.
+
+```{r}
+vm6 <- gls(y ~ x*g, data = d, 
+           weights = varComb(varIdent(form = ~ 1|g),
+                             varExp(form = ~x)))
+summary(vm6)
+```
+
+The summary section contains two sections for modeling variance. The first estimates the multiplier for the "m" group to be 2.437, which is very close to the true value of 2.5. The exponential parameter is estimated to be 1.54, extremely close to the true value of 1.5 we used when generating the data. Finally the residual standard error is estimated to be about 1.79, close to the true value of 2. Calling `intervals(vm6)` shows very tight confidence intervals. The `A` and `B` prefixes in the `varStruct` element are just labels for the two different variance models.  
+
+```{r}
+int <- intervals(vm6)
+int$varStruct
+int$sigma
+```
+
+Unfortunately due to the large exponential variability, the estimates of the model coefficients are woefully bad.
+
+## What's the point?
+
+So why did we simulate all this fake data and then attempt to recover "true" values? What good is that? Fair questions. The answer is it helps us understand what assumptions we're making when we specify and fit a model. When we specify and fit the following model...
+
+```{r eval=FALSE}
+m <- lm(y ~ x1 + x2)
+```
+
+...we're saying we think `y` is approximately equal to a weighted sum of `x1` and `x2` (plus an intercept) with errors being random draws from a Normal distribution with mean of 0 and some _fixed_ standard deviation. Likewise, if we specify and fit the following model...
+
+```{r eval=FALSE}
+m <- gls(y ~ x1 + x2, data = d, weights = varPower(form = ~x1))
+```
+
+...we're saying we think `y` is approximately equal to a weighted sum of `x1` and `x2` (plus an intercept) with errors being random draws from a Normal distribution with mean of 0 and a standard deviation that _grows as a multiple of `x1` raised by some power_.
+
+If we can _simulate_ data suitable for those models, then we have a better understanding of the _assumptions_ we're making when we use those models. Hopefully you now have a better understanding of what you can do to model variance using the `nlme` package.
+
+For questions or clarifications regarding this article, contact the UVA 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Clay Ford_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
