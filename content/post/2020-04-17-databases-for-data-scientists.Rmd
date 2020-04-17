@@ -1,0 +1,34 @@
+---
+title: Databases for Data Scientists
+author: Srikar Gullapalli
+date: '2020-04-17'
+slug: databases-for-data-scientists
+categories:
+  - Databases
+tags:
+  - databases
+---
+
+As data scientists, we're often most excited about the final layer of analysis. Once all the data is cleaned and stored in a format readable by our favorite programming language (Python, R, STATA, etc), the most fun part of our work is when we're finding counter-intuitive causations with statistical methods. If you can prove that the mutual presence of McDonalds really does prevent wars between countries or that an increase in diversity really does boost business profitability, that is a good day.
+
+But we all know that we spend 90% of our time on the data cleaning and management piece, and only 10% on the fun stuff. If we are taking data prepared in some format by an external source (like Kaggle, government websites, Bloomberg etc), then we lose all control on the template and organization of that data. We often have to contort and clean their data in a way that makes it usable for whatever our idiosyncratic purpose is at that moment. But what if we had some control over how the data was collected and stored? Say you're a data scientist within an organization with some power of these decisions, one of the first decisions you will have to make is how to store the data that comes your way. That decision may impact what sort of analysis you will be able to do in the future and at what cost.
+
+You look online and you see all these different names like MySQL, PostgreSQL, MongoDB Cassandra, etc. How do you make sense of these options? At the most basic level, you can think of databases as being of two primary types: relational and non-relational. MySQL is the canonical example of the former and Cassandra/MongoDB represent the latter. 
+
+The simplest way to make sense of the difference is thinking of relational DBs as your traditional excel spreadsheet table, with data organized into a standardized set of rows and columns with each row having its own key (a 'unique_id' variable). Non-relational DBs are much more free form and are organized functionally, and each entry or 'row' might look different from the next.
+
+For example, think of your traditional social media website (these are famous for using non-relational databases and semi-structured data). In your profile, you might have a certain number of friends, a certain set of messages you've sent your friends, pages you've followed, posts you've made on your page, etc. If you used a relational database, you would have a separate table for each of these things. A table for messages, a table for pages, a table for posts, etc, and you as a user would have a row in each of these tables identified by your common unique id. If you used a non-relational database, all your data as a user would be stored in its own record. There would be one record for you with all your messages, pages, posts, friends, etc in it. Another user would have her own record. Maybe she's never liked any pages or posted anything on her wall. Then her 'record' would only have messages and friends data. So instead of structured tables, think of blobs of data each of which represent everything related to one user.
+
+What are the implications of this? At an initial glance, it seems clearly easier to run large regressions on highly structured data. The setup time with your data to get to the point where you can conduct analyses is very low. But the structure also makes it highly restrictive. You have to have a predefined set of rows and columns and tables before you ever get to the point where you can think of analyses. Just with this restrictive definition, you will restrict the types of questions you can ask of your data to a limited universe. It reduces the likelihood of you being surprised, or being able to ask questions and find answers you didn't initially imagine. With non-relational databases, you have a longer setup time pre-analysis, in that you will have to do more work to organize the blobs of data in a way that allows you to run regressions and the like. Also with this longer setup time, the likelihood that you will make errors also go up. But, you don't restrict the universe of data you are collecting to a rigid pre-defined schema of rows/columns. Maybe your sources of data will surprise you and give you other information you never expected. You can then build a temporary schema with code based on what the data is showing you, instead of having to commit to the schema beforehand. Also, when you look at your different blobs, you can identify clusters of information and data in ways that might surprise you (say if you were running k-means or other forms of unsupervised learning).
+
+Another big driver of your decision will be the size of your data and your budget. Rule of thumb: non-relational DBs can scale faster and manage huge amounts of data better than relational DBs, and they are generally cheaper at large volumes of data because they tend to be more open-source. Running read-writes on millions of data entries across multiple tables in a traditional SQL format become increasingly more stressful on your processors with scale.
+
+Even if you do decide to go the non-relational route, you have to then make a decision around what type of non-relational database you will have. You could go like the social media example I described above and store things in hierarchical 'documents' like a JSON file that contain the blobs of broad data by user record, but also bring some of the hierarchical structure of relational DBs. Or you could just go with the simplest form of what is known as a 'key-value' storage, where all data is assigned a key, and there are no inbuilt hierarchies in it. Or you could go the 'graphical route' where blobs of data are collected by relationship between different sources of data (like users). This is also used heavily in social networks. 
+
+So, in the end, as always, it comes back to that most unsatisfying of answers. It depends. It depends entirely on your use case. If you're playing with small amounts of data collected in reliable standardized ways and you have a predefined set of questions you want to answer, relational DBs might be more suited to you. If you're playing with large amounts of data collected in semi-structured or unstructured ways, and are looking to be surprised, non-relational DBs might be more suited to you. If you're interested more in the relationships between different nodes of data than the nodes themselves, maybe graph databases (a non-relational DB type) are more suited to you. 
+
+Or maybe you would like to adopt both? There is nothing precluding you from having multiple databases (depending on your budget).
+
+_Srikar Gullapalli_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
