@@ -1,0 +1,185 @@
+---
+title: Getting Started with Regular Expressions
+author: Margot Bjoring
+date: '2020-03-27'
+slug: getting-started-with-regular-expressions
+categories:
+  - R
+tags:
+  - regex
+---
+
+Regular expressions (or regex) are tools for matching patterns in character strings. These can be useful for finding words or letter patterns in text, parsing filenames for specific information, and interpreting input formatted in a variety of ways (e.g., phone numbers). The syntax of regular expressions is generally recognized across operating systems and programming languages. Although this tutorial will use R for examples, most of the same regex could be used in the unix commands or in python. 
+
+Regular expressions may seem cryptic at first, but the flexibility and power of the syntax make them an essential tool when working with text data. Fortunately, the building blocks of regular expressions are straightforward, and with a little practice, you'll be able to put pieces together to form a customized pattern that can save hours of manual labor.
+
+In R, there is a package called stringr (part of the tidyverse) that includes many commands useful for working with string data. We will be using the `stringr` package in this tutorial. 
+
+```{r}
+library(stringr)
+```
+
+## Basics of string matching
+
+One useful way to employ regular expressions is to search through a list of filenames in a directory to locate and read in particular files of interest based on their names. Say we have a directory of files with names that include information about site, date and time. We can generate a character vector of the names of files in a directory using the `list.files()` command. 
+
+```{r eval=FALSE}
+list.files(path = "../data")
+```
+
+Say the `list.files()` command returned the following list of files, which we store as a variable.
+
+```{r}
+datadir <- c("B4409_04152020t1200z.txt",
+             "CHLV2_04012020t1830z.txt",
+             "CHLV2_04012020t2330z.txt",
+             "CHLV2_04152020t1200z.txt",
+             "chlv2_04172020t1300z.txt",
+             "CHLV3_04152020t1200z.txt",
+             "CHLV4_04152020t1200z.txt",
+             "chlv2_04172020t1800z.csv")
+```
+
+We can search `datadir` for file names that match certain substrings. In this directory, the first 5 characters are the site name, the 8 numbers after the underscore are data and the 4 numbers after the letter "t" are time in GMT (indicated by "z"). We might want to search a directory for files from a particular site, such as CHLV2. We can use `str_view()` to visualize the matching process by providing a string and a regex pattern.
+
+```{r}
+#Search for the exact string "CHLV2"
+str_view(datadir, "CHLV2")
+```
+
+The result shows that three files in the directory match the pattern `CHLV2`. But the file named `chlv2_04172020t1300z.txt` does not match because the pattern is case-sensitive. If we want to match all files from the CHLV2 site regardless of capitalization, we can indicate that by adding the modifier `(?i)` at the beginning of the pattern.
+
+```{r}
+#Search for "CHLV2" without worrying about case
+str_view(datadir, "(?i)CHLV2")
+```
+
+We can also use these regex patterns directly with `list.files()`.
+
+```{r eval=FALSE}
+#List all files in the specified directory
+#matching the case insensitive pattern "CHLV2"
+list.files(path = "../data", pattern = "(?i)CHLV2")
+```
+
+## Wildcards
+
+If instead we wanted to find any site that began with "CHLV" followed by any number (for example, there could be a site CHLV4), we can search for `CHLV` followed by a wildcard. Regex uses `.` as a wildcard. We can use this to find all of the files from the CHLV sites.
+
+```{r}
+#Search for the string "CHLV" in upper or 
+#lower case followed by any character
+str_view(datadir, "(?i)CHLV.")
+```
+
+## Special characters
+
+Characters that perform special functions, like `.` which can be a character in a string or a wildcard, need to be specially designated when we want to search for them as a character. We do that with the escape character `\` . For example we might only want to read files with a `.txt` extension. Note that because the regex pattern is itself a string and `\` is also a special character, we have to use two escapes: `\\.`
+
+```{r}
+#Search for a string with a period 
+#followed by "txt"
+str_view(datadir, "\\.txt")
+```
+
+Other special characters that need to be escaped include: `^` ,`$` ,`|` ,`?` ,`*` ,`+` ,`(` ,`)` ,`[` , and `{` .
+
+## Basic character types
+
+It can be very useful to specifically find the digits in a string. For example, the date and time of the files in the directory. Inserting `\\d` as the search pattern will find the first digit in each file. 
+
+```{r}
+#Search for the first digit in the string
+str_view(datadir, "\\d")
+```
+
+To find the date, because we know it is 8 digits long, we can use `\\d{8}` , which matches sequences that are exactly 8 digits long. Or we could search for all the files with a 2020 date while excluding any files generated at 2020 hours.
+
+```{r}
+#Search for a string that is exactly eight digits long
+str_view(datadir, "\\d{8}")
+
+#Search for a four digit long string immediately 
+#followed by the string "2020"
+str_view(datadir, "\\d{4}2020")
+```
+
+For some types of data, matching whitespace (spaces, tabs, new lines, and carriage returns) is very useful. The expression `\\s` will match any type of whitespace, while `\\t` , for example, will specifically match tabs.
+
+## Positions within a string
+
+It is possible to specify where within a string the regex pattern should match. Typically, patterns are anchored either to the beginning `^` or end `$` , but other positions are possible. Earlier, we searched for the `.txt` extension, assuming that would not appear anywhere but the end of the filename, but we can make that condition more explicit by specifying that it should only match that string at the end position. 
+
+```{r}
+#Search for a string ending with ".txt"
+str_view(datadir, "\\.txt$")
+```
+
+We might also want to extract the site names from all of the files. We know they are at the beginning of the file names and end before the underscore. We can use the beginning of line indicator `^` together with a "lookahead" that finds the part of a string before a given character. For example, `(?=_)` will look for parts of a string before an underscore. Similarly, `(?<=_)` does a "lookbehind" to find the part of a string following an underscore. We can combine these to isolate the site names.
+
+```{r}
+#Find all the characters (.+) from the beginning of
+#the string (^) up to but not including the underscore (?=_)
+str_view(datadir, "^.+(?=_)")
+```
+
+
+## Logic combinations
+
+Regex includes support for logic operators like OR and NOT which can be very helpful for specifying a subset of strings, like the filenames in our example. We might want to subset the files to only those frome sites CHLV3 or CHLV4, or data collected on the 15th or 17th of April. The possibilities you want to search for are separated by the pipe `|` and the entire set is enclosed in parentheses.
+
+```{r}
+#Search for a string that matches 
+#either "04152020" OR "04172020"
+str_view(datadir, "04(15|17)2020")
+
+#Search for a string that matches 
+#either "CHLV3" OR "CHLV4"
+str_view(datadir, "CHLV(3|4)")
+
+#Same as the above but less compact
+str_view(datadir, "(CHLV3|CHLV4)")
+```
+
+It is also possible to select strings that do NOT match specific characters or sets of characters. This uses the carrot `^` within square brackets --- not to be confused with `^` at the beginning of a pattern which indicates the start of the string.
+
+```{r}
+#Search for a string that starts with "CHLV" 
+#but is NOT followed by "2"
+str_view(datadir, "^CHLV[^2]")
+
+#Search for a string that starts with case-insensitive 
+#"CHLV" but is NOT followed by either "3" OR "4"
+str_view(datadir, "^(?i)CHLV[^34]")
+```
+
+## A few applications
+
+So far, we have been focused on matching patterns with regex, and while that in itself can be quite useful, the `stringr` package provides tools for many additional applications. For example, we might want to use the regex we developed previously for matching eight-digit dates to extract those dates to be able to add them as a column to a dataframe.
+
+```{r}
+str_extract(datadir, "\\d{8}")
+```
+
+We might also want to standardize our site names by converting them all into upper case. We can reuse our regex to select site names and replace all the names with an uppercase version.
+
+```{r}
+str_replace(datadir, "^.+(?=_)", toupper)
+```
+
+## More information
+
+For more information about regular expressions and their uses, tidyverse has a [good overview](https://stringr.tidyverse.org/articles/regular-expressions.html). 
+
+
+For questions or clarifications regarding this article, contact the UVa 
+Library StatLab: [statlab@virginia.edu](mailto:statlab@virginia.edu) 
+
+_Margot Bjoring_   
+_Statistical Research Consultant_  
+_University of Virginia Library_  
+
+```{r}
+sessionInfo()
+```
+
