@@ -1,0 +1,455 @@
+---
+title: Getting Started with Shiny
+author: Laura White
+date: '2020-05-07'
+slug: getting-started-with-shiny
+categories:
+  - R
+tags:
+  - shiny
+---
+
+
+
+<div id="what-is-shiny" class="section level2">
+<h2>What is Shiny?</h2>
+<p>Shiny is an R package that facilitates the creation of interactive web apps using R code, which can be hosted locally, on the <a href="https://www.shinyapps.io/">shinyapps server</a>, or on your own server. Shiny apps can range from extremely simple to incredibly sophisticated. They can be written purely with R code or supplemented with HTML, CSS, or JavaScript. Visit <a href="https://shiny.rstudio.com/gallery/#user-showcase">R studio’s shiny gallery</a> to view some examples. Among its many uses, shiny apps are a great way for researchers to engage others with their work and collected data.</p>
+<p>In this article we walk you through the steps of building a shiny app for visualizing disease occurrence in the United States from 1928-2011. The finished app is available at the following link. Take a look at the app, play with it, and then come back and build it yourself!</p>
+<p><a href="https://uvastatlab.shinyapps.io/US_Contagious_Diseases/">https://uvastatlab.shinyapps.io/US_Contagious_Diseases/</a></p>
+<p>To get started, you’ll need to install the <code>shiny</code> package in R. In this example, we’ll also be using the <code>shinyWidgets</code> package, which offers additional user inputs to use in your app, <code>dslabs</code>, which contains the example dataset we will use, <code>plotly</code>, for interactive graphs, and <code>tidyverse</code>, for data manipulation.</p>
+</div>
+<div id="getting-started-and-the-basic-framework" class="section level2">
+<h2>Getting started and the basic framework</h2>
+<p>To get started creating your app, create a new file by going to “New file” -&gt; “Shiny Web App”, enter the name of your app, and select “Single File”. With this option, you will keep all of your app’s code in a single r script, which is easiest for new users and for building relatively simple apps. Alternatively, you can also create separate ui.R and server.R files (“Multiple Files” option) in a dedicated directory, which you can then run using the <code>runApp()</code> function. The multiple files set up may be easier to navigate for more complicated apps with many lines of code.</p>
+<p>When you create this new file, RStudio will create a new folder with the name of your app that contains the app.R file. It comes with a very simple example app of an interactive histogram of Old Faithful data already loaded that you can experiment with. Do not change the name of the app.R file. For this tutorial, you can edit the preloaded template to follow along with the example app we will go through.</p>
+<p>Code for a Shiny app has two structural components, the user interface (ui) and server, which are passed to the <code>shinyApp()</code> function. The ui component generates the app’s structure that users see and interact with, while the server component converts the inputs from the user into the reactive output.</p>
+<p>This framework is represented as follows:</p>
+<pre class="r"><code>ui &lt;- fluidPage()
+
+server &lt;- function(input, output) {}
+
+
+shinyApp(ui=ui, server=server)</code></pre>
+</div>
+<div id="inputs-and-outputs" class="section level2">
+<h2>Inputs and outputs</h2>
+<p>Inputs and outputs are the key components of the ui. Inputs are the features of the app that users interact with, such as a numeric slider bar, date range, check boxes, text input, or a drop down menu. You can see all the options included in the standard shiny package at <a href="https://shiny.rstudio.com/gallery/widget-gallery.html" class="uri">https://shiny.rstudio.com/gallery/widget-gallery.html</a>.</p>
+<p>Outputs are the resulting R objects - for example, a graph, table, image, map, text, or summary statistics - that are either predetermined by you or generated in response to user inputs.</p>
+<p>Various inputs and outputs have their own arguments, so check the help pages to see what needs to be included in your code; however, some arguments are shared across functions.</p>
+<p>For example, <code>selectInput()</code> allows the user to choose an option (or options) from a drop down menu. You will give each of your inputs a unique <code>inputId</code> that you will use to access the associated values selected or contributed by the user. If you choose, you can also assign the input a label that will be displayed in the app. For the drop down menu, <code>choices</code> is the argument for the various options available to the user, while <code>selected</code> sets the default option. <code>multiple</code>, if TRUE, allows the user to select more than one option.</p>
+<pre class="r"><code>selectInput(inputId=&quot;YourInputName&quot;, 
+            label=&quot;DisplayedLabel&quot;, 
+            choices = c(&quot;Choice1&quot;, &quot;Choice2&quot;, 
+                        &quot;Choice3&quot;, &quot;Choice4&quot;), 
+            selected = &quot;Choice2&quot;, 
+            multiple=FALSE)</code></pre>
+<p>If you have multiple inputs, as we will in our example, separate them with commas in your code.</p>
+<p>Reactive outputs are created with an <code>*Output()</code> function in the ui and a <code>render*()</code> function in the server. The <code>*Output()</code> function creates a placeholder for the output in the app that you want to generate for the user. You then tell R how to build that object using the <code>render*()</code> function, often using the data collected from the user inputs.</p>
+<p>For example, we can take the input from our drop down menu in the input example to generate a data table. Say in our data, “Choice1”, “Choice2”, “Choice3”, and “Choice4” are different variables in our dataset. We want to generate a data table that displays the values of the variable selected by the user.</p>
+<p>Within the ui object, we include the data table output function to tell the app what output to display and where:</p>
+<pre class="r"><code>DT::dataTableOutput(outputId=&quot;MyDTname&quot;) </code></pre>
+<p>The code <code>DT::dataTableOutput</code> allows us to use the <code>dataTableOutput</code> function from the DT package without explictly loading the package. As before with the inputs, multiple outputs are separated by commas in the ui object.</p>
+<p>Within the server object, we build that data table with a render function, filtering it with the user’s selection (<code>input$YourInputName</code>), and assigning it to <code>output$MyDTname</code>. This results in a table that displays the data for the variable they selected.</p>
+<pre class="r"><code> output$MyDTname &lt;- DT::renderDataTable({
+    DT::datatable(my_dataset[, input$YourInputName, 
+                             drop = FALSE])
+  })</code></pre>
+<p>Unlike the ui elements, in the server object, we do not separate different components by commas.</p>
+</div>
+<div id="layout" class="section level2">
+<h2>Layout</h2>
+<p>Although adding panels or another type of layout isn’t necessary to build a simple app, it will often be useful for organization.</p>
+<p>A sidebar and main panel is the default layout provided by R studio, where you place your user inputs in the sidebar and the outputs in the larger main section. You’ll see this used in the pre-loaded example Old Faithful app. This layout is generated using the following code:</p>
+<pre class="r"><code>ui &lt;- fluidPage(
+  
+    titlePanel(&quot;Your title here!&quot;),
+
+    sidebarLayout(
+        sidebarPanel(
+            # inputs go here
+        ),
+
+        mainPanel(
+           # outputs here 
+        )
+    )
+)</code></pre>
+<p>Some alternative layouts and example code are available here: <a href="https://shiny.rstudio.com/articles/layout-guide.html" class="uri">https://shiny.rstudio.com/articles/layout-guide.html</a>.
+You can, for example, use <code>tabsetPanel()</code> to create multiple tabs of the main panel, or you can use <code>navbar*()</code> functions to create a navigation bar with drop down menus.</p>
+</div>
+<div id="reactive-data" class="section level2">
+<h2>Reactive data</h2>
+<p>Often when building a shiny app, you will be working with a dataset that you will want to change in some way to reflect user inputs. To do this, you can create a reactive expression in the server object that will make those changes to the data while the app is running.</p>
+<p>In the example below, the original data is filtered to be equal to a particular value of two different variables. Those values are set by the user. For example, your app has a drop down menu (“firstInput”) with categories A, B, and C. The reactive data will then be filtered to only contain the category the user selects. You can then use that reactive data when building your outputs.</p>
+<pre class="r"><code>reactive_data &lt;- reactive({
+    original_data %&gt;%
+      filter(variable1 == input$firstInput,
+             variable2 == input$secondInput)    
+    
+  }) </code></pre>
+<p>When you call reactive data, you must use parentheses (for example, <code>reactive_data()</code>), because the reactive expression creates a function.</p>
+</div>
+<div id="example-us-disease-occurrence-by-state-1928-2011" class="section level2">
+<h2>Example: US disease occurrence by state, 1928-2011</h2>
+<p>We’ll be using the <code>us_contagious_diseases</code> dataset that comes pre-loaded in the <code>dslabs</code> package. This dataset contains yearly counts of 7 different diseases for each state plus DC, from 1928 to 2011.</p>
+<p>In this example app, we will create interactive visualizations for our data, allowing the user to control the date range, state, select multiple diseases to display, and display frequencies in either raw counts or per capita.</p>
+<p>To make more clear the changes to the code for each additional element we add, the sections below will be only snippets of the larger code. <strong>The full code for the example app is available at the bottom of this article</strong>, where all of these snippets are put together. It may be helpful to load the finished app in advance and then read through the step-by-step descriptions of building it. Otherwise, clear the example app loaded by R studio and add or alter each element as we go through it. If you get stuck, refer to the full code.</p>
+<p>To get started, we will add our libraries. If you don’t already have them installed, run the following code in R. <em>Do not place this code into the app.R file</em>!</p>
+<pre class="r"><code>install.packages(c(&quot;shiny&quot;, &quot;shinyWidgets&quot;, &quot;dslabs&quot;,
+                   &quot;tidyverse&quot;, &quot;plotly&quot;))</code></pre>
+<p>Before beginning our app, we also need to create an additional variable in the data, a per capita measure. Copy and paste the following into your app.R file, overwriting the preloaded example code.</p>
+<pre class="r"><code>library(shiny)
+library(shinyWidgets)
+library(dslabs)
+library(tidyverse)
+library(plotly)
+
+
+data(&quot;us_contagious_diseases&quot;)
+disease &lt;- us_contagious_diseases
+disease &lt;- mutate(disease, percapita = count/(population/100000))</code></pre>
+<p>Next, below the libraries and data, we’ll add in the basic shiny framework and the sidebar + main panel layout structure discussed above:</p>
+<pre class="r"><code>ui &lt;- fluidPage(
+  
+    titlePanel(&quot;Your title here!&quot;),
+
+    sidebarLayout(
+        sidebarPanel(
+            # inputs go here
+        ),
+
+        mainPanel(
+           # outputs here 
+        )
+    )
+)
+
+server &lt;- function(input, output) {}
+
+
+shinyApp(ui=ui, server=server)</code></pre>
+<div id="graph-over-time" class="section level3">
+<h3>Graph over time</h3>
+<p>Before we add the interactive customizations to the app, we will add a line graph plotting disease frequencies over time in the main panel. As we add our customizations, the user will be able to manipulate the data displayed in this graph.</p>
+<p>Here we put a place holder for the graph output in the main panel of the ui, internally named “diseaseplot”. Within the server object, we write the code that creates “diseaseplot”. We will put all the user inputs in the sidebar panel, with the outputs going in the main panel.</p>
+<p>If you leave the app as is, you get a very busy graph, with the aggregated frequencies across all states displayed for every disease. Allowing the user to select the data they are most interested in will result in a much more visually appealing and readable graph.</p>
+<pre class="r"><code>ui &lt;- fluidPage(
+  
+  titlePanel(&quot;Diseases in the US 1928-2011&quot;),
+  sidebarLayout(
+    sidebarPanel(
+      # inputs
+    ),  
+    
+    mainPanel(
+      # outputs
+      plotOutput(&quot;diseaseplot&quot;)
+      
+    ) 
+  ) 
+)   
+
+server &lt;- function(input, output) {
+  
+  output$diseaseplot &lt;- renderPlot({
+
+    ggplot(disease, aes(x=year, y=count, color=disease)) +
+      geom_line() + 
+      theme_bw() +
+      xlab(&quot;Year&quot;) +
+      ylab(&quot;Number of cases&quot;) +
+      ggtitle(&quot;Cases over time&quot;)
+  })
+  
+}
+
+shinyApp(ui=ui, server=server)</code></pre>
+<p>Run the app (click the “Run App” button) to see what it looks like so far. After each section, try running the app to see how the additions or alterations we make change the app. To return to editing your code after running your app, either click the STOP sign icon in RStudio above the console or close the app window.</p>
+</div>
+<div id="select-state" class="section level3">
+<h3>Select state</h3>
+<p>Our first customization is to allow the user to select which state they would like to display disease data for. For this input, we’ll use <code>selectizeInput()</code> to create a drop down menu with all of the state names. We will internally name this input “stateInput”. The label displayed on the app is “State”. Because we have many states, instead of writing out each state name individually (<code>choices = c("Alabama", "Alaska", "Arizona" ....</code>)), we can set the choices to the different categories of the variable <code>state</code> with <code>choices = unique(disease$state)</code>. The <code>selected</code> argument allows us to choose the default state to use without user input (Virginia in this case). The <code>multiple=FALSE</code> argument only allows the user to select one option from the drop down list.</p>
+<p>In the larger code framework, the <code>selectizeInput()</code> function will go in the sidebar panel, along with the other inputs we will add.</p>
+<pre class="r"><code># within ui, inputs (in the sidebar panel)
+
+ selectizeInput(&quot;stateInput&quot;, &quot;State&quot;,
+                     choices = unique(disease$state),  
+                selected=&quot;Virginia&quot;, multiple =FALSE)</code></pre>
+<p>In order to translate the user’s input into the displayed graph, first we need to create a reactive dataset within the app. We will continue to add conditions to this dataset as we add more user inputs. For our first input, we add a filtering condition that will filter the disease data based on the user’s input. To call a user’s input, we use the syntax <code>input$inputname</code>, so in this case <code>input$stateInput</code> to select whatever state the user selected.</p>
+<p>The reactive dataset is the first code chunk we will add to the server object. The output render functions will go below the reactive data, not separated by commas.</p>
+<pre class="r"><code>server &lt;- function(input, output) {
+ d &lt;- reactive({
+    filtered &lt;-
+      disease %&gt;%
+      filter(state == input$stateInput)    
+    
+  }) 
+ 
+ # output render functions, including the line graph, 
+ # go below the reactive data 
+ 
+}</code></pre>
+<p>To integrate the reactive data into the plot, we need to change the data in the ggplot function from disease to <code>d()</code>. We now use a set of parentheses after the name of our data since we have created a function.</p>
+<pre class="r"><code># within server, below the reactive data
+
+output$diseaseplot &lt;- renderPlot({
+    
+    ggplot(d(), aes(x=year, y=count, color=disease)) +
+      geom_line() + 
+      theme_bw() +
+      xlab(&quot;Year&quot;) +
+      ylab(&quot;Number of cases&quot;) +
+      ggtitle(&quot;Cases over time&quot;)
+  
+  })</code></pre>
+</div>
+<div id="filter-by-diseases" class="section level3">
+<h3>Filter by disease(s)</h3>
+<p>Our next customization is allowing the user to select which diseases they want to display in the graph. Here we use the input <code>checkboxGroupInput()</code> to create checkboxes for the user to choose which disease they want to appear on the graph. We will give it the internal name “diseaseInput” and the outward label “Disease”. Hepatitis A and Polio are selected as the default choices to display.</p>
+<p>In our code framework, the <code>checkboxGroupInput()</code> function can go directly below our previous <code>selectizeInput()</code> function, separated by a comma.</p>
+<pre class="r"><code># within ui, inputs
+
+checkboxGroupInput(&quot;diseaseInput&quot;, &quot;Disease&quot;,
+                         choices = c(&quot;Hepatitis A&quot;,
+                                     &quot;Measles&quot;,
+                                     &quot;Mumps&quot;, &quot;Pertussis&quot;,
+                                     &quot;Polio&quot;, &quot;Rubella&quot;, 
+                                     &quot;Smallpox&quot;),
+                         selected = c(&quot;Hepatitis A&quot;, &quot;Polio&quot;))</code></pre>
+<p>In the server object, the only change is to add a disease filter to our reactive data, with the argument <code>disease %in% input$diseaseInput</code>. The ggplot function does not change.</p>
+<pre class="r"><code>d &lt;- reactive({
+    filtered &lt;-
+      disease %&gt;%
+      filter(state == input$stateInput,
+             disease %in% input$diseaseInput)    
+    
+  }) </code></pre>
+</div>
+<div id="filter-by-date-range" class="section level3">
+<h3>Filter by date range</h3>
+<p>Next, we add a customizable date range to the ui. The <code>sliderInput()</code> function creates a sliding bar scale that can be adjusted on either end. <code>min</code> and <code>max</code> arguments let you set the range of the slider, and <code>value</code> is the default range. <code>sep</code> is a separator for the thousands place in the numbers on the slider, which we will leave empty so that dates follow the format “1945” over “1,945”.</p>
+<p>The <code>sliderInput()</code> function goes below our previous two inputs, separated by a comma.</p>
+<pre class="r"><code># within ui, inputs
+
+sliderInput(&quot;yearInput&quot;, &quot;Year&quot;, min=1928, max=2011, 
+            value=c(1928, 2011), sep=&quot;&quot;)</code></pre>
+<p>Like before, year filters are then added to the reactive data in the server object and the ggplot function remains unchanged.</p>
+<pre class="r"><code> d &lt;- reactive({
+    filtered &lt;-
+      disease %&gt;%
+      filter(state == input$stateInput,
+             disease %in% input$diseaseInput,
+             year &gt;= input$yearInput[1],
+             year &lt;= input$yearInput[2])
+    
+  }) </code></pre>
+</div>
+<div id="count-data-vs.-per-capita" class="section level3">
+<h3>Count data vs. per capita</h3>
+<p>Our final customizable input will be allowing the user to select whether the graph displays disease raw counts or per capita data. Here, we’ll use the <code>radioGroupButtons()</code> input, which is part of the <code>shinyWidgets</code> package. The arguments for this input are similar to others we’ve used already, and the function goes below the previous three inputs (separated by a comma).</p>
+<pre class="r"><code># within ui, inputs
+
+radioGroupButtons(&quot;dataInput&quot;, &quot;Data&quot;,
+                   choiceNames = list(&quot;Count&quot;, &quot;Per capita&quot;),
+                   choiceValues = list(&quot;count&quot;, &quot;percapita&quot;))</code></pre>
+<p>Before we can change the reactive data, we need to make an alteration to how our original dataset is organized, reshaping it so that we have a single column for count and percapita values. We do this by adding the <code>pivot_longer</code> function below the percapita variable we created (at the beginning of the code, just below libraries). At the time of this writing, <code>pivot_longer</code> is a relatively new function, so make sure your tidyverse (or tidyr) package is up to date with the most recent version.</p>
+<pre class="r"><code>data(&quot;us_contagious_diseases&quot;)
+disease &lt;- us_contagious_diseases
+disease &lt;- mutate(disease, 
+                  percapita = count/(population/100000)) %&gt;% 
+  pivot_longer(cols = c(count, percapita), 
+               names_to = &quot;data&quot;, 
+               values_to = &quot;value&quot;)</code></pre>
+<p>Now that we’ve changed our dataset structure, we can add an additional filtering condition in the reactive data for the data type to reflect the user’s choice of count data vs. per capita data.</p>
+<pre class="r"><code>d &lt;- reactive({
+    disease %&gt;%
+      filter(state == input$stateInput,
+             disease %in% input$diseaseInput,
+             year &gt;= input$yearInput[1],
+             year &lt;= input$yearInput[2],
+             data == input$dataInput)
+    
+  }) </code></pre>
+<p>We now need to make some alterations to the ggplot function. The y axis is changed from <code>count</code> to <code>value</code> to reflect the user’s choice of data type. We also need to change the y-axis label from <code>ylab("Number of cases")</code> to <code>ylab(input$dataInput)</code> in order to get the axis labels to change on the graph when the user changes the data type.</p>
+<pre class="r"><code>output$diseaseplot &lt;- renderPlot({
+    
+     ggplot(d(), aes(x=year, y = value, color=disease)) +
+      geom_line() + 
+      theme_bw() +
+      xlab(&quot;Year&quot;) +
+      ylab(input$dataInput) +
+      ggtitle(&quot;Cases over time&quot;)
+})</code></pre>
+</div>
+<div id="frequency-table" class="section level3">
+<h3>Frequency table</h3>
+<p>Now that we’ve finished adding all of our user inputs, we can add a few extra outputs. We can add a frequency table that will display the number of cases or cases per capita of the selected disease(s) for the selected state in the selected time period.</p>
+<p>First, we put the place holder for our output (internally called “stats”) in the ui object. Like before, we want this output to be displayed in the main panel of the app, so we will put it beneath the first graph. <code>br()</code> creates a line break to space things out. The output function we want here is <code>verbatimTextOutput</code>, which will verbatim print the text output from the <code>aggregate()</code> function we will use on our data.</p>
+<pre class="r"><code># ui, main panel, outputs
+
+mainPanel(
+      plotOutput(&quot;diseaseplot&quot;),
+      br(), br(),
+      verbatimTextOutput(&quot;stats&quot;)
+    ) </code></pre>
+<p>Within the server object, but beneath the <code>output$diseaseplot</code> object, we will add a new <code>output$stats</code> object using the <code>renderPrint({})</code> function. No comma separation is needed between the disease plot and the frequency table.</p>
+<p>We create a frequency table with the <code>aggregate()</code> function. Because we’ve already created the reactive data when we built our line graph, nothing more needs to be done for the frequency table to change based on the user’s input. We call the reactive data with <code>data = d()</code>.</p>
+<pre class="r"><code># server
+
+ output$stats &lt;- renderPrint({
+    
+    aggregate(value ~ disease, data = d(), sum)
+    
+  })</code></pre>
+</div>
+<div id="box-plot" class="section level3">
+<h3>Box plot</h3>
+<p>Finally, our last output will be a second graph, a box plot, this time using plotly instead of ggplot. Because plotly graphs are interactive, we need to use different output and render functions. Instead of the <code>plotOutput()</code> and <code>renderPlot()</code> functions we used to create the line graph, we will use <code>plotlyOutput()</code> and <code>renderPlotly()</code>.</p>
+<p>Add a <code>plotlyOutput()</code> function to the UI to create a place holder for our second graph.</p>
+<pre class="r"><code># ui, main panel, outputs
+
+plotOutput(&quot;diseaseplot&quot;),
+br(), br(),
+verbatimTextOutput(&quot;stats&quot;), 
+br(), br(),
+plotlyOutput(&quot;distplot&quot;)</code></pre>
+<p>In the server object, below the <code>output$stats</code>, we will render our box plot. Set the data equal to the reactive data: <code>data=d()</code>. Set y equal to <code>value</code> (the name of the column containing the count and per capita data), in order to reflect the user’s choice of data type. And set the y-axis label to reflect the user’s input with <code>yaxis = list(title=input$dataInput)</code>.</p>
+<pre class="r"><code># server, below frequency table
+
+output$distplot &lt;- renderPlotly({
+  
+    box &lt;- plot_ly(d(), 
+                   y = ~value,
+                   color = ~disease, 
+                   type = &quot;box&quot;)  %&gt;%
+      layout(title = &quot;Distribution of cases 
+                      over different years&quot;,
+             yaxis = list(title=input$dataInput))
+    
+  })</code></pre>
+</div>
+<div id="full-code-for-this-example" class="section level3">
+<h3>Full code for this example</h3>
+<p>To run the finished app, copy and paste the full code below into your app.R file and click the “Run App” button:</p>
+<pre class="r"><code>library(shiny)
+library(shinyWidgets)
+library(dslabs)
+library(tidyverse)
+library(plotly)
+
+
+data(&quot;us_contagious_diseases&quot;)
+disease &lt;- us_contagious_diseases
+disease &lt;- mutate(disease, percapita = count/(population/100000)) %&gt;% 
+    pivot_longer(cols = c(count, percapita), 
+                 names_to = &quot;data&quot;, values_to = &quot;value&quot;)
+
+ui &lt;- fluidPage(
+    
+    titlePanel(&quot;Diseases in the US 1928-2011&quot;),
+    sidebarLayout(
+        sidebarPanel(
+            # inputs
+            selectizeInput(&quot;stateInput&quot;, &quot;State&quot;,
+                           choices = unique(disease$state),  
+                           selected=&quot;Virginia&quot;, multiple =FALSE), 
+            checkboxGroupInput(&quot;diseaseInput&quot;, &quot;Disease&quot;,
+                               choices = c(&quot;Hepatitis A&quot;,
+                                           &quot;Measles&quot;,
+                                           &quot;Mumps&quot;, &quot;Pertussis&quot;,
+                                           &quot;Polio&quot;, &quot;Rubella&quot;, 
+                                           &quot;Smallpox&quot;),
+                               selected = c(&quot;Hepatitis A&quot;, &quot;Polio&quot;)),
+            sliderInput(&quot;yearInput&quot;, &quot;Year&quot;, min=1928, max=2011, 
+                        value=c(1928, 2011), sep=&quot;&quot;),
+            radioGroupButtons(&quot;dataInput&quot;, &quot;Data&quot;,
+                              choiceNames = list(&quot;Count&quot;, &quot;Per capita&quot;),
+                              choiceValues = list(&quot;count&quot;, &quot;percapita&quot;))
+        ),  
+        
+        mainPanel(
+            plotOutput(&quot;diseaseplot&quot;),
+            br(), br(),
+            verbatimTextOutput(&quot;stats&quot;), 
+            br(), br(),
+            plotlyOutput(&quot;distplot&quot;)
+        ) 
+    )   
+)   
+
+server &lt;- function(input, output) {
+    
+    d &lt;- reactive({
+        disease %&gt;%
+            filter(state == input$stateInput,
+                   disease %in% input$diseaseInput,
+                   year &gt;= input$yearInput[1],
+                   year &lt;= input$yearInput[2],
+                   data == input$dataInput)
+    }) 
+    
+    
+    output$diseaseplot &lt;- renderPlot({
+        
+        ggplot(d(), aes(x=year, y = value, color=disease)) +
+            geom_line() + 
+            theme_bw() +
+            xlab(&quot;Year&quot;) +
+            ylab(input$dataInput) +
+            ggtitle(&quot;Cases over time&quot;)
+    })
+    
+    output$stats &lt;- renderPrint({
+        
+        aggregate(value ~ disease, data = d(), sum)
+        
+    })
+    
+    output$distplot &lt;- renderPlotly({
+        
+        box &lt;- plot_ly(d(), y = ~value,
+                       color = ~disease, type = &quot;box&quot;)  %&gt;%
+            layout(title = &quot;Distribution of cases over different years&quot;,
+                   yaxis = list(title=input$dataInput))
+        
+    })
+    
+}
+
+shinyApp(ui=ui, server=server)</code></pre>
+</div>
+<div id="further-resources" class="section level3">
+<h3>Further resources</h3>
+<p>The official RStudio Shiny cheat sheet:<br />
+<a href="https://shiny.rstudio.com/images/shiny-cheatsheet.pdf" class="uri">https://shiny.rstudio.com/images/shiny-cheatsheet.pdf</a></p>
+<p>Video and written tutorials designed for users who are new to Shiny and want a guided introduction:<br />
+<a href="https://shiny.rstudio.com/tutorial/" class="uri">https://shiny.rstudio.com/tutorial/</a></p>
+<p>For questions or clarifications regarding this article, contact the UVA
+Library StatLab: <a href="mailto:statlab@virginia.edu">statlab@virginia.edu</a></p>
+<p><em>Laura White</em><br />
+<em>Statistical Research Consultant</em><br />
+<em>University of Virginia Library</em></p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 4.0.0 (2020-04-24)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 18362)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_4.0.0  magrittr_1.5    bookdown_0.18   tools_4.0.0    
+##  [5] htmltools_0.4.0 yaml_2.2.1      Rcpp_1.0.4.6    stringi_1.4.6  
+##  [9] rmarkdown_2.1   blogdown_0.18   knitr_1.28      stringr_1.4.0  
+## [13] digest_0.6.25   xfun_0.13       rlang_0.4.6     evaluate_0.14</code></pre>
+</div>
+</div>
